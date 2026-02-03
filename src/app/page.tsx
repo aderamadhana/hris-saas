@@ -60,6 +60,10 @@ export default function Home() {
           </a>
         </div>
       </main>
+      <div className="bg-red-500 text-white p-4">
+  Test Tailwind - Ini harus merah!
+</div>
     </div>
+    
   );
 }
