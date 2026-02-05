@@ -23,37 +23,37 @@ const navigation = [
   },
   {
     name: 'Employees',
-    href: '/dashboard/employees',
+    href: '/employees',
     icon: Users,
   },
   {
     name: 'Attendance',
-    href: '/dashboard/attendance',
+    href: '/attendance',
     icon: Calendar,
   },
   {
     name: 'Leave Requests',
-    href: '/dashboard/leave',
+    href: '/leave',
     icon: ClipboardList,
   },
   {
     name: 'Payroll',
-    href: '/dashboard/payroll',
+    href: '/payroll',
     icon: DollarSign,
   },
   {
     name: 'Departments',
-    href: '/dashboard/departments',
+    href: '/departments',
     icon: Building2,
   },
   {
     name: 'Reports',
-    href: '/dashboard/reports',
+    href: '/reports',
     icon: FileText,
   },
   {
     name: 'Settings',
-    href: '/dashboard/settings',
+    href: '/settings',
     icon: Settings,
   },
 ]

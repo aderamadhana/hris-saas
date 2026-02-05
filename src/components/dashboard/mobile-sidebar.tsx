@@ -21,13 +21,13 @@ import {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Employees', href: '/dashboard/employees', icon: Users },
-  { name: 'Attendance', href: '/dashboard/attendance', icon: Calendar },
-  { name: 'Leave Requests', href: '/dashboard/leave', icon: ClipboardList },
-  { name: 'Payroll', href: '/dashboard/payroll', icon: DollarSign },
-  { name: 'Departments', href: '/dashboard/departments', icon: Building2 },
-  { name: 'Reports', href: '/dashboard/reports', icon: FileText },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+  { name: 'Employees', href: '/employees', icon: Users },
+  { name: 'Attendance', href: '/attendance', icon: Calendar },
+  { name: 'Leave Requests', href: '/leave', icon: ClipboardList },
+  { name: 'Payroll', href: '/payroll', icon: DollarSign },
+  { name: 'Departments', href: '/departments', icon: Building2 },
+  { name: 'Reports', href: '/reports', icon: FileText },
+  { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
 export function MobileSidebar() {
