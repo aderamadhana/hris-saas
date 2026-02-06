@@ -1,8 +1,8 @@
 // src/app/api/employees/[id]/invite/route.ts
-// API to send invitation email to employee
+// FIXED - Use admin client with service role
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
+import { createClient, createAdminClient } from '@/src/lib/supabase/server'
 import prisma from '@/src/lib/prisma'
 
 export async function POST(
@@ -10,7 +10,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Use regular client for authentication
     const supabase = await createClient()
+    const awaitParams = await params
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -31,7 +33,6 @@ export async function POST(
       },
     })
 
-    console.log(currentEmployee)
     if (!currentEmployee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
     }
@@ -43,10 +44,11 @@ export async function POST(
         { status: 403 }
       )
     }
+
     // Get employee to invite
     const employee = await prisma.employee.findFirst({
       where: {
-        id: params.id,
+        id: awaitParams.id,
         organizationId: currentEmployee.organizationId,
       },
     })
@@ -56,17 +58,19 @@ export async function POST(
     }
 
     // Check if employee already has auth account
-    if (employee.authId) {
+    if (employee.authId && employee.authId.trim() !== '') {
       return NextResponse.json(
         { error: 'Employee already has an account' },
         { status: 400 }
       )
     }
 
+    // ✅ Use admin client with service role for invite
+    const adminClient = await createAdminClient()
+
     // Create invitation in Supabase Auth
-    // This sends an email with magic link to set password
     const { data: inviteData, error: inviteError } = 
-      await supabase.auth.admin.inviteUserByEmail(employee.email, {
+      await adminClient.auth.admin.inviteUserByEmail(employee.email, {
         data: {
           first_name: employee.firstName,
           last_name: employee.lastName,
@@ -78,7 +82,11 @@ export async function POST(
       })
 
     if (inviteError) {
-      throw inviteError
+      console.error('Invite error:', inviteError)
+      return NextResponse.json(
+        { error: inviteError.message },
+        { status: 400 }
+      )
     }
 
     return NextResponse.json({

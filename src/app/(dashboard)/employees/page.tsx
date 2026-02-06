@@ -55,7 +55,7 @@ export default async function EmployeesPage() {
     department: emp.department?.name || '-',
     status: emp.status,
     joinDate: emp.joinDate.toISOString().split('T')[0],
-    hasAuth: !!emp.authId,  // ← Add this
+    hasAuth: emp.authId !== null && emp.authId !== '',
   }))
 
   return (
