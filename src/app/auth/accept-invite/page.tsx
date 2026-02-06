@@ -26,51 +26,66 @@ export default function AcceptInvitePage() {
   const [userInfo, setUserInfo] = useState<any>(null)
 
   useEffect(() => {
-    // Get user info from URL params (sent by Supabase)
     const checkInvitation = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      // Ambil token dari URL (bukan getUser)
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      const accessToken = hashParams.get('access_token')
       
-      if (user) {
-        setUserInfo({
-          email: user.email,
-          firstName: user.user_metadata?.first_name,
-          lastName: user.user_metadata?.last_name,
-          organizationName: user.user_metadata?.organization_name,
-        })
+      if (accessToken) {
+        // Gunakan token untuk mendapatkan info pengguna yang diundang
+        const { data: { user }, error } = await supabase.auth.getUser(accessToken)
+        
+        if (user && !error) {
+          setUserInfo({
+            email: user.email,
+            firstName: user.user_metadata?.first_name,
+            lastName: user.user_metadata?.last_name,
+            organizationName: user.user_metadata?.organization_name,
+          })
+        }
       }
     }
 
     checkInvitation()
   }, [])
-
+  
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
+  e.preventDefault()
+  setError(null)
 
-    // Validation
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters')
-      return
-    }
+  // Validation
+  if (password.length < 8) {
+    setError('Password must be at least 8 characters')
+    return
+  }
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
+  if (password !== confirmPassword) {
+    setError('Passwords do not match')
+    return
+  }
 
-    setIsLoading(true)
-
+  setIsLoading(true)
     try {
-      // Update password for invited user
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: password,
-      })
+      // Ambil token dari URL terlebih dahulu
+      const hashParams = new URLSearchParams(window.location.hash.substring(1))
+      const accessToken = hashParams.get('access_token')
+
+      if (!accessToken) {
+        throw new Error('Invalid invitation link')
+      }
+
+      // Update password untuk user yang diundang menggunakan token
+      const { error: updateError } = await supabase.auth.updateUser(
+        { password: password }
+      )
 
       if (updateError) throw updateError
 
-      // Link authId to employee record
-      const { data: { user } } = await supabase.auth.getUser()
-      
+      // Dapatkan user dengan token dari URL
+      const { data: { user }, error: getUserError } = await supabase.auth.getUser(accessToken)
+
+      if (getUserError) throw getUserError
+
       if (user) {
         const response = await fetch('/api/employees/link-auth', {
           method: 'POST',
@@ -78,6 +93,7 @@ export default function AcceptInvitePage() {
           body: JSON.stringify({
             authId: user.id,
             email: user.email,
+            accessToken: accessToken, // Kirim token juga ke server untuk validasi
           }),
         })
 
@@ -89,7 +105,7 @@ export default function AcceptInvitePage() {
 
       setSuccess(true)
 
-      // Redirect to dashboard after 2 seconds
+      // Redirect ke dashboard setelah 2 detik
       setTimeout(() => {
         router.push('/dashboard')
       }, 2000)

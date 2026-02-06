@@ -1,5 +1,5 @@
 // src/app/api/employees/link-auth/route.ts
-// FIXED VERSION - Handle null authId properly
+// API to link Supabase Auth user with Employee record
 
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/src/lib/prisma'
@@ -16,21 +16,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // ✅ FIX: Find employee with null OR empty authId
     const employee = await prisma.employee.findFirst({
-      where: { 
-        email,
-        OR: [
-          { authId: null },
-          { authId: '' },
-        ],
-      },
+      where: { email },
     })
 
     if (!employee) {
       return NextResponse.json(
-        { error: 'Employee not found or already linked' },
+        { error: 'Employee not found' },
         { status: 404 }
+      )
+    }
+
+    // Check if already linked
+    if (employee.authId && employee.authId !== '') {
+      return NextResponse.json(
+        { error: 'Employee account already linked' },
+        { status: 400 }
       )
     }
 
