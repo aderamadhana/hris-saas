@@ -1,10 +1,10 @@
 // src/app/auth/accept-invite/page.tsx
-// Page for employees to accept invitation and set password
+// FIXED - Use correct user from invitation token
 
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/src/lib/supabase/client'
 import { Button } from '@/src/components/ui/button'
 import { Input } from '@/src/components/ui/input'
@@ -14,7 +14,6 @@ import { Loader2, CheckCircle, Eye, EyeOff } from 'lucide-react'
 
 export default function AcceptInvitePage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const supabase = createClient()
 
   const [password, setPassword] = useState('')
@@ -24,25 +23,41 @@ export default function AcceptInvitePage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [userInfo, setUserInfo] = useState<any>(null)
+  const [invitationToken, setInvitationToken] = useState<string | null>(null)
 
   useEffect(() => {
     const checkInvitation = async () => {
-      // Ambil token dari URL (bukan getUser)
-      const hashParams = new URLSearchParams(window.location.hash.substring(1))
-      const accessToken = hashParams.get('access_token')
-      
-      if (accessToken) {
-        // Gunakan token untuk mendapatkan info pengguna yang diundang
-        const { data: { user }, error } = await supabase.auth.getUser(accessToken)
+      try {
+        // Get token from URL hash
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const accessToken = hashParams.get('access_token')
         
-        if (user && !error) {
-          setUserInfo({
-            email: user.email,
-            firstName: user.user_metadata?.first_name,
-            lastName: user.user_metadata?.last_name,
-            organizationName: user.user_metadata?.organization_name,
-          })
+        if (!accessToken) {
+          setError('Invalid invitation link. Please request a new invitation.')
+          return
         }
+
+        // Save token for later use
+        setInvitationToken(accessToken)
+        
+        // Get user info from token
+        const { data: { user: tokenUser }, error } = await supabase.auth.getUser(accessToken)
+        
+        if (error || !tokenUser) {
+          setError('Invalid or expired invitation link.')
+          return
+        }
+
+        setUserInfo({
+          email: tokenUser.email,
+          firstName: tokenUser.user_metadata?.first_name,
+          lastName: tokenUser.user_metadata?.last_name,
+          organizationName: tokenUser.user_metadata?.organization_name,
+          userId: tokenUser.id,
+        })
+      } catch (err) {
+        console.error('Error checking invitation:', err)
+        setError('Failed to load invitation. Please try again.')
       }
     }
 
@@ -50,70 +65,126 @@ export default function AcceptInvitePage() {
   }, [])
   
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  setError(null)
+    e.preventDefault()
+    setError(null)
 
-  // Validation
-  if (password.length < 8) {
-    setError('Password must be at least 8 characters')
-    return
-  }
+    // Validation
+    if (!userInfo?.email) {
+      setError('User information not loaded. Please refresh the page.')
+      return
+    }
 
-  if (password !== confirmPassword) {
-    setError('Passwords do not match')
-    return
-  }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
+      return
+    }
 
-  setIsLoading(true)
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
+    setIsLoading(true)
+
     try {
-      // Ambil token dari URL terlebih dahulu
-      const hashParams = new URLSearchParams(window.location.hash.substring(1))
-      const accessToken = hashParams.get('access_token')
+      console.log('🔐 Setting password for:', userInfo.email)
 
-      if (!accessToken) {
-        throw new Error('Invalid invitation link')
-      }
+      // Step 1: Sign out any existing session first
+      await supabase.auth.signOut()
 
-      // Update password untuk user yang diundang menggunakan token
-      const { error: updateError } = await supabase.auth.updateUser(
-        { password: password }
-      )
-
-      if (updateError) throw updateError
-
-      // Dapatkan user dengan token dari URL
-      const { data: { user }, error: getUserError } = await supabase.auth.getUser(accessToken)
-
-      if (getUserError) throw getUserError
-
-      if (user) {
-        const response = await fetch('/api/employees/link-auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            authId: user.id,
-            email: user.email,
-            accessToken: accessToken, // Kirim token juga ke server untuk validasi
-          }),
+      // Step 2: Exchange token for session (if needed)
+      if (invitationToken) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: invitationToken,
+          refresh_token: invitationToken, // Use same token
         })
 
-        if (!response.ok) {
-          const data = await response.json()
-          throw new Error(data.error || 'Failed to link account')
+        if (sessionError) {
+          console.error('Session error:', sessionError)
         }
       }
 
+      // Step 3: Update password using the invitation session
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: password,
+      })
+
+      if (updateError) {
+        console.error('Update password error:', updateError)
+        throw updateError
+      }
+
+      console.log('✅ Password updated successfully')
+
+      // Step 4: Sign out from invitation session
+      await supabase.auth.signOut()
+
+      // Step 5: Sign in with new credentials
+      console.log('🔑 Signing in with new password...')
+      
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: userInfo.email, // ✅ Use email from userInfo, not from getUser()
+        password: password,
+      })
+
+      if (signInError) {
+        console.error('Sign in error:', signInError)
+        throw new Error(`Failed to sign in: ${signInError.message}`)
+      }
+
+      if (!signInData.user) {
+        throw new Error('Failed to sign in after password set')
+      }
+
+      console.log('✅ Signed in successfully')
+
+      // Step 6: Link auth to employee record
+      console.log('🔗 Linking auth to employee...')
+      
+      const response = await fetch('/api/employees/link-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          authId: signInData.user.id,
+          email: signInData.user.email,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        console.error('Link auth error:', data)
+        throw new Error(data.error || 'Failed to link account')
+      }
+
+      console.log('✅ Account linked successfully')
+
       setSuccess(true)
 
-      // Redirect ke dashboard setelah 2 detik
+      // Redirect to dashboard after 2 seconds
       setTimeout(() => {
         router.push('/dashboard')
+        router.refresh()
       }, 2000)
     } catch (err: any) {
-      setError(err.message)
+      console.error('❌ Accept invite error:', err)
+      setError(err.message || 'Failed to activate account. Please try again.')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Show loading state while checking invitation
+  if (!userInfo && !error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-8 text-center">
+            <Loader2 className="mx-auto h-12 w-12 animate-spin text-blue-600 mb-4" />
+            <p className="text-gray-600">Loading invitation...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   if (success) {

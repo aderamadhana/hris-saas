@@ -51,7 +51,11 @@ export default async function DashboardLayout({
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Desktop Sidebar */}
       <aside className="hidden md:block">
-        <Sidebar />
+        <Sidebar 
+          userName={`${userData.firstName} ${userData.lastName}`}
+          userEmail={userData.email}
+          userRole={userData.role}
+        />
       </aside>
 
       {/* Main Content */}
