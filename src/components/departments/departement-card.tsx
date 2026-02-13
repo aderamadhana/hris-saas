@@ -76,7 +76,7 @@ export function DepartmentCard({ department, canManage }: DepartmentCardProps) {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() =>
-                    router.push(`/dashboard/departments/${department.id}`)
+                    router.push(`/departments/${department.id}`)
                   }
                 >
                   <Building2 className="mr-2 h-4 w-4" />
@@ -84,7 +84,7 @@ export function DepartmentCard({ department, canManage }: DepartmentCardProps) {
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() =>
-                    router.push(`/dashboard/departments/${department.id}/edit`)
+                    router.push(`/departments/${department.id}/edit`)
                   }
                 >
                   <Edit className="mr-2 h-4 w-4" />

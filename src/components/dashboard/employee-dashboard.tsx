@@ -1,4 +1,4 @@
-// src/components/dashboard/employee-dashboard.tsx
+// src/components/employee-dashboard.tsx
 // Employee view - Personal stats and actions only
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card'
@@ -226,7 +226,7 @@ export async function EmployeeDashboard({ employee }: EmployeeDashboardProps) {
                 <p className="text-gray-600">You haven't checked in today</p>
               )}
             </div>
-            <Link href="/dashboard/attendance">
+            <Link href="/attendance">
               <Button>
                 {todayAttendance
                   ? todayAttendance.checkOut
@@ -279,7 +279,7 @@ export async function EmployeeDashboard({ employee }: EmployeeDashboardProps) {
               </div>
             </div>
 
-            <Link href="/dashboard/leave/new" className="block">
+            <Link href="/leave/new" className="block">
               <Button className="w-full">Request Leave</Button>
             </Link>
           </CardContent>
@@ -308,7 +308,7 @@ export async function EmployeeDashboard({ employee }: EmployeeDashboardProps) {
                 </div>
               )}
 
-              <Link href="/dashboard/leave" className="block">
+              <Link href="/leave" className="block">
                 <Button variant="outline" className="w-full">
                   View All Requests
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -326,25 +326,25 @@ export async function EmployeeDashboard({ employee }: EmployeeDashboardProps) {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Link href="/dashboard/profile">
+            <Link href="/profile">
               <Button variant="outline" className="w-full justify-start">
                 <User className="mr-2 h-4 w-4" />
                 My Profile
               </Button>
             </Link>
-            <Link href="/dashboard/attendance">
+            <Link href="/attendance">
               <Button variant="outline" className="w-full justify-start">
                 <Clock className="mr-2 h-4 w-4" />
                 Attendance
               </Button>
             </Link>
-            <Link href="/dashboard/leave">
+            <Link href="/leave">
               <Button variant="outline" className="w-full justify-start">
                 <CalendarDays className="mr-2 h-4 w-4" />
                 Leave History
               </Button>
             </Link>
-            <Link href="/dashboard/payroll">
+            <Link href="/payroll">
               <Button variant="outline" className="w-full justify-start">
                 <DollarSign className="mr-2 h-4 w-4" />
                 Payslips

@@ -95,7 +95,7 @@ export default async function DepartmentsPage() {
         </div>
 
         {canManage && (
-          <Link href="/dashboard/departments/new">
+          <Link href="/departments/new">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
               Add Department
@@ -166,7 +166,7 @@ export default async function DepartmentsPage() {
             Create your first department to get started
           </p>
           {canManage && (
-            <Link href="/dashboard/departments/new">
+            <Link href="/departments/new">
               <Button className="mt-4">
                 <Plus className="mr-2 h-4 w-4" />
                 Add Department

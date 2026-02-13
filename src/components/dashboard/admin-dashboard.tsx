@@ -440,7 +440,7 @@ export async function AdminDashboard({ employee }: AdminDashboardProps) {
                     Add Employee
                   </Button>
                 </Link>
-                <Link href="/dashboard/departments/new">
+                <Link href="/departments/new">
                   <Button variant="outline" className="w-full justify-start">
                     <Building2 className="mr-2 h-4 w-4" />
                     Add Department
