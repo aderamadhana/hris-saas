@@ -32,8 +32,30 @@ model Organization {
   payrolls             Payroll[]
   settings             OrganizationSettings?
 
+  planType        String   @default("free")  
+  planStatus      String   @default("active") 
+  employeeLimit   Int      @default(5) 
+  storageLimit    Float    @default(1) 
+  currentPeriodEnd DateTime?     
+  trialEndsAt     DateTime?   
+  
+  usageLogs       UsageLog[]
+
   @@index([slug])
   @@index([stripeCustomerId])
+}
+
+model UsageLog {
+  id              String   @id @default(cuid())
+  organizationId  String
+  employeeCount   Int
+  storageUsed     Float    @default(0)
+  recordedAt      DateTime @default(now())
+  
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  @@index([organizationId])
+  @@index([recordedAt])
 }
 
 // Organization Settings

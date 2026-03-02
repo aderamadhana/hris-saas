@@ -4,6 +4,7 @@ import { createClient } from '@/src/lib/supabase/server'
 import prisma from '@/src/lib/prisma'
 import { generateEmployeeId } from '@/src/lib/utils'
 import { randomUUID } from 'crypto'
+import { canAddEmployee, UsageLimitError } from '@/src/lib/billing/usage-limits'
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,6 +44,22 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
+
+    try {
+      await canAddEmployee(currentEmployee.organizationId)
+    } catch (error) {
+      if (error instanceof UsageLimitError) {
+        return NextResponse.json(
+          { 
+            error: error.message,
+            limitReached: true,
+          },
+          { status: 403 }
+        )
+      }
+      throw error
+    }
+
     const {
       firstName,
       lastName,

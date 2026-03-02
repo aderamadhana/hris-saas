@@ -11,8 +11,25 @@ CREATE TABLE "Organization" (
     "maxEmployees" INTEGER NOT NULL DEFAULT 10,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "planType" TEXT NOT NULL DEFAULT 'free',
+    "planStatus" TEXT NOT NULL DEFAULT 'active',
+    "employeeLimit" INTEGER NOT NULL DEFAULT 5,
+    "storageLimit" DOUBLE PRECISION NOT NULL DEFAULT 1,
+    "currentPeriodEnd" TIMESTAMP(3),
+    "trialEndsAt" TIMESTAMP(3),
 
     CONSTRAINT "Organization_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "UsageLog" (
+    "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
+    "employeeCount" INTEGER NOT NULL,
+    "storageUsed" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "recordedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "UsageLog_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -35,7 +52,7 @@ CREATE TABLE "OrganizationSettings" (
 CREATE TABLE "Employee" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
-    "authId" TEXT NOT NULL,
+    "authId" TEXT,
     "email" TEXT NOT NULL,
     "firstName" TEXT NOT NULL,
     "lastName" TEXT NOT NULL,
@@ -148,6 +165,12 @@ CREATE INDEX "Organization_slug_idx" ON "Organization"("slug");
 CREATE INDEX "Organization_stripeCustomerId_idx" ON "Organization"("stripeCustomerId");
 
 -- CreateIndex
+CREATE INDEX "UsageLog_organizationId_idx" ON "UsageLog"("organizationId");
+
+-- CreateIndex
+CREATE INDEX "UsageLog_recordedAt_idx" ON "UsageLog"("recordedAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "OrganizationSettings_organizationId_key" ON "OrganizationSettings"("organizationId");
 
 -- CreateIndex
@@ -212,6 +235,9 @@ CREATE INDEX "Payroll_status_idx" ON "Payroll"("status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Payroll_employeeId_period_key" ON "Payroll"("employeeId", "period");
+
+-- AddForeignKey
+ALTER TABLE "UsageLog" ADD CONSTRAINT "UsageLog_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "OrganizationSettings" ADD CONSTRAINT "OrganizationSettings_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
