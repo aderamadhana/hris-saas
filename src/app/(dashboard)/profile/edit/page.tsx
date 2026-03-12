@@ -1,33 +1,46 @@
-// src/app/(dashboard)/profile/edit/page.tsx
-// Edit profile page
+import { createClient } from "@/src/lib/supabase/server";
+import prisma from "@/src/lib/prisma";
+import { ProfileForm } from "@/src/components/profile/profile-form";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
+import { Button } from "@/src/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
-import { ProfileForm } from '@/src/components/profile/profile-form'
-import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card'
-import { Button } from '@/src/components/ui/button'
-import { ArrowLeft } from 'lucide-react'
-import Link from 'next/link'
-
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 export default async function EditProfilePage() {
-  const supabase = await createClient()
+  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    return null
+    return null;
   }
 
   const employee = await prisma.employee.findUnique({
     where: { authId: user.id },
-  })
+  });
 
   if (!employee) {
-    return null
+    return null;
   }
+
+  // ✅ FIX: Convert Decimal to number
+  const employeeData = {
+    id: employee.id,
+    firstName: employee.firstName,
+    lastName: employee.lastName,
+    email: employee.email,
+    phoneNumber: employee.phoneNumber,
+    baseSalary: employee.baseSalary.toNumber(), // ✅ Convert Decimal to number
+  };
+  console.log(employeeData);
 
   return (
     <div className="space-y-6">
@@ -52,9 +65,9 @@ export default async function EditProfilePage() {
           <CardTitle>Personal Information</CardTitle>
         </CardHeader>
         <CardContent>
-          <ProfileForm employee={employee} />
+          <ProfileForm employee={employeeData} />
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

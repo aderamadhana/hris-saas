@@ -1,4 +1,4 @@
-// src/components/dashboard/admin-dashboard.tsx
+// src/components/admin-dashboard.tsx
 // Admin/HR/Manager view - Organization-wide stats and management
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card'
@@ -159,7 +159,7 @@ export async function AdminDashboard({ employee }: AdminDashboardProps) {
           </p>
         </div>
         {['owner', 'admin', 'hr'].includes(employee.role) && (
-          <Link href="/dashboard/employees/new">
+          <Link href="/employees/new">
             <Button>
               <UserPlus className="mr-2 h-4 w-4" />
               Add Employee
@@ -343,7 +343,7 @@ export async function AdminDashboard({ employee }: AdminDashboardProps) {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Recent Employees</CardTitle>
-              <Link href="/dashboard/employees">
+              <Link href="/employees">
                 <Button variant="ghost" size="sm">
                   View All
                 </Button>
@@ -389,7 +389,7 @@ export async function AdminDashboard({ employee }: AdminDashboardProps) {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Pending Leave Requests</CardTitle>
-              <Link href="/dashboard/leave">
+              <Link href="/leave">
                 <Button variant="ghost" size="sm">
                   View All
                 </Button>
@@ -434,7 +434,7 @@ export async function AdminDashboard({ employee }: AdminDashboardProps) {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {['owner', 'admin', 'hr'].includes(employee.role) && (
               <>
-                <Link href="/dashboard/employees/new">
+                <Link href="/employees/new">
                   <Button variant="outline" className="w-full justify-start">
                     <UserPlus className="mr-2 h-4 w-4" />
                     Add Employee
@@ -448,13 +448,13 @@ export async function AdminDashboard({ employee }: AdminDashboardProps) {
                 </Link>
               </>
             )}
-            <Link href="/dashboard/attendance">
+            <Link href="/attendance">
               <Button variant="outline" className="w-full justify-start">
                 <Clock className="mr-2 h-4 w-4" />
                 View Attendance
               </Button>
             </Link>
-            <Link href="/dashboard/leave">
+            <Link href="/leave">
               <Button variant="outline" className="w-full justify-start">
                 <CalendarDays className="mr-2 h-4 w-4" />
                 Manage Leaves

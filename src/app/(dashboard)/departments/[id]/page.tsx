@@ -1,12 +1,17 @@
 // src/app/(dashboard)/departments/[id]/page.tsx
 // Department detail page with employee list
 
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
-import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card'
-import { Button } from '@/src/components/ui/button'
-import { Badge } from '@/src/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/src/components/ui/avatar'
+import { createClient } from "@/src/lib/supabase/server";
+import prisma from "@/src/lib/prisma";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
+import { Button } from "@/src/components/ui/button";
+import { Badge } from "@/src/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import {
   Building2,
   Users,
@@ -17,22 +22,22 @@ import {
   Phone,
   Calendar,
   Briefcase,
-} from 'lucide-react'
-import Link from 'next/link'
-import { notFound } from 'next/navigation'
+} from "lucide-react";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
 export default async function DepartmentDetailPage({
   params,
 }: {
-  params: { id: string }
+  params: { id: string };
 }) {
-  const supabase = await createClient()
+  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    return null
+    return null;
   }
 
   const currentEmployee = await prisma.employee.findUnique({
@@ -41,13 +46,13 @@ export default async function DepartmentDetailPage({
       organizationId: true,
       role: true,
     },
-  })
+  });
 
   if (!currentEmployee) {
-    return null
+    return null;
   }
 
-  const canManage = ['owner', 'admin', 'hr'].includes(currentEmployee.role)
+  const canManage = ["owner", "admin", "hr"].includes(currentEmployee.role);
 
   // Get department with full details
   const department = await prisma.department.findFirst({
@@ -76,36 +81,36 @@ export default async function DepartmentDetailPage({
           },
         },
         orderBy: {
-          firstName: 'asc',
+          firstName: "asc",
         },
       },
     },
-  })
+  });
 
   if (!department) {
-    notFound()
+    notFound();
   }
 
   // Calculate stats
-  const totalEmployees = department.employees.length
+  const totalEmployees = department.employees.length;
   const activeEmployees = department.employees.filter(
-    (e) => e.status === 'active'
-  ).length
-  const inactiveEmployees = totalEmployees - activeEmployees
+    (e) => e.status === "active",
+  ).length;
+  const inactiveEmployees = totalEmployees - activeEmployees;
 
   // Get initials for avatars
   const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
-  }
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  };
 
   // Format date
   const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('id-ID', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }).format(new Date(date))
-  }
+    return new Intl.DateTimeFormat("id-ID", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(new Date(date));
+  };
 
   return (
     <div className="space-y-6">
@@ -122,7 +127,7 @@ export default async function DepartmentDetailPage({
               {department.name}
             </h1>
             <p className="mt-1 text-sm text-gray-600">
-              {department.description || 'No description'}
+              {department.description || "No description"}
             </p>
           </div>
         </div>
@@ -207,7 +212,7 @@ export default async function DepartmentDetailPage({
                 <AvatarFallback className="bg-blue-600 text-white text-lg">
                   {getInitials(
                     department.manager.firstName,
-                    department.manager.lastName
+                    department.manager.lastName,
                   )}
                 </AvatarFallback>
               </Avatar>
@@ -240,7 +245,7 @@ export default async function DepartmentDetailPage({
               </div>
 
               {canManage && (
-                <Link href={`/dashboard/employees/${department.manager.id}`}>
+                <Link href={`/employees/${department.manager.id}`}>
                   <Button variant="outline" size="sm">
                     View Profile
                   </Button>
@@ -310,11 +315,11 @@ export default async function DepartmentDetailPage({
                         </h4>
                         <Badge
                           variant={
-                            employee.status === 'active'
-                              ? 'success'
-                              : employee.status === 'inactive'
-                              ? 'secondary'
-                              : 'destructive'
+                            employee.status === "active"
+                              ? "success"
+                              : employee.status === "inactive"
+                                ? "secondary"
+                                : "destructive"
                           }
                         >
                           {employee.status}
@@ -334,7 +339,7 @@ export default async function DepartmentDetailPage({
                   </div>
 
                   {canManage && (
-                    <Link href={`/dashboard/employees/${employee.id}`}>
+                    <Link href={`/employees/${employee.id}`}>
                       <Button variant="ghost" size="sm">
                         View
                       </Button>
@@ -364,5 +369,5 @@ export default async function DepartmentDetailPage({
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
