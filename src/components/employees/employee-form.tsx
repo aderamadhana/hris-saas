@@ -1,262 +1,390 @@
-// src/components/employees/employee-form.tsx
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { Button } from '@/src/components/ui/button'
-import { Input } from '@/src/components/ui/input'
-import { Label } from '@/src/components/ui/label'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/src/components/ui/select'
-import { Loader2 } from 'lucide-react'
-
-// Validation schema
-const employeeSchema = z.object({
-  firstName: z.string().min(2, 'First name must be at least 2 characters'),
-  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
-  email: z.string().email('Invalid email address'),
-  phoneNumber: z.string().optional(),
-  position: z.string().min(2, 'Position is required'),
-  departmentId: z.string().optional(),
-  employmentType: z.enum(['full-time', 'part-time', 'contract', 'intern']),
-  baseSalary: z.string().min(1, 'Salary is required'),
-  status: z.enum(['active', 'inactive']),
-})
-
-type EmployeeFormData = z.infer<typeof employeeSchema>
+} from "@/src/components/ui/select";
+import { useToast } from "@/src/hooks/use-toast";
+import { Loader2, Info } from "lucide-react";
 
 interface Department {
-  id: string
-  name: string
+  id: string;
+  name: string;
 }
 
 interface EmployeeFormProps {
-  departments: Department[]
-  organizationId: string
-  initialData?: Partial<EmployeeFormData> & { id?: string }
-  isEdit?: boolean
+  departments: Department[];
+  mode: "create" | "edit";
+  employee?: any;
+  currentUserRole: string; // ✅ NEW: To determine who can assign roles
 }
+
+// ✅ Role options with descriptions
+const ROLE_OPTIONS = [
+  {
+    value: "employee",
+    label: "Employee",
+    description: "Regular staff - Self-service only",
+    badge: "Gray",
+  },
+  {
+    value: "manager",
+    label: "Manager",
+    description: "Team leader - Approve team leave",
+    badge: "Blue",
+  },
+  {
+    value: "hr",
+    label: "HR Manager",
+    description: "HR team - Manage employees & payroll",
+    badge: "Purple",
+  },
+  {
+    value: "admin",
+    label: "Administrator",
+    description: "System admin - Full access except billing",
+    badge: "Orange",
+  },
+  {
+    value: "owner",
+    label: "Owner",
+    description: "Company owner - Full access including billing",
+    badge: "Red",
+  },
+];
 
 export function EmployeeForm({
   departments,
-  organizationId,
-  initialData,
-  isEdit = false,
+  mode,
+  employee,
+  currentUserRole,
 }: EmployeeFormProps) {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors },
-  } = useForm<EmployeeFormData>({
-    resolver: zodResolver(employeeSchema),
-    defaultValues: {
-      firstName: initialData?.firstName || '',
-      lastName: initialData?.lastName || '',
-      email: initialData?.email || '',
-      phoneNumber: initialData?.phoneNumber || '',
-      position: initialData?.position || '',
-      departmentId: initialData?.departmentId || '',
-      employmentType: initialData?.employmentType || 'full-time',
-      baseSalary: initialData?.baseSalary || '',
-      status: initialData?.status || 'active',
-    },
-  })
+  // Form state
+  const [formData, setFormData] = useState({
+    firstName: employee?.firstName || "",
+    lastName: employee?.lastName || "",
+    email: employee?.email || "",
+    employeeId: employee?.employeeId || "",
+    phoneNumber: employee?.phoneNumber || "",
+    position: employee?.position || "",
+    departmentId: employee?.departmentId || "no-department",
+    role: employee?.role || "employee", // ✅ Default to employee
+    baseSalary: employee?.baseSalary || "",
+    dateOfBirth: employee?.dateOfBirth
+      ? new Date(employee.dateOfBirth).toISOString().split("T")[0]
+      : "",
+    gender: employee?.gender || "",
+    address: employee?.address || "",
+    joinDate: employee?.joinDate
+      ? new Date(employee.joinDate).toISOString().split("T")[0]
+      : new Date().toISOString().split("T")[0],
+    employmentType: employee?.employmentType || "full-time",
+    status: employee?.status || "active",
+  });
 
-  const selectedDepartment = watch('departmentId')
-  const selectedEmploymentType = watch('employmentType')
-  const selectedStatus = watch('status')
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const onSubmit = async (data: EmployeeFormData) => {
-    setIsLoading(true)
-    setError(null)
+  // ✅ Determine which roles current user can assign
+  const getAssignableRoles = () => {
+    if (currentUserRole === "owner") {
+      // Owner can assign any role
+      return ROLE_OPTIONS;
+    } else if (currentUserRole === "admin") {
+      // Admin can assign all except owner
+      return ROLE_OPTIONS.filter((r) => r.value !== "owner");
+    } else if (currentUserRole === "hr") {
+      // HR can assign employee, manager only
+      return ROLE_OPTIONS.filter((r) =>
+        ["employee", "manager"].includes(r.value),
+      );
+    }
+    // Others cannot assign roles
+    return ROLE_OPTIONS.filter((r) => r.value === "employee");
+  };
+
+  const assignableRoles = getAssignableRoles();
+
+  // Validate form
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = "First name is required";
+    }
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = "Last name is required";
+    }
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = "Invalid email format";
+    }
+    if (!formData.employeeId.trim()) {
+      newErrors.employeeId = "Employee ID is required";
+    }
+    if (!formData.position.trim()) {
+      newErrors.position = "Position is required";
+    }
+    if (!formData.baseSalary) {
+      newErrors.baseSalary = "Base salary is required";
+    } else if (
+      isNaN(Number(formData.baseSalary)) ||
+      Number(formData.baseSalary) <= 0
+    ) {
+      newErrors.baseSalary = "Base salary must be a positive number";
+    }
+    if (!formData.joinDate) {
+      newErrors.joinDate = "Join date is required";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Handle input change
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    if (errors[name]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: "",
+      }));
+    }
+  };
+
+  // Handle select change
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    if (errors[name]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: "",
+      }));
+    }
+  };
+
+  // Handle form submit
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validate()) {
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
-      const endpoint = isEdit
-        ? `/api/employees/${initialData?.id}`
-        : '/api/employees'
+      const url =
+        mode === "create" ? "/api/employees" : `/api/employees/${employee.id}`;
+      const method = mode === "create" ? "POST" : "PUT";
 
-      const method = isEdit ? 'PUT' : 'POST'
-
-      const response = await fetch(endpoint, {
+      const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          ...data,
-          organizationId,
-          baseSalary: parseFloat(data.baseSalary),
+          ...formData,
+          departmentId:
+            formData.departmentId === "no-department"
+              ? null
+              : formData.departmentId,
+          baseSalary: Number(formData.baseSalary),
+          dateOfBirth: formData.dateOfBirth || null,
+          phoneNumber: formData.phoneNumber || null,
+          address: formData.address || null,
         }),
-      })
+      });
+
+      const data = await response.json();
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to save employee')
+        throw new Error(data.error || `Failed to ${mode} employee`);
       }
 
-      // Success - redirect to employees list
-      router.push('/employees')
-      router.refresh()
-    } catch (err: any) {
-      setError(err.message)
+      toast({
+        title: "Success",
+        description: `Employee ${mode === "create" ? "created" : "updated"} successfully`,
+      });
+
+      router.push("/dashboard/employees");
+      router.refresh();
+    } catch (error: any) {
+      console.error(`Error ${mode}ing employee:`, error);
+      toast({
+        title: "Error",
+        description: error.message || `Failed to ${mode} employee`,
+        variant: "destructive",
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Error Alert */}
-      {error && (
-        <div className="rounded-md bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
-        </div>
-      )}
-
-      {/* Personal Information */}
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Basic Information */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Personal Information</h3>
+        <h3 className="text-lg font-semibold text-gray-900">
+          Basic Information
+        </h3>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {/* First Name */}
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="firstName">
               First Name <span className="text-red-500">*</span>
             </Label>
             <Input
               id="firstName"
-              {...register('firstName')}
-              placeholder="John"
-              className="mt-1"
+              name="firstName"
+              value={formData.firstName}
+              onChange={handleChange}
+              disabled={isLoading}
+              className={errors.firstName ? "border-red-500" : ""}
             />
             {errors.firstName && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.firstName.message}
-              </p>
+              <p className="text-sm text-red-600">{errors.firstName}</p>
             )}
           </div>
 
           {/* Last Name */}
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="lastName">
               Last Name <span className="text-red-500">*</span>
             </Label>
             <Input
               id="lastName"
-              {...register('lastName')}
-              placeholder="Doe"
-              className="mt-1"
+              name="lastName"
+              value={formData.lastName}
+              onChange={handleChange}
+              disabled={isLoading}
+              className={errors.lastName ? "border-red-500" : ""}
             />
             {errors.lastName && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.lastName.message}
-              </p>
+              <p className="text-sm text-red-600">{errors.lastName}</p>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {/* Email */}
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="email">
               Email <span className="text-red-500">*</span>
             </Label>
             <Input
               id="email"
+              name="email"
               type="email"
-              {...register('email')}
-              placeholder="john.doe@company.com"
-              className="mt-1"
-              disabled={isEdit} // Email tidak bisa diubah saat edit
+              value={formData.email}
+              onChange={handleChange}
+              disabled={isLoading || mode === "edit"}
+              className={errors.email ? "border-red-500" : ""}
             />
             {errors.email && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.email.message}
-              </p>
+              <p className="text-sm text-red-600">{errors.email}</p>
+            )}
+            {mode === "edit" && (
+              <p className="text-xs text-gray-500">Email cannot be changed</p>
             )}
           </div>
 
-          {/* Phone */}
-          <div>
+          {/* Phone Number */}
+          <div className="space-y-2">
             <Label htmlFor="phoneNumber">Phone Number</Label>
             <Input
               id="phoneNumber"
-              {...register('phoneNumber')}
-              placeholder="+62 812 3456 7890"
-              className="mt-1"
+              name="phoneNumber"
+              value={formData.phoneNumber}
+              onChange={handleChange}
+              disabled={isLoading}
             />
-            {errors.phoneNumber && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.phoneNumber.message}
-              </p>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Employment Information */}
-      <div className="space-y-4 border-t pt-6">
-        <h3 className="text-lg font-semibold">Employment Information</h3>
+      {/* Employment Details */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900">
+          Employment Details
+        </h3>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Employee ID */}
+          <div className="space-y-2">
+            <Label htmlFor="employeeId">
+              Employee ID <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="employeeId"
+              name="employeeId"
+              value={formData.employeeId}
+              onChange={handleChange}
+              disabled={isLoading || mode === "edit"}
+              className={errors.employeeId ? "border-red-500" : ""}
+              placeholder="EMP001"
+            />
+            {errors.employeeId && (
+              <p className="text-sm text-red-600">{errors.employeeId}</p>
+            )}
+          </div>
+
           {/* Position */}
-          <div>
+          <div className="space-y-2">
             <Label htmlFor="position">
               Position <span className="text-red-500">*</span>
             </Label>
             <Input
               id="position"
-              {...register('position')}
+              name="position"
+              value={formData.position}
+              onChange={handleChange}
+              disabled={isLoading}
+              className={errors.position ? "border-red-500" : ""}
               placeholder="Software Engineer"
-              className="mt-1"
             />
             {errors.position && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.position.message}
-              </p>
+              <p className="text-sm text-red-600">{errors.position}</p>
             )}
           </div>
+        </div>
 
+        <div className="grid gap-4 sm:grid-cols-2">
           {/* Department */}
-          <div>
-            <Label htmlFor="departmentId">Department</Label>
-            {/* <Select
-              value={selectedDepartment}
-              onValueChange={(value) => setValue('departmentId', value)}
-            >
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Select department" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">No Department</SelectItem>
-                {departments.map((dept) => (
-                  <SelectItem key={dept.id} value={dept.id}>
-                    {dept.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select> */}
+          <div className="space-y-2">
+            <Label htmlFor="department">Department</Label>
             <Select
-              value={selectedDepartment}
-              onValueChange={(value) => setValue('departmentId', value)}
+              value={formData.departmentId}
+              onValueChange={(value) =>
+                handleSelectChange("departmentId", value)
+              }
+              disabled={isLoading}
             >
-              <SelectTrigger className="mt-1">
+              <SelectTrigger>
                 <SelectValue placeholder="Select department" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">No Department</SelectItem>
+                <SelectItem value="no-department">No Department</SelectItem>
                 {departments.map((dept) => (
                   <SelectItem key={dept.id} value={dept.id}>
                     {dept.name}
@@ -265,102 +393,214 @@ export function EmployeeForm({
               </SelectContent>
             </Select>
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Employment Type */}
-          <div>
-            <Label htmlFor="employmentType">
-              Employment Type <span className="text-red-500">*</span>
+          {/* ✅ ROLE SELECTOR - NEW! */}
+          <div className="space-y-2">
+            <Label htmlFor="role">
+              Role <span className="text-red-500">*</span>
             </Label>
             <Select
-              value={selectedEmploymentType}
-              onValueChange={(value) =>
-                setValue('employmentType', value as any)
-              }
+              value={formData.role}
+              onValueChange={(value) => handleSelectChange("role", value)}
+              disabled={isLoading}
             >
-              <SelectTrigger className="mt-1">
+              <SelectTrigger>
+                <SelectValue placeholder="Select role" />
+              </SelectTrigger>
+              <SelectContent>
+                {assignableRoles.map((role) => (
+                  <SelectItem key={role.value} value={role.value}>
+                    <div className="flex items-center gap-2">
+                      <span>{role.label}</span>
+                      <span className="text-xs text-gray-500">
+                        ({role.description})
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-500 flex items-start gap-1">
+              <Info className="h-3 w-3 mt-0.5" />
+              <span>
+                {currentUserRole === "owner"
+                  ? "As owner, you can assign any role"
+                  : currentUserRole === "admin"
+                    ? "As admin, you can assign all roles except owner"
+                    : currentUserRole === "hr"
+                      ? "As HR, you can assign employee or manager roles"
+                      : "You can only assign employee role"}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Join Date */}
+          <div className="space-y-2">
+            <Label htmlFor="joinDate">
+              Join Date <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="joinDate"
+              name="joinDate"
+              type="date"
+              value={formData.joinDate}
+              onChange={handleChange}
+              disabled={isLoading}
+              className={errors.joinDate ? "border-red-500" : ""}
+            />
+            {errors.joinDate && (
+              <p className="text-sm text-red-600">{errors.joinDate}</p>
+            )}
+          </div>
+
+          {/* Employment Type */}
+          <div className="space-y-2">
+            <Label htmlFor="employmentType">Employment Type</Label>
+            <Select
+              value={formData.employmentType}
+              onValueChange={(value) =>
+                handleSelectChange("employmentType", value)
+              }
+              disabled={isLoading}
+            >
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="full-time">Full Time</SelectItem>
-                <SelectItem value="part-time">Part Time</SelectItem>
+                <SelectItem value="full-time">Full-time</SelectItem>
+                <SelectItem value="part-time">Part-time</SelectItem>
                 <SelectItem value="contract">Contract</SelectItem>
                 <SelectItem value="intern">Intern</SelectItem>
               </SelectContent>
             </Select>
           </div>
+        </div>
 
-          {/* Status */}
-          <div>
-            <Label htmlFor="status">
-              Status <span className="text-red-500">*</span>
-            </Label>
+        {/* Base Salary */}
+        <div className="space-y-2">
+          <Label htmlFor="baseSalary">
+            Base Salary (IDR) <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            id="baseSalary"
+            name="baseSalary"
+            type="number"
+            value={formData.baseSalary}
+            onChange={handleChange}
+            disabled={isLoading}
+            className={errors.baseSalary ? "border-red-500" : ""}
+            placeholder="10000000"
+          />
+          {errors.baseSalary && (
+            <p className="text-sm text-red-600">{errors.baseSalary}</p>
+          )}
+          <p className="text-xs text-gray-500">
+            Enter amount without commas (e.g., 10000000 for Rp 10,000,000)
+          </p>
+        </div>
+      </div>
+
+      {/* Personal Information */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900">
+          Personal Information
+        </h3>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Date of Birth */}
+          <div className="space-y-2">
+            <Label htmlFor="dateOfBirth">Date of Birth</Label>
+            <Input
+              id="dateOfBirth"
+              name="dateOfBirth"
+              type="date"
+              value={formData.dateOfBirth}
+              onChange={handleChange}
+              disabled={isLoading}
+            />
+          </div>
+
+          {/* Gender */}
+          <div className="space-y-2">
+            <Label htmlFor="gender">Gender</Label>
             <Select
-              value={selectedStatus}
-              onValueChange={(value) => setValue('status', value as any)}
+              value={formData.gender}
+              onValueChange={(value) => handleSelectChange("gender", value)}
+              disabled={isLoading}
             >
-              <SelectTrigger className="mt-1">
+              <SelectTrigger>
+                <SelectValue placeholder="Select gender" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="male">Male</SelectItem>
+                <SelectItem value="female">Female</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Address */}
+        <div className="space-y-2">
+          <Label htmlFor="address">Address</Label>
+          <Input
+            id="address"
+            name="address"
+            value={formData.address}
+            onChange={handleChange}
+            disabled={isLoading}
+          />
+        </div>
+      </div>
+
+      {/* Status (for edit mode) */}
+      {mode === "edit" && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900">Status</h3>
+          <div className="space-y-2">
+            <Label htmlFor="status">Employment Status</Label>
+            <Select
+              value={formData.status}
+              onValueChange={(value) => handleSelectChange("status", value)}
+              disabled={isLoading}
+            >
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="terminated">Terminated</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Salary Information */}
-      <div className="space-y-4 border-t pt-6">
-        <h3 className="text-lg font-semibold">Salary Information</h3>
+      {/* Form Actions */}
+      <div className="flex items-center gap-3 pt-4 border-t">
+        <Button type="submit" disabled={isLoading}>
+          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isLoading
+            ? mode === "create"
+              ? "Creating..."
+              : "Updating..."
+            : mode === "create"
+              ? "Create Employee"
+              : "Update Employee"}
+        </Button>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {/* Base Salary */}
-          <div>
-            <Label htmlFor="baseSalary">
-              Base Salary (IDR) <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="baseSalary"
-              type="number"
-              {...register('baseSalary')}
-              placeholder="5000000"
-              className="mt-1"
-            />
-            {errors.baseSalary && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.baseSalary.message}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex justify-end gap-4 border-t pt-6">
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.back()}
+          onClick={() => router.push("/dashboard/employees")}
           disabled={isLoading}
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {isEdit ? 'Updating...' : 'Creating...'}
-            </>
-          ) : isEdit ? (
-            'Update Employee'
-          ) : (
-            'Create Employee'
-          )}
-        </Button>
       </div>
     </form>
-  )
+  );
 }
