@@ -1,26 +1,26 @@
 // src/app/(dashboard)/leave/page.tsx
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
-import { LeaveTable } from '@/src/components/leave/leave-table'
-import { Button } from '@/src/components/ui/button'
-import { Card, CardContent } from '@/src/components/ui/card'
-import { Plus, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react'
-import Link from 'next/link'
+import { createClient } from "@/src/lib/supabase/server";
+import prisma from "@/src/lib/prisma";
+import { LeaveTable } from "@/src/components/leave/leave-table";
+import { Button } from "@/src/components/ui/button";
+import { Card, CardContent } from "@/src/components/ui/card";
+import { Plus, Calendar, CheckCircle, XCircle, Clock } from "lucide-react";
+import Link from "next/link";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 export default async function LeavePage({
   searchParams,
 }: {
-  searchParams: { status?: string }
+  searchParams: { status?: string };
 }) {
-  const supabase = await createClient()
+  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    return null
+    return null;
   }
 
   // Get current employee
@@ -41,24 +41,24 @@ export default async function LeavePage({
         },
       },
     },
-  })
+  });
 
   if (!currentEmployee) {
-    return null
+    return null;
   }
 
-  const isManager = ['owner', 'admin', 'hr', 'manager'].includes(
-    currentEmployee.role
-  )
+  const isManager = ["owner", "admin", "hr", "manager"].includes(
+    currentEmployee.role,
+  );
 
   // Get leave requests
   const whereClause = isManager
     ? { organizationId: currentEmployee.organizationId }
-    : { employeeId: currentEmployee.id }
+    : { employeeId: currentEmployee.id };
 
   // Add status filter if provided
   if (searchParams.status) {
-    Object.assign(whereClause, { status: searchParams.status })
+    Object.assign(whereClause, { status: searchParams.status });
   }
 
   const leaveRequests = await prisma.leaveRequest.findMany({
@@ -79,9 +79,9 @@ export default async function LeavePage({
       },
     },
     orderBy: {
-      createdAt: 'desc',
+      createdAt: "desc",
     },
-  })
+  });
 
   // Get stats
   const allRequests = await prisma.leaveRequest.findMany({
@@ -89,21 +89,21 @@ export default async function LeavePage({
       ? { organizationId: currentEmployee.organizationId }
       : { employeeId: currentEmployee.id },
     select: { status: true },
-  })
+  });
 
   const stats = {
     total: allRequests.length,
-    pending: allRequests.filter((r) => r.status === 'pending').length,
-    approved: allRequests.filter((r) => r.status === 'approved').length,
-    rejected: allRequests.filter((r) => r.status === 'rejected').length,
-  }
+    pending: allRequests.filter((r) => r.status === "pending").length,
+    approved: allRequests.filter((r) => r.status === "approved").length,
+    rejected: allRequests.filter((r) => r.status === "rejected").length,
+  };
 
   // Calculate leave balance for current user
-  const currentYearStart = new Date(new Date().getFullYear(), 0, 1)
+  const currentYearStart = new Date(new Date().getFullYear(), 0, 1);
   const approvedLeaves = await prisma.leaveRequest.findMany({
     where: {
       employeeId: currentEmployee.id,
-      status: 'approved',
+      status: "approved",
       startDate: {
         gte: currentYearStart,
       },
@@ -112,18 +112,19 @@ export default async function LeavePage({
       leaveType: true,
       totalDays: true,
     },
-  })
+  });
 
   const annualUsed = approvedLeaves
-    .filter((l) => l.leaveType === 'annual')
-    .reduce((sum, l) => sum + l.totalDays, 0)
+    .filter((l) => l.leaveType === "annual")
+    .reduce((sum, l) => sum + l.totalDays, 0);
 
   const sickUsed = approvedLeaves
-    .filter((l) => l.leaveType === 'sick')
-    .reduce((sum, l) => sum + l.totalDays, 0)
+    .filter((l) => l.leaveType === "sick")
+    .reduce((sum, l) => sum + l.totalDays, 0);
 
-  const annualQuota = currentEmployee.organization.settings?.annualLeaveQuota || 12
-  const sickQuota = currentEmployee.organization.settings?.sickLeaveQuota || 12
+  const annualQuota =
+    currentEmployee.organization.settings?.annualLeaveQuota || 12;
+  const sickQuota = currentEmployee.organization.settings?.sickLeaveQuota || 12;
 
   const leaveBalance = {
     annual: {
@@ -136,7 +137,7 @@ export default async function LeavePage({
       used: sickUsed,
       remaining: sickQuota - sickUsed,
     },
-  }
+  };
 
   // Transform data
   const leaveData = leaveRequests.map((leave) => ({
@@ -144,17 +145,17 @@ export default async function LeavePage({
     employeeId: leave.employee.employeeId,
     employeeName: `${leave.employee.firstName} ${leave.employee.lastName}`,
     position: leave.employee.position,
-    department: leave.employee.department?.name || '-',
+    department: leave.employee.department?.name || "-",
     leaveType: leave.leaveType,
-    startDate: leave.startDate.toISOString().split('T')[0],
-    endDate: leave.endDate.toISOString().split('T')[0],
+    startDate: leave.startDate.toISOString().split("T")[0],
+    endDate: leave.endDate.toISOString().split("T")[0],
     totalDays: leave.totalDays,
     reason: leave.reason,
     status: leave.status,
     createdAt: leave.createdAt.toISOString(),
     reviewedAt: leave.reviewedAt?.toISOString() || null,
-    reviewNotes: leave.reviewNotes || '',
-  }))
+    reviewNotes: leave.reviewNotes || "",
+  }));
 
   return (
     <div className="space-y-6">
@@ -164,13 +165,13 @@ export default async function LeavePage({
           <h1 className="text-3xl font-bold text-gray-900">Leave Requests</h1>
           <p className="mt-1 text-sm text-gray-600">
             {isManager
-              ? 'Manage employee leave requests'
-              : 'View and submit leave requests'}
+              ? "Manage employee leave requests"
+              : "View and submit leave requests"}
           </p>
         </div>
 
         {!isManager && (
-          <Link href="/dashboard/leave/new">
+          <Link href="/leave/new">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
               Request Leave
@@ -193,7 +194,8 @@ export default async function LeavePage({
                     {leaveBalance.annual.remaining}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {leaveBalance.annual.used} used of {leaveBalance.annual.total} days
+                    {leaveBalance.annual.used} used of{" "}
+                    {leaveBalance.annual.total} days
                   </p>
                 </div>
                 <div className="rounded-full bg-blue-100 p-3">
@@ -207,12 +209,15 @@ export default async function LeavePage({
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Sick Leave</p>
+                  <p className="text-sm font-medium text-gray-600">
+                    Sick Leave
+                  </p>
                   <p className="mt-2 text-3xl font-bold text-green-600">
                     {leaveBalance.sick.remaining}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {leaveBalance.sick.used} used of {leaveBalance.sick.total} days
+                    {leaveBalance.sick.used} used of {leaveBalance.sick.total}{" "}
+                    days
                   </p>
                 </div>
                 <div className="rounded-full bg-green-100 p-3">
@@ -230,7 +235,9 @@ export default async function LeavePage({
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Requests</p>
+                <p className="text-sm font-medium text-gray-600">
+                  Total Requests
+                </p>
                 <p className="mt-2 text-3xl font-bold">{stats.total}</p>
               </div>
               <div className="rounded-full bg-gray-100 p-3">
@@ -292,5 +299,5 @@ export default async function LeavePage({
       {/* Leave Table */}
       <LeaveTable data={leaveData} canApprove={isManager} />
     </div>
-  )
+  );
 }

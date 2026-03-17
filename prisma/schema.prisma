@@ -29,7 +29,6 @@ model Organization {
   departments          Department[]
   leaveRequests        LeaveRequest[]
   attendance           Attendance[]
-  payrolls             Payroll[]
   settings             OrganizationSettings?
 
   planType        String   @default("free")  
@@ -40,6 +39,16 @@ model Organization {
   trialEndsAt     DateTime?   
   
   usageLogs       UsageLog[]
+
+  payrollDayOfMonth Int      @default(25)      // Tanggal gajian (1-31)
+  
+  // BPJS Rates (%)
+  bpjsKesehatanRate      Decimal @db.Decimal(5, 2) @default(1)    // 1% employee
+  bpjsKetenagakerjaanRate Decimal @db.Decimal(5, 2) @default(2)   // 2% employee
+  
+  // Relations
+  payrolls        Payroll[]
+  salaryComponents SalaryComponent[]
 
   @@index([slug])
   @@index([stripeCustomerId])
@@ -176,29 +185,82 @@ model Attendance {
 
 // Payroll
 model Payroll {
-  id              String       @id @default(cuid())
-  organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id              String   @id @default(cuid())
   employeeId      String
+  organizationId  String
+  
+  // Period
+  month           Int              // 1-12
+  year            Int              // 2024, 2025, etc
+  periodStart     DateTime
+  periodEnd       DateTime
+  
+  // Salary Components
+  baseSalary      Decimal  @db.Decimal(15, 2)
+  allowances      Decimal  @db.Decimal(15, 2) @default(0)  // Tunjangan
+  overtime        Decimal  @db.Decimal(15, 2) @default(0)  // Lembur
+  bonus           Decimal  @db.Decimal(15, 2) @default(0)
+  
+  // Deductions
+  bpjsKesehatan   Decimal  @db.Decimal(15, 2) @default(0)  // BPJS Health
+  bpjsKetenagakerjaan Decimal @db.Decimal(15, 2) @default(0) // BPJS Employment
+  pph21           Decimal  @db.Decimal(15, 2) @default(0)  // Income Tax
+  otherDeductions Decimal  @db.Decimal(15, 2) @default(0)  // Lainnya
+  
+  // Totals
+  grossSalary     Decimal  @db.Decimal(15, 2)  // Total before deductions
+  totalDeductions Decimal  @db.Decimal(15, 2)  // Total deductions
+  netSalary       Decimal  @db.Decimal(15, 2)  // Take home pay
+  
+  // Attendance Info (for reference)
+  workDays        Int      @default(0)         // Hari kerja
+  absentDays      Int      @default(0)         // Hari tidak hadir
+  lateDays        Int      @default(0)         // Hari terlambat
+  overtimeHours   Decimal  @db.Decimal(5, 2) @default(0)
+  
+  // Status
+  status          String   @default("draft")   // draft, approved, paid
+  paidDate        DateTime?
+  
+  // Notes
+  notes           String?
+  
+  // Metadata
+  createdBy       String?  // Employee ID who created
+  approvedBy      String?  // Employee ID who approved
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
   employee        Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  period          DateTime     @db.Date
-  baseSalary      Decimal      @db.Decimal(12, 2)
-  allowances      Decimal      @default(0) @db.Decimal(12, 2)
-  overtime        Decimal      @default(0) @db.Decimal(12, 2)
-  bonus           Decimal      @default(0) @db.Decimal(12, 2)
-  tax             Decimal      @default(0) @db.Decimal(12, 2)
-  insurance       Decimal      @default(0) @db.Decimal(12, 2)
-  otherDeductions Decimal      @default(0) @db.Decimal(12, 2)
-  grossSalary     Decimal      @db.Decimal(12, 2)
-  netSalary       Decimal      @db.Decimal(12, 2)
-  status          String       @default("pending")
-  paidAt          DateTime?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-
-  @@unique([employeeId, period])
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  @@unique([employeeId, month, year])
   @@index([organizationId])
   @@index([employeeId])
-  @@index([period])
   @@index([status])
+  @@index([month, year])
+}
+
+// Salary Component Template (for allowances, bonuses, etc)
+model SalaryComponent {
+  id              String   @id @default(cuid())
+  organizationId  String
+  
+  name            String   // e.g., "Transport Allowance", "Meal Allowance"
+  type            String   // allowance, deduction, bonus
+  amount          Decimal? @db.Decimal(15, 2)  // Fixed amount (optional)
+  percentage      Decimal? @db.Decimal(5, 2)   // % of base salary (optional)
+  
+  // Apply to
+  isDefault       Boolean  @default(false)     // Auto-apply to all employees
+  
+  // Metadata
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  @@index([organizationId])
 }
