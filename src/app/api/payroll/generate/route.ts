@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
-import { calculatePayroll, getPeriodDates } from '@/src/lib/payroll/calculations'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
+import { calculatePayroll, getPeriodDates } from '@/lib/payroll/calculations'
  
 // Generate payroll for employees
 export async function POST(request: NextRequest) {
