@@ -1,8 +1,8 @@
 // src/src/components/attendance/attendance-table.tsx
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -10,86 +10,93 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/src/components/ui/table'
-import { Badge } from '@/src/components/ui/badge'
-import { Button } from '@/src/components/ui/button'
-import { Input } from '@/src/components/ui/input'
-import { Label } from '@/src/components/ui/label'
-import { Calendar } from 'lucide-react'
+} from "@/src/components/ui/table";
+import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
+import { Calendar } from "lucide-react";
 
 interface AttendanceData {
-  id: string
-  employeeId: string
-  employeeName: string
-  position: string
-  department: string
-  checkIn: string | null
-  checkOut: string | null
-  status: string
-  notes: string
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  position: string;
+  department: string;
+  checkIn: string | null;
+  checkOut: string | null;
+  status: string;
+  notes: string;
 }
 
 interface AttendanceTableProps {
-  data: AttendanceData[]
-  selectedDate: string
-  canEdit: boolean
+  data: AttendanceData[];
+  selectedDate: string;
+  canEdit: boolean;
 }
 
-export function AttendanceTable({ data, selectedDate, canEdit }: AttendanceTableProps) {
-  const router = useRouter()
-  const [searchQuery, setSearchQuery] = useState('')
+export function AttendanceTable({
+  data,
+  selectedDate,
+  canEdit,
+}: AttendanceTableProps) {
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Filter data
   const filteredData = data.filter((record) => {
-    const query = searchQuery.toLowerCase()
+    const query = searchQuery.toLowerCase();
     return (
       record.employeeName.toLowerCase().includes(query) ||
       record.employeeId.toLowerCase().includes(query) ||
       record.position.toLowerCase().includes(query) ||
       record.department.toLowerCase().includes(query)
-    )
-  })
+    );
+  });
 
   const handleDateChange = (date: string) => {
-    router.push(`/dashboard/attendance?date=${date}`)
-  }
+    router.push(`/attendance?date=${date}`);
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'present':
-        return <Badge variant="success">Present</Badge>
-      case 'late':
-        return <Badge variant="warning">Late</Badge>
-      case 'absent':
-        return <Badge variant="destructive">Absent</Badge>
-      case 'leave':
-        return <Badge variant="secondary">On Leave</Badge>
-      case 'half-day':
-        return <Badge className="bg-purple-500">Half Day</Badge>
+      case "present":
+        return <Badge variant="success">Present</Badge>;
+      case "late":
+        return <Badge variant="warning">Late</Badge>;
+      case "absent":
+        return <Badge variant="destructive">Absent</Badge>;
+      case "leave":
+        return <Badge variant="secondary">On Leave</Badge>;
+      case "half-day":
+        return <Badge className="bg-purple-500">Half Day</Badge>;
       default:
-        return <Badge>{status}</Badge>
+        return <Badge>{status}</Badge>;
     }
-  }
+  };
 
   const formatTime = (timeString: string | null) => {
-    if (!timeString) return '-'
-    return new Date(timeString).toLocaleTimeString('id-ID', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
+    if (!timeString) return "-";
+    return new Date(timeString).toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
-  const calculateWorkHours = (checkIn: string | null, checkOut: string | null) => {
-    if (!checkIn || !checkOut) return '-'
-    
-    const start = new Date(checkIn)
-    const end = new Date(checkOut)
-    const diff = end.getTime() - start.getTime()
-    const hours = Math.floor(diff / (1000 * 60 * 60))
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-    
-    return `${hours}h ${minutes}m`
-  }
+  const calculateWorkHours = (
+    checkIn: string | null,
+    checkOut: string | null,
+  ) => {
+    if (!checkIn || !checkOut) return "-";
+
+    const start = new Date(checkIn);
+    const end = new Date(checkOut);
+    const diff = end.getTime() - start.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+    return `${hours}h ${minutes}m`;
+  };
 
   return (
     <div className="space-y-4">
@@ -141,7 +148,10 @@ export function AttendanceTable({ data, selectedDate, canEdit }: AttendanceTable
           <TableBody>
             {filteredData.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                <TableCell
+                  colSpan={8}
+                  className="text-center py-8 text-gray-500"
+                >
                   No attendance records found for this date.
                 </TableCell>
               </TableRow>
@@ -167,9 +177,7 @@ export function AttendanceTable({ data, selectedDate, canEdit }: AttendanceTable
                   <TableCell className="text-gray-600">
                     {calculateWorkHours(record.checkIn, record.checkOut)}
                   </TableCell>
-                  <TableCell>
-                    {getStatusBadge(record.status)}
-                  </TableCell>
+                  <TableCell>{getStatusBadge(record.status)}</TableCell>
                 </TableRow>
               ))
             )}
@@ -183,14 +191,14 @@ export function AttendanceTable({ data, selectedDate, canEdit }: AttendanceTable
           Showing {filteredData.length} of {data.length} records
         </div>
         <div>
-          {new Date(selectedDate).toLocaleDateString('id-ID', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
+          {new Date(selectedDate).toLocaleDateString("id-ID", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
           })}
         </div>
       </div>
     </div>
-  )
+  );
 }

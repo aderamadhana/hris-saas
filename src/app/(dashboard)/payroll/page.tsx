@@ -1,9 +1,14 @@
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
-import { redirect } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card'
-import { Button } from '@/src/components/ui/button'
-import { Badge } from '@/src/components/ui/badge'
+import { createClient } from "@/src/lib/supabase/server";
+import prisma from "@/src/lib/prisma";
+import { redirect } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
+import { Button } from "@/src/components/ui/button";
+import { Badge } from "@/src/components/ui/badge";
 import {
   Users,
   DollarSign,
@@ -12,54 +17,55 @@ import {
   Plus,
   Filter,
   Download,
-} from 'lucide-react'
-import Link from 'next/link'
-import { getMonthName, formatCurrency } from '@/src/lib/payroll/calculations'
- 
-export const dynamic = 'force-dynamic'
- 
+} from "lucide-react";
+import Link from "next/link";
+import { getMonthName, formatCurrency } from "@/src/lib/payroll/calculations";
+import { PayrollFilters } from "@/src/components/payroll/payroll-filters";
+
+export const dynamic = "force-dynamic";
+
 export default async function PayrollPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; year?: string; status?: string }>
+  searchParams: Promise<{ month?: string; year?: string; status?: string }>;
 }) {
-  const supabase = await createClient()
+  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser()
- 
+  } = await supabase.auth.getUser();
+
   if (!user) {
-    redirect('/login')
+    redirect("/login");
   }
- 
+
   const currentEmployee = await prisma.employee.findUnique({
     where: { authId: user.id },
     select: {
       role: true,
       organizationId: true,
     },
-  })
- 
+  });
+
   if (!currentEmployee) {
-    redirect('/login')
+    redirect("/login");
   }
- 
+
   // Only HR, Admin, Owner can access payroll management
-  if (!['hr', 'admin', 'owner'].includes(currentEmployee.role)) {
-    redirect('/dashboard')
+  if (!["hr", "admin", "owner"].includes(currentEmployee.role)) {
+    redirect("/dashboard");
   }
- 
-  const params = await searchParams
-  
+
+  const params = await searchParams;
+
   // Build filter
   const where: any = {
     organizationId: currentEmployee.organizationId,
-  }
- 
-  if (params.month) where.month = parseInt(params.month)
-  if (params.year) where.year = parseInt(params.year)
-  if (params.status) where.status = params.status
- 
+  };
+
+  if (params.month) where.month = parseInt(params.month);
+  if (params.year) where.year = parseInt(params.year);
+  if (params.status) where.status = params.status;
+
   // Get payrolls
   const payrolls = await prisma.payroll.findMany({
     where,
@@ -74,44 +80,50 @@ export default async function PayrollPage({
         },
       },
     },
-    orderBy: [{ year: 'desc' }, { month: 'desc' }, { createdAt: 'desc' }],
-  })
- 
+    orderBy: [{ year: "desc" }, { month: "desc" }, { createdAt: "desc" }],
+  });
+
   // Calculate summary stats
   const totalGross = payrolls.reduce(
     (sum, p) => sum + p.grossSalary.toNumber(),
-    0
-  )
-  const totalNet = payrolls.reduce((sum, p) => sum + p.netSalary.toNumber(), 0)
+    0,
+  );
+  const totalNet = payrolls.reduce((sum, p) => sum + p.netSalary.toNumber(), 0);
   const totalDeductions = payrolls.reduce(
     (sum, p) => sum + p.totalDeductions.toNumber(),
-    0
-  )
- 
+    0,
+  );
+
   const statusCounts = {
-    draft: payrolls.filter((p) => p.status === 'draft').length,
-    approved: payrolls.filter((p) => p.status === 'approved').length,
-    paid: payrolls.filter((p) => p.status === 'paid').length,
-  }
- 
+    draft: payrolls.filter((p) => p.status === "draft").length,
+    approved: payrolls.filter((p) => p.status === "approved").length,
+    paid: payrolls.filter((p) => p.status === "paid").length,
+  };
+
   // Get current month/year for default
-  const currentDate = new Date()
-  const currentMonth = params.month ? parseInt(params.month) : currentDate.getMonth() + 1
-  const currentYear = params.year ? parseInt(params.year) : currentDate.getFullYear()
- 
+  const currentDate = new Date();
+  const currentMonth = params.month
+    ? parseInt(params.month)
+    : currentDate.getMonth() + 1;
+  const currentYear = params.year
+    ? parseInt(params.year)
+    : currentDate.getFullYear();
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Payroll Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Payroll Management
+          </h1>
           <p className="mt-1 text-sm text-gray-600">
             Manage employee payroll and salary processing
           </p>
         </div>
- 
+
         <div className="flex items-center gap-2">
-          <Link href="/dashboard/payroll/generate">
+          <Link href="/payroll/generate">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
               Generate Payroll
@@ -119,14 +131,16 @@ export default async function PayrollPage({
           </Link>
         </div>
       </div>
- 
+
       {/* Summary Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Employees</p>
+                <p className="text-sm font-medium text-gray-600">
+                  Total Employees
+                </p>
                 <p className="mt-2 text-3xl font-bold text-gray-900">
                   {payrolls.length}
                 </p>
@@ -137,7 +151,7 @@ export default async function PayrollPage({
             </div>
           </CardContent>
         </Card>
- 
+
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -153,12 +167,14 @@ export default async function PayrollPage({
             </div>
           </CardContent>
         </Card>
- 
+
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Deductions</p>
+                <p className="text-sm font-medium text-gray-600">
+                  Total Deductions
+                </p>
                 <p className="mt-2 text-2xl font-bold text-red-600">
                   {formatCurrency(totalDeductions)}
                 </p>
@@ -169,7 +185,7 @@ export default async function PayrollPage({
             </div>
           </CardContent>
         </Card>
- 
+
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -186,8 +202,8 @@ export default async function PayrollPage({
           </CardContent>
         </Card>
       </div>
- 
-      {/* Filters */}
+
+      {/* Filters - NOW USING CLIENT COMPONENT */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -196,77 +212,14 @@ export default async function PayrollPage({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Month Filter */}
-            <select
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              value={currentMonth}
-              onChange={(e) => {
-                const url = new URL(window.location.href)
-                url.searchParams.set('month', e.target.value)
-                window.location.href = url.toString()
-              }}
-            >
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m}>
-                  {getMonthName(m)}
-                </option>
-              ))}
-            </select>
- 
-            {/* Year Filter */}
-            <select
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              value={currentYear}
-              onChange={(e) => {
-                const url = new URL(window.location.href)
-                url.searchParams.set('year', e.target.value)
-                window.location.href = url.toString()
-              }}
-            >
-              {Array.from({ length: 5 }, (_, i) => currentYear - 2 + i).map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
- 
-            {/* Status Filter */}
-            <select
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              value={params.status || 'all'}
-              onChange={(e) => {
-                const url = new URL(window.location.href)
-                if (e.target.value === 'all') {
-                  url.searchParams.delete('status')
-                } else {
-                  url.searchParams.set('status', e.target.value)
-                }
-                window.location.href = url.toString()
-              }}
-            >
-              <option value="all">All Status</option>
-              <option value="draft">Draft ({statusCounts.draft})</option>
-              <option value="approved">Approved ({statusCounts.approved})</option>
-              <option value="paid">Paid ({statusCounts.paid})</option>
-            </select>
- 
-            {/* Clear Filters */}
-            {(params.month || params.year || params.status) && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  window.location.href = '/dashboard/payroll'
-                }}
-              >
-                Clear Filters
-              </Button>
-            )}
-          </div>
+          <PayrollFilters
+            currentMonth={currentMonth}
+            currentYear={currentYear}
+            statusCounts={statusCounts}
+          />
         </CardContent>
       </Card>
- 
+
       {/* Payroll List */}
       <Card>
         <CardHeader>
@@ -291,7 +244,7 @@ export default async function PayrollPage({
               <p className="mt-1 text-sm text-gray-600">
                 Generate payroll for employees to get started
               </p>
-              <Link href="/dashboard/payroll/generate">
+              <Link href="/payroll/generate">
                 <Button className="mt-4">
                   <Plus className="mr-2 h-4 w-4" />
                   Generate Payroll
@@ -317,14 +270,15 @@ export default async function PayrollPage({
                         {payroll.employee.firstName} {payroll.employee.lastName}
                       </p>
                       <p className="text-sm text-gray-600">
-                        {payroll.employee.employeeId} • {payroll.employee.position}
+                        {payroll.employee.employeeId} •{" "}
+                        {payroll.employee.position}
                       </p>
                       <p className="text-xs text-gray-500">
                         {getMonthName(payroll.month)} {payroll.year}
                       </p>
                     </div>
                   </div>
- 
+
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <p className="text-sm text-gray-600">Net Salary</p>
@@ -332,20 +286,20 @@ export default async function PayrollPage({
                         {formatCurrency(payroll.netSalary.toNumber())}
                       </p>
                     </div>
- 
+
                     <Badge
                       variant={
-                        payroll.status === 'paid'
-                          ? 'success'
-                          : payroll.status === 'approved'
-                          ? 'default'
-                          : 'secondary'
+                        payroll.status === "paid"
+                          ? "success"
+                          : payroll.status === "approved"
+                            ? "default"
+                            : "secondary"
                       }
                     >
                       {payroll.status}
                     </Badge>
- 
-                    <Link href={`/dashboard/payroll/${payroll.id}`}>
+
+                    <Link href={`/payroll/${payroll.id}`}>
                       <Button size="sm" variant="outline">
                         View Details
                       </Button>
@@ -358,5 +312,5 @@ export default async function PayrollPage({
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

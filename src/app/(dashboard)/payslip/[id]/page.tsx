@@ -73,7 +73,7 @@ export default async function PayslipDetailPage({
     payroll.employeeId !== currentEmployee.id &&
     !["hr", "admin", "owner"].includes(currentEmployee.role)
   ) {
-    redirect("/dashboard/payslip");
+    redirect("/payslip");
   }
 
   // Convert Decimal to number
@@ -105,7 +105,7 @@ export default async function PayslipDetailPage({
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href="/dashboard/payslip">
+        <Link href="/payslip">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-5 w-5" />
           </Button>

@@ -1,8 +1,8 @@
 // src/src/components/leave/leave-table.tsx
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -10,9 +10,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/src/components/ui/table'
-import { Badge } from '@/src/components/ui/badge'
-import { Button } from '@/src/components/ui/button'
+} from "@/src/components/ui/table";
+import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,97 +20,99 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/src/components/ui/dropdown-menu'
+} from "@/src/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/src/components/ui/select'
-import { Label } from '@/src/components/ui/label'
-import { MoreHorizontal, CheckCircle, XCircle, Eye } from 'lucide-react'
-import { ApproveRejectDialog } from './approve-reject-dialog'
+} from "@/src/components/ui/select";
+import { Label } from "@/src/components/ui/label";
+import { MoreHorizontal, CheckCircle, XCircle, Eye } from "lucide-react";
+import { ApproveRejectDialog } from "./approve-reject-dialog";
 
 interface LeaveData {
-  id: string
-  employeeId: string
-  employeeName: string
-  position: string
-  department: string
-  leaveType: string
-  startDate: string
-  endDate: string
-  totalDays: number
-  reason: string
-  status: string
-  createdAt: string
-  reviewedAt: string | null
-  reviewNotes: string
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  position: string;
+  department: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  reason: string;
+  status: string;
+  createdAt: string;
+  reviewedAt: string | null;
+  reviewNotes: string;
 }
 
 interface LeaveTableProps {
-  data: LeaveData[]
-  canApprove: boolean
+  data: LeaveData[];
+  canApprove: boolean;
 }
 
 export function LeaveTable({ data, canApprove }: LeaveTableProps) {
-  const router = useRouter()
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [selectedLeave, setSelectedLeave] = useState<LeaveData | null>(null)
-  const [dialogType, setDialogType] = useState<'approve' | 'reject' | null>(null)
+  const router = useRouter();
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedLeave, setSelectedLeave] = useState<LeaveData | null>(null);
+  const [dialogType, setDialogType] = useState<"approve" | "reject" | null>(
+    null,
+  );
 
   // Filter data
   const filteredData =
-    statusFilter === 'all'
+    statusFilter === "all"
       ? data
-      : data.filter((leave) => leave.status === statusFilter)
+      : data.filter((leave) => leave.status === statusFilter);
 
   const handleStatusFilterChange = (value: string) => {
-    setStatusFilter(value)
-    if (value === 'all') {
-      router.push('/dashboard/leave')
+    setStatusFilter(value);
+    if (value === "all") {
+      router.push("/leave");
     } else {
-      router.push(`/dashboard/leave?status=${value}`)
+      router.push(`/leave?status=${value}`);
     }
-  }
+  };
 
   const handleApprove = (leave: LeaveData) => {
-    setSelectedLeave(leave)
-    setDialogType('approve')
-  }
+    setSelectedLeave(leave);
+    setDialogType("approve");
+  };
 
   const handleReject = (leave: LeaveData) => {
-    setSelectedLeave(leave)
-    setDialogType('reject')
-  }
+    setSelectedLeave(leave);
+    setDialogType("reject");
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'pending':
-        return <Badge variant="warning">Pending</Badge>
-      case 'approved':
-        return <Badge variant="success">Approved</Badge>
-      case 'rejected':
-        return <Badge variant="destructive">Rejected</Badge>
+      case "pending":
+        return <Badge variant="warning">Pending</Badge>;
+      case "approved":
+        return <Badge variant="success">Approved</Badge>;
+      case "rejected":
+        return <Badge variant="destructive">Rejected</Badge>;
       default:
-        return <Badge>{status}</Badge>
+        return <Badge>{status}</Badge>;
     }
-  }
+  };
 
   const getLeaveTypeBadge = (type: string) => {
     const typeMap: Record<string, { label: string; variant: any }> = {
-      annual: { label: 'Annual', variant: 'default' },
-      sick: { label: 'Sick', variant: 'secondary' },
-      unpaid: { label: 'Unpaid', variant: 'outline' },
-      emergency: { label: 'Emergency', variant: 'destructive' },
-      maternity: { label: 'Maternity', variant: 'default' },
-      paternity: { label: 'Paternity', variant: 'default' },
-    }
+      annual: { label: "Annual", variant: "default" },
+      sick: { label: "Sick", variant: "secondary" },
+      unpaid: { label: "Unpaid", variant: "outline" },
+      emergency: { label: "Emergency", variant: "destructive" },
+      maternity: { label: "Maternity", variant: "default" },
+      paternity: { label: "Paternity", variant: "default" },
+    };
 
-    const config = typeMap[type] || { label: type, variant: 'default' }
-    return <Badge variant={config.variant}>{config.label}</Badge>
-  }
+    const config = typeMap[type] || { label: type, variant: "default" };
+    return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
 
   return (
     <div className="space-y-4">
@@ -150,7 +152,10 @@ export function LeaveTable({ data, canApprove }: LeaveTableProps) {
           <TableBody>
             {filteredData.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                <TableCell
+                  colSpan={8}
+                  className="text-center py-8 text-gray-500"
+                >
                   No leave requests found.
                 </TableCell>
               </TableRow>
@@ -160,7 +165,9 @@ export function LeaveTable({ data, canApprove }: LeaveTableProps) {
                   <TableCell>
                     <div>
                       <p className="font-medium">{leave.employeeName}</p>
-                      <p className="text-sm text-gray-500">{leave.employeeId}</p>
+                      <p className="text-sm text-gray-500">
+                        {leave.employeeId}
+                      </p>
                     </div>
                   </TableCell>
                   <TableCell className="text-gray-600">
@@ -168,13 +175,13 @@ export function LeaveTable({ data, canApprove }: LeaveTableProps) {
                   </TableCell>
                   <TableCell>{getLeaveTypeBadge(leave.leaveType)}</TableCell>
                   <TableCell>
-                    {new Date(leave.startDate).toLocaleDateString('id-ID')}
+                    {new Date(leave.startDate).toLocaleDateString("id-ID")}
                   </TableCell>
                   <TableCell>
-                    {new Date(leave.endDate).toLocaleDateString('id-ID')}
+                    {new Date(leave.endDate).toLocaleDateString("id-ID")}
                   </TableCell>
                   <TableCell className="font-medium">
-                    {leave.totalDays} {leave.totalDays > 1 ? 'days' : 'day'}
+                    {leave.totalDays} {leave.totalDays > 1 ? "days" : "day"}
                   </TableCell>
                   <TableCell>{getStatusBadge(leave.status)}</TableCell>
                   <TableCell>
@@ -188,15 +195,13 @@ export function LeaveTable({ data, canApprove }: LeaveTableProps) {
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          onClick={() =>
-                            router.push(`/dashboard/leave/${leave.id}`)
-                          }
+                          onClick={() => router.push(`/leave/${leave.id}`)}
                         >
                           <Eye className="mr-2 h-4 w-4" />
                           View Details
                         </DropdownMenuItem>
 
-                        {canApprove && leave.status === 'pending' && (
+                        {canApprove && leave.status === "pending" && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
@@ -236,8 +241,8 @@ export function LeaveTable({ data, canApprove }: LeaveTableProps) {
           open={true}
           onOpenChange={(open) => {
             if (!open) {
-              setSelectedLeave(null)
-              setDialogType(null)
+              setSelectedLeave(null);
+              setDialogType(null);
             }
           }}
           leave={selectedLeave}
@@ -245,5 +250,5 @@ export function LeaveTable({ data, canApprove }: LeaveTableProps) {
         />
       )}
     </div>
-  )
+  );
 }

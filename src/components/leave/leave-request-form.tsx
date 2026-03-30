@@ -1,51 +1,60 @@
 // src/components/leave/leave-request-form.tsx
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { Button } from '@/src/components/ui/button'
-import { Input } from '@/src/components/ui/input'
-import { Label } from '@/src/components/ui/label'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/src/components/ui/select'
-import { Card, CardContent } from '@/src/components/ui/card'
-import { Loader2, Calendar, AlertCircle } from 'lucide-react'
+} from "@/src/components/ui/select";
+import { Card, CardContent } from "@/src/components/ui/card";
+import { Loader2, Calendar, AlertCircle } from "lucide-react";
 
 // Validation schema
-const leaveRequestSchema = z.object({
-  leaveType: z.enum(['annual', 'sick', 'unpaid', 'emergency', 'maternity', 'paternity']),
-  startDate: z.string().min(1, 'Start date is required'),
-  endDate: z.string().min(1, 'End date is required'),
-  reason: z.string().min(10, 'Reason must be at least 10 characters'),
-}).refine(
-  (data) => {
-    const start = new Date(data.startDate)
-    const end = new Date(data.endDate)
-    return end >= start
-  },
-  {
-    message: 'End date must be after or equal to start date',
-    path: ['endDate'],
-  }
-)
+const leaveRequestSchema = z
+  .object({
+    leaveType: z.enum([
+      "annual",
+      "sick",
+      "unpaid",
+      "emergency",
+      "maternity",
+      "paternity",
+    ]),
+    startDate: z.string().min(1, "Start date is required"),
+    endDate: z.string().min(1, "End date is required"),
+    reason: z.string().min(10, "Reason must be at least 10 characters"),
+  })
+  .refine(
+    (data) => {
+      const start = new Date(data.startDate);
+      const end = new Date(data.endDate);
+      return end >= start;
+    },
+    {
+      message: "End date must be after or equal to start date",
+      path: ["endDate"],
+    },
+  );
 
-type LeaveRequestFormData = z.infer<typeof leaveRequestSchema>
+type LeaveRequestFormData = z.infer<typeof leaveRequestSchema>;
 
 interface LeaveRequestFormProps {
-  employeeId: string
-  employeeName: string
+  employeeId: string;
+  employeeName: string;
   leaveBalance: {
-    annual: number
-    sick: number
-  }
+    annual: number;
+    sick: number;
+  };
 }
 
 export function LeaveRequestForm({
@@ -53,9 +62,9 @@ export function LeaveRequestForm({
   employeeName,
   leaveBalance,
 }: LeaveRequestFormProps) {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const {
     register,
@@ -66,93 +75,93 @@ export function LeaveRequestForm({
   } = useForm<LeaveRequestFormData>({
     resolver: zodResolver(leaveRequestSchema),
     defaultValues: {
-      leaveType: 'annual',
+      leaveType: "annual",
     },
-  })
+  });
 
-  const selectedLeaveType = watch('leaveType')
-  const startDate = watch('startDate')
-  const endDate = watch('endDate')
+  const selectedLeaveType = watch("leaveType");
+  const startDate = watch("startDate");
+  const endDate = watch("endDate");
 
   // Calculate working days
   const calculateWorkingDays = (start: string, end: string): number => {
-    if (!start || !end) return 0
+    if (!start || !end) return 0;
 
-    const startDate = new Date(start)
-    const endDate = new Date(end)
+    const startDate = new Date(start);
+    const endDate = new Date(end);
 
-    if (endDate < startDate) return 0
+    if (endDate < startDate) return 0;
 
-    let count = 0
-    const current = new Date(startDate)
+    let count = 0;
+    const current = new Date(startDate);
 
     while (current <= endDate) {
-      const dayOfWeek = current.getDay()
+      const dayOfWeek = current.getDay();
       // Skip weekends (0 = Sunday, 6 = Saturday)
       if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-        count++
+        count++;
       }
-      current.setDate(current.getDate() + 1)
+      current.setDate(current.getDate() + 1);
     }
 
-    return count
-  }
+    return count;
+  };
 
-  const workingDays = calculateWorkingDays(startDate, endDate)
+  const workingDays = calculateWorkingDays(startDate, endDate);
 
   // Check if exceeds balance
   const exceedsBalance = () => {
-    if (selectedLeaveType === 'annual') {
-      return workingDays > leaveBalance.annual
+    if (selectedLeaveType === "annual") {
+      return workingDays > leaveBalance.annual;
     }
-    if (selectedLeaveType === 'sick') {
-      return workingDays > leaveBalance.sick
+    if (selectedLeaveType === "sick") {
+      return workingDays > leaveBalance.sick;
     }
-    return false
-  }
+    return false;
+  };
 
   const onSubmit = async (data: LeaveRequestFormData) => {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
 
     // Check balance before submit
     if (exceedsBalance()) {
       setError(
         `Insufficient leave balance. You only have ${
-          selectedLeaveType === 'annual'
+          selectedLeaveType === "annual"
             ? leaveBalance.annual
             : leaveBalance.sick
-        } days remaining.`
-      )
-      setIsLoading(false)
-      return
+        } days remaining.`,
+      );
+      setIsLoading(false);
+      return;
     }
 
     try {
-      const response = await fetch('/api/leave', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/leave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
           employeeId,
           totalDays: workingDays,
         }),
-      })
+      });
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to submit leave request')
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to submit leave request");
       }
 
       // Success - redirect to leave list
-      router.push('/dashboard/leave')
-      router.refresh()
+      router.push("/leave");
+      router.refresh();
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -193,7 +202,7 @@ export function LeaveRequestForm({
         </Label>
         <Select
           value={selectedLeaveType}
-          onValueChange={(value) => setValue('leaveType', value as any)}
+          onValueChange={(value) => setValue("leaveType", value as any)}
         >
           <SelectTrigger className="mt-1">
             <SelectValue />
@@ -220,8 +229,8 @@ export function LeaveRequestForm({
             <Input
               id="startDate"
               type="date"
-              {...register('startDate')}
-              min={new Date().toISOString().split('T')[0]}
+              {...register("startDate")}
+              min={new Date().toISOString().split("T")[0]}
               className="pr-10"
             />
             <Calendar className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -242,14 +251,16 @@ export function LeaveRequestForm({
             <Input
               id="endDate"
               type="date"
-              {...register('endDate')}
-              min={startDate || new Date().toISOString().split('T')[0]}
+              {...register("endDate")}
+              min={startDate || new Date().toISOString().split("T")[0]}
               className="pr-10"
             />
             <Calendar className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           </div>
           {errors.endDate && (
-            <p className="mt-1 text-sm text-red-600">{errors.endDate.message}</p>
+            <p className="mt-1 text-sm text-red-600">
+              {errors.endDate.message}
+            </p>
           )}
         </div>
       </div>
@@ -259,8 +270,8 @@ export function LeaveRequestForm({
         <Card
           className={`${
             exceedsBalance()
-              ? 'bg-red-50 border-red-200'
-              : 'bg-green-50 border-green-200'
+              ? "bg-red-50 border-red-200"
+              : "bg-green-50 border-green-200"
           }`}
         >
           <CardContent className="p-4">
@@ -268,14 +279,14 @@ export function LeaveRequestForm({
               <div>
                 <p
                   className={`text-sm font-medium ${
-                    exceedsBalance() ? 'text-red-900' : 'text-green-900'
+                    exceedsBalance() ? "text-red-900" : "text-green-900"
                   }`}
                 >
                   Total Working Days
                 </p>
                 <p
                   className={`text-2xl font-bold ${
-                    exceedsBalance() ? 'text-red-600' : 'text-green-600'
+                    exceedsBalance() ? "text-red-600" : "text-green-600"
                   }`}
                 >
                   {workingDays} days
@@ -303,7 +314,7 @@ export function LeaveRequestForm({
         </Label>
         <textarea
           id="reason"
-          {...register('reason')}
+          {...register("reason")}
           placeholder="Please provide a detailed reason for your leave request..."
           className="mt-1 w-full rounded-md border border-gray-300 p-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           rows={4}
@@ -330,10 +341,10 @@ export function LeaveRequestForm({
               Submitting...
             </>
           ) : (
-            'Submit Request'
+            "Submit Request"
           )}
         </Button>
       </div>
     </form>
-  )
+  );
 }

@@ -58,7 +58,7 @@ export default async function BillingPlansPage() {
           </p>
         </div>
 
-        <Link href="/dashboard/billing">
+        <Link href="/billing">
           <Button variant="outline">Back to Billing</Button>
         </Link>
       </div>

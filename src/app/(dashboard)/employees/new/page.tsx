@@ -38,7 +38,7 @@ export default async function NewEmployeePage() {
 
   // Only HR, Admin, Owner can add employees
   if (!["hr", "admin", "owner"].includes(currentEmployee.role)) {
-    redirect("/dashboard/employees");
+    redirect("/employees");
   }
 
   // Get departments for dropdown
@@ -59,7 +59,7 @@ export default async function NewEmployeePage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href="/dashboard/employees">
+        <Link href="/employees">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-5 w-5" />
           </Button>

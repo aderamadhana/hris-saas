@@ -204,7 +204,7 @@ export default async function PayslipPage() {
                       {payslip.status}
                     </Badge>
 
-                    <Link href={`/dashboard/payslip/${payslip.id}`}>
+                    <Link href={`/payslip/${payslip.id}`}>
                       <Button size="sm" variant="outline">
                         <FileText className="mr-2 h-4 w-4" />
                         View

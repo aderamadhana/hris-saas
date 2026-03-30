@@ -226,7 +226,7 @@ export function EmployeeForm({
         description: `Employee ${mode === "create" ? "created" : "updated"} successfully`,
       });
 
-      router.push("/dashboard/employees");
+      router.push("/employees");
       router.refresh();
     } catch (error: any) {
       console.error(`Error ${mode}ing employee:`, error);
@@ -595,7 +595,7 @@ export function EmployeeForm({
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push("/dashboard/employees")}
+          onClick={() => router.push("/employees")}
           disabled={isLoading}
         >
           Cancel

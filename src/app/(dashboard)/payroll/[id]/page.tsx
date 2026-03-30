@@ -1,50 +1,55 @@
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
-import { redirect, notFound } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card'
-import { Button } from '@/src/components/ui/button'
-import { Badge } from '@/src/components/ui/badge'
-import { ArrowLeft, User, Briefcase, Building2, Calendar } from 'lucide-react'
-import Link from 'next/link'
-import { getMonthName, formatCurrency } from '@/src/lib/payroll/calculations'
-import { PayrollEditForm } from '@/src/components/payroll/payroll-edit-form'
- 
-export const dynamic = 'force-dynamic'
- 
+import { createClient } from "@/src/lib/supabase/server";
+import prisma from "@/src/lib/prisma";
+import { redirect, notFound } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
+import { Button } from "@/src/components/ui/button";
+import { Badge } from "@/src/components/ui/badge";
+import { ArrowLeft, User, Briefcase, Building2, Calendar } from "lucide-react";
+import Link from "next/link";
+import { getMonthName, formatCurrency } from "@/src/lib/payroll/calculations";
+import { PayrollEditForm } from "@/src/components/payroll/payroll-edit-form";
+
+export const dynamic = "force-dynamic";
+
 export default async function PayrollDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }>;
 }) {
-  const supabase = await createClient()
+  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser()
- 
+  } = await supabase.auth.getUser();
+
   if (!user) {
-    redirect('/login')
+    redirect("/login");
   }
- 
-  const resolvedParams = await params
-  const payrollId = resolvedParams.id
- 
+
+  const resolvedParams = await params;
+  const payrollId = resolvedParams.id;
+
   const currentEmployee = await prisma.employee.findUnique({
     where: { authId: user.id },
     select: {
       role: true,
       organizationId: true,
     },
-  })
- 
+  });
+
   if (!currentEmployee) {
-    redirect('/login')
+    redirect("/login");
   }
- 
+
   // Only HR, Admin, Owner can access
-  if (!['hr', 'admin', 'owner'].includes(currentEmployee.role)) {
-    redirect('/dashboard/payroll')
+  if (!["hr", "admin", "owner"].includes(currentEmployee.role)) {
+    redirect("/payroll");
   }
- 
+
   // Get payroll
   const payroll = await prisma.payroll.findUnique({
     where: { id: payrollId },
@@ -61,17 +66,17 @@ export default async function PayrollDetailPage({
         },
       },
     },
-  })
- 
+  });
+
   if (!payroll) {
-    notFound()
+    notFound();
   }
- 
+
   // Check organization match
   if (payroll.organizationId !== currentEmployee.organizationId) {
-    redirect('/dashboard/payroll')
+    redirect("/payroll");
   }
- 
+
   // Convert Decimal to number for client component
   const payrollData = {
     ...payroll,
@@ -87,48 +92,50 @@ export default async function PayrollDetailPage({
     totalDeductions: payroll.totalDeductions.toNumber(),
     netSalary: payroll.netSalary.toNumber(),
     overtimeHours: payroll.overtimeHours.toNumber(),
-  }
- 
+  };
+
   const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('id-ID', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }).format(new Date(date))
-  }
- 
+    return new Intl.DateTimeFormat("id-ID", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(new Date(date));
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href="/dashboard/payroll">
+        <Link href="/payroll">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-5 w-5" />
           </Button>
         </Link>
         <div className="flex-1">
           <h1 className="text-3xl font-bold text-gray-900">
-            Payroll Details - {getMonthName(payrollData.month)} {payrollData.year}
+            Payroll Details - {getMonthName(payrollData.month)}{" "}
+            {payrollData.year}
           </h1>
           <p className="mt-1 text-sm text-gray-600">
-            {payroll.employee.firstName} {payroll.employee.lastName} •{' '}
-            {formatDate(payrollData.periodStart)} - {formatDate(payrollData.periodEnd)}
+            {payroll.employee.firstName} {payroll.employee.lastName} •{" "}
+            {formatDate(payrollData.periodStart)} -{" "}
+            {formatDate(payrollData.periodEnd)}
           </p>
         </div>
         <Badge
           variant={
-            payrollData.status === 'paid'
-              ? 'success'
-              : payrollData.status === 'approved'
-              ? 'default'
-              : 'secondary'
+            payrollData.status === "paid"
+              ? "success"
+              : payrollData.status === "approved"
+                ? "default"
+                : "secondary"
           }
           className="text-base px-4 py-2"
         >
           {payrollData.status.toUpperCase()}
         </Badge>
       </div>
- 
+
       {/* Employee Info Card */}
       <Card>
         <CardHeader>
@@ -176,14 +183,14 @@ export default async function PayrollDetailPage({
               <div>
                 <p className="text-xs text-gray-600">Department</p>
                 <p className="font-medium text-gray-900">
-                  {payroll.employee.department?.name || 'N/A'}
+                  {payroll.employee.department?.name || "N/A"}
                 </p>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
- 
+
       {/* Current Salary Breakdown (Read-only) */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Earnings */}
@@ -220,7 +227,9 @@ export default async function PayrollDetailPage({
             </div>
             <div className="border-t pt-3 mt-3">
               <div className="flex justify-between">
-                <span className="font-semibold text-gray-900">Gross Salary</span>
+                <span className="font-semibold text-gray-900">
+                  Gross Salary
+                </span>
                 <span className="text-lg font-bold text-blue-600">
                   {formatCurrency(payrollData.grossSalary)}
                 </span>
@@ -228,7 +237,7 @@ export default async function PayrollDetailPage({
             </div>
           </CardContent>
         </Card>
- 
+
         {/* Deductions */}
         <Card>
           <CardHeader>
@@ -272,7 +281,7 @@ export default async function PayrollDetailPage({
           </CardContent>
         </Card>
       </div>
- 
+
       {/* Net Salary Card */}
       <Card className="border-2 border-green-200 bg-green-50">
         <CardContent className="p-6">
@@ -298,7 +307,7 @@ export default async function PayrollDetailPage({
           </div>
         </CardContent>
       </Card>
- 
+
       {/* Attendance Summary */}
       <Card>
         <CardHeader>
@@ -336,9 +345,9 @@ export default async function PayrollDetailPage({
           </div>
         </CardContent>
       </Card>
- 
+
       {/* Edit Form (if draft/approved) */}
-      {payrollData.status !== 'paid' && (
+      {payrollData.status !== "paid" && (
         <Card>
           <CardHeader>
             <CardTitle>Edit Payroll</CardTitle>
@@ -348,7 +357,7 @@ export default async function PayrollDetailPage({
           </CardContent>
         </Card>
       )}
- 
+
       {/* Notes */}
       {payrollData.notes && (
         <Card>
@@ -360,7 +369,7 @@ export default async function PayrollDetailPage({
           </CardContent>
         </Card>
       )}
- 
+
       {/* Metadata */}
       <Card className="bg-gray-50">
         <CardContent className="p-6">
@@ -380,5 +389,5 @@ export default async function PayrollDetailPage({
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

@@ -154,7 +154,7 @@ export default async function BillingPage() {
                 </p>
               </div>
 
-              <Link href="/dashboard/billing/plans">
+              <Link href="/billing/plans">
                 <Button variant="outline">Change Plan</Button>
               </Link>
             </div>
@@ -276,7 +276,7 @@ export default async function BillingPage() {
               <Button variant="outline" asChild>
                 <a href="mailto:support@hris.com">Contact Support</a>
               </Button>
-              <Link href="/dashboard/billing/plans">
+              <Link href="/billing/plans">
                 <Button variant="outline">View All Plans</Button>
               </Link>
             </div>
