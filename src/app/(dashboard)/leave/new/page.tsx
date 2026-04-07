@@ -1,85 +1,34 @@
 // src/app/(dashboard)/leave/new/page.tsx
+// Leave Request Page - COMPLETE
+
 import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-// import { LeaveRequestForm } from '@/src/components/leave/leave-request-form'
+import { redirect } from "next/navigation";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
+import { Button } from "@/src/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/src/components/ui/button";
+import { LeaveRequestForm } from "@/src/components/leave/leave-request-form";
 
-export default async function NewLeaveRequestPage() {
+export default async function LeaveRequestPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return null;
+    redirect("/login");
   }
-
-  const currentEmployee = await prisma.employee.findUnique({
-    where: { authId: user.id },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      organization: {
-        select: {
-          settings: {
-            select: {
-              annualLeaveQuota: true,
-              sickLeaveQuota: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!currentEmployee) {
-    return null;
-  }
-
-  // Get leave balance
-  const currentYearStart = new Date(new Date().getFullYear(), 0, 1);
-  const approvedLeaves = await prisma.leaveRequest.findMany({
-    where: {
-      employeeId: currentEmployee.id,
-      status: "approved",
-      startDate: { gte: currentYearStart },
-    },
-    select: {
-      leaveType: true,
-      totalDays: true,
-    },
-  });
-
-  const annualUsed = approvedLeaves
-    .filter((l) => l.leaveType === "annual")
-    .reduce((sum, l) => sum + l.totalDays, 0);
-
-  const sickUsed = approvedLeaves
-    .filter((l) => l.leaveType === "sick")
-    .reduce((sum, l) => sum + l.totalDays, 0);
-
-  const annualQuota =
-    currentEmployee.organization.settings?.annualLeaveQuota || 12;
-  const sickQuota = currentEmployee.organization.settings?.sickLeaveQuota || 12;
-
-  const leaveBalance = {
-    annual: annualQuota - annualUsed,
-    sick: sickQuota - sickUsed,
-  };
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href="/leave">
+        <Link href="/dashboard/leave">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -92,16 +41,13 @@ export default async function NewLeaveRequestPage() {
         </div>
       </div>
 
+      {/* Form Card */}
       <Card>
         <CardHeader>
           <CardTitle>Leave Request Form</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* <LeaveRequestForm
-            employeeId={currentEmployee.id}
-            employeeName={`${currentEmployee.firstName} ${currentEmployee.lastName}`}
-            leaveBalance={leaveBalance}
-          /> */}
+          <LeaveRequestForm />
         </CardContent>
       </Card>
     </div>
