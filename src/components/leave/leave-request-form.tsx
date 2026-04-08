@@ -227,7 +227,7 @@ export function LeaveRequestForm() {
       });
 
       // Redirect to leave list
-      router.push("/dashboard/leave");
+      router.push("/leave");
       router.refresh();
     } catch (error: any) {
       console.error("Submit leave error:", error);
@@ -467,7 +467,7 @@ export function LeaveRequestForm() {
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push("/dashboard/leave")}
+          onClick={() => router.push("/leave")}
           disabled={isLoading}
         >
           Cancel
