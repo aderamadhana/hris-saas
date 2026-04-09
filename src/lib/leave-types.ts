@@ -1,350 +1,427 @@
 // src/lib/leave-types.ts
-// Indonesian Leave Types - Based on UU Ketenagakerjaan
+// UPDATED - Indonesian Leave Types with Enhanced Features
 
 export interface LeaveTypeConfig {
   id: string
   name: string
   nameEn: string
   description: string
-  maxDays: number | null // null = unlimited
+  maxDays: number | null
   requiresApproval: boolean
   requiresDocument: boolean
   isPaid: boolean
-  category: 'annual' | 'special' | 'work' | 'unpaid' | 'health'
+  category: 'annual' | 'special' | 'work' | 'unpaid' | 'health' | 'maternity'
   icon: string
   color: string
+  autoCalculateDays?: boolean // Auto-calculate end date
+  autoDays?: number // Default days when auto-calculate
+  requiresTime?: boolean // Need time input (for OOO)
+  excludeWeekends?: boolean // Exclude Sat-Sun from calculation
+  requiresDelegation?: boolean // Need delegation
 }
 
 export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
-  // CUTI TAHUNAN (Annual Leave)
+  // CUTI TAHUNAN
   {
     id: 'annual',
     name: 'Cuti Tahunan',
     nameEn: 'Annual Leave',
-    description:
-      'Cuti tahunan yang menjadi hak pekerja setelah bekerja 12 bulan berturut-turut',
-    maxDays: 12, // UU: minimal 12 hari per tahun
+    description: 'Cuti tahunan yang menjadi hak pekerja setelah bekerja 12 bulan berturut-turut',
+    maxDays: 12,
     requiresApproval: true,
     requiresDocument: false,
     isPaid: true,
     category: 'annual',
-    icon: 'CalendarDays',
+    icon: '🏖️',
     color: 'blue',
+    excludeWeekends: true, // Exclude weekend
+    requiresDelegation: true,
   },
 
-  // CUTI SAKIT (Sick Leave)
+  // CUTI SAKIT
   {
     id: 'sick',
     name: 'Cuti Sakit',
     nameEn: 'Sick Leave',
     description: 'Cuti karena sakit dengan surat keterangan dokter',
-    maxDays: null, // Unlimited - sesuai kondisi kesehatan
+    maxDays: null,
     requiresApproval: true,
-    requiresDocument: true, // Surat dokter
-    isPaid: true, // Dibayar sesuai masa sakit
+    requiresDocument: true,
+    isPaid: true,
     category: 'health',
-    icon: 'HeartPulse',
+    icon: '🏥',
     color: 'red',
+    excludeWeekends: false, // Include weekend
+    requiresDelegation: true,
   },
 
-  // CUTI MELAHIRKAN (Maternity Leave)
+  // CUTI MELAHIRKAN (NEW!)
   {
     id: 'maternity',
     name: 'Cuti Melahirkan',
     nameEn: 'Maternity Leave',
-    description: 'Cuti melahirkan untuk pekerja perempuan',
-    maxDays: 90, // 90 hari
+    description: 'Cuti untuk ibu yang melahirkan',
+    maxDays: 90, // UU: 3 bulan (90 hari)
     requiresApproval: true,
-    requiresDocument: true, // Surat dokter / surat keterangan lahir
+    requiresDocument: true, // Surat RS
     isPaid: true,
-    category: 'special',
-    icon: 'Baby',
-    color: 'rose',
+    category: 'maternity',
+    icon: '🤱',
+    color: 'pink',
+    autoCalculateDays: true, // Auto-calculate 90 days
+    autoDays: 90,
+    excludeWeekends: false, // Include all days
+    requiresDelegation: true,
   },
 
-  // CUTI MENIKAH (Marriage Leave)
+  // CUTI MENIKAH
   {
     id: 'marriage',
     name: 'Cuti Menikah',
     nameEn: 'Marriage Leave',
-    description: 'Cuti untuk menikah (pekerja yang menikah)',
-    maxDays: 3, // UU: 3 hari
+    description: 'Cuti untuk menikah',
+    maxDays: 3,
     requiresApproval: true,
-    requiresDocument: true, // Surat nikah
+    requiresDocument: true,
     isPaid: true,
     category: 'special',
-    icon: 'Heart',
+    icon: '💒',
     color: 'pink',
+    autoCalculateDays: true, // Auto 3 days
+    autoDays: 3,
+    excludeWeekends: true,
+    requiresDelegation: false,
   },
 
-  // CUTI MENIKAHKAN ANAK (Child Marriage Leave)
+  // CUTI MENIKAHKAN ANAK
   {
     id: 'child_marriage',
     name: 'Cuti Menikahkan Anak',
     nameEn: 'Child Marriage Leave',
     description: 'Cuti untuk menikahkan anak',
-    maxDays: 2, // UU: 2 hari
+    maxDays: 2,
     requiresApproval: true,
     requiresDocument: true,
     isPaid: true,
     category: 'special',
-    icon: 'Users',
+    icon: '👰',
     color: 'pink',
+    autoCalculateDays: true,
+    autoDays: 2,
+    excludeWeekends: true,
+    requiresDelegation: false,
   },
 
-  // CUTI KHITANAN ANAK (Child Circumcision Leave)
+  // CUTI KHITANAN
   {
     id: 'child_circumcision',
     name: 'Cuti Khitanan Anak',
     nameEn: 'Child Circumcision Leave',
     description: 'Cuti untuk mengkhitankan anak',
-    maxDays: 2, // UU: 2 hari
+    maxDays: 2,
     requiresApproval: true,
     requiresDocument: false,
     isPaid: true,
     category: 'special',
-    icon: 'Shield',
+    icon: '🕌',
     color: 'green',
+    autoCalculateDays: true,
+    autoDays: 2,
+    excludeWeekends: true,
+    requiresDelegation: false,
   },
 
-  // CUTI BAPTIS ANAK (Child Baptism Leave)
+  // CUTI BAPTIS
   {
     id: 'child_baptism',
     name: 'Cuti Baptis Anak',
     nameEn: 'Child Baptism Leave',
     description: 'Cuti untuk membaptis anak',
-    maxDays: 2, // UU: 2 hari
+    maxDays: 2,
     requiresApproval: true,
     requiresDocument: false,
     isPaid: true,
     category: 'special',
-    icon: 'Church',
+    icon: '⛪',
     color: 'blue',
+    autoCalculateDays: true,
+    autoDays: 2,
+    excludeWeekends: true,
+    requiresDelegation: false,
   },
 
-  // CUTI ISTRI MELAHIRKAN/KEGUGURAN (Paternity Leave)
+  // CUTI ISTRI MELAHIRKAN (Paternity)
   {
     id: 'paternity',
-    name: 'Cuti Istri Melahirkan/Keguguran',
+    name: 'Cuti Istri Melahirkan',
     nameEn: 'Paternity Leave',
     description: 'Cuti bagi suami yang istrinya melahirkan atau keguguran',
-    maxDays: 2, // UU: 2 hari
-    requiresApproval: true,
-    requiresDocument: true, // Surat dari RS/dokter
-    isPaid: true,
-    category: 'special',
-    icon: 'Baby',
-    color: 'purple',
-  },
-
-  // CUTI KELUARGA MENINGGAL (Family Death Leave)
-  {
-    id: 'family_death',
-    name: 'Cuti Keluarga Meninggal',
-    nameEn: 'Bereavement Leave',
-    description: 'Cuti karena anggota keluarga dalam satu rumah meninggal dunia',
-    maxDays: 2, // UU: 2 hari
-    requiresApproval: true,
-    requiresDocument: true, // Surat keterangan kematian
-    isPaid: true,
-    category: 'special',
-    icon: 'HeartCrack',
-    color: 'gray',
-  },
-
-  // CUTI KELUARGA LAIN MENINGGAL (Extended Family Death Leave)
-  {
-    id: 'extended_family_death',
-    name: 'Cuti Keluarga (Beda Rumah) Meninggal',
-    nameEn: 'Extended Family Bereavement',
-    description: 'Cuti karena anggota keluarga di luar satu rumah meninggal',
-    maxDays: 1, // UU: 1 hari
+    maxDays: 2,
     requiresApproval: true,
     requiresDocument: true,
     isPaid: true,
     category: 'special',
-    icon: 'HeartCrack',
-    color: 'gray',
+    icon: '👶',
+    color: 'purple',
+    autoCalculateDays: true,
+    autoDays: 2,
+    excludeWeekends: true,
+    requiresDelegation: false,
   },
 
-  // CUTI IBADAH HAJI (Hajj Leave)
+  // CUTI KELUARGA MENINGGAL
+  {
+    id: 'family_death',
+    name: 'Cuti Keluarga Meninggal (Serumah)',
+    nameEn: 'Bereavement Leave',
+    description: 'Cuti karena anggota keluarga dalam satu rumah meninggal',
+    maxDays: 2,
+    requiresApproval: true,
+    requiresDocument: true,
+    isPaid: true,
+    category: 'special',
+    icon: '🕯️',
+    color: 'gray',
+    autoCalculateDays: true,
+    autoDays: 2,
+    excludeWeekends: true,
+    requiresDelegation: false,
+  },
+
+  // CUTI KELUARGA LAIN MENINGGAL
+  {
+    id: 'extended_family_death',
+    name: 'Cuti Keluarga Meninggal (Beda Rumah)',
+    nameEn: 'Extended Family Bereavement',
+    description: 'Cuti karena anggota keluarga di luar satu rumah meninggal',
+    maxDays: 1,
+    requiresApproval: true,
+    requiresDocument: true,
+    isPaid: true,
+    category: 'special',
+    icon: '🕯️',
+    color: 'gray',
+    autoCalculateDays: true,
+    autoDays: 1,
+    excludeWeekends: true,
+    requiresDelegation: false,
+  },
+
+  // CUTI HAJI
   {
     id: 'hajj',
     name: 'Cuti Ibadah Haji',
-    nameEn: 'Hajj Pilgrimage Leave',
+    nameEn: 'Hajj Leave',
     description: 'Cuti untuk menunaikan ibadah haji',
-    maxDays: 40, // Biasanya 40 hari
+    maxDays: 40,
     requiresApproval: true,
-    requiresDocument: true, // Surat keberangkatan haji
-    isPaid: false, // Unpaid
+    requiresDocument: true,
+    isPaid: false,
     category: 'special',
-    icon: 'Landmark',
+    icon: '🕋',
     color: 'green',
+    excludeWeekends: false,
+    requiresDelegation: true,
   },
 
-  // CUTI PENGGANTI LIBUR (Compensatory Leave)
+  // CUTI PENGGANTI
   {
     id: 'compensatory',
     name: 'Cuti Pengganti Libur',
     nameEn: 'Compensatory Leave',
     description: 'Cuti pengganti untuk hari libur yang digunakan bekerja',
-    maxDays: null, // Sesuai akumulasi
+    maxDays: null,
     requiresApproval: true,
     requiresDocument: false,
     isPaid: true,
     category: 'work',
-    icon: 'RefreshCw',
+    icon: '🔄',
     color: 'orange',
+    excludeWeekends: true,
+    requiresDelegation: false,
   },
 
-  // DINAS LUAR KOTA (Business Trip - Local)
+  // DINAS LUAR KOTA
   {
     id: 'business_trip_local',
     name: 'Dinas Luar Kota',
     nameEn: 'Business Trip (Local)',
     description: 'Perjalanan dinas dalam provinsi',
-    maxDays: null, // Sesuai kebutuhan
+    maxDays: null,
     requiresApproval: true,
     requiresDocument: false,
     isPaid: true,
     category: 'work',
-    icon: 'Car',
+    icon: '🚗',
     color: 'blue',
+    excludeWeekends: false,
+    requiresDelegation: true,
   },
 
-  // DINAS LUAR PROVINSI (Business Trip - Provincial)
+  // DINAS LUAR PROVINSI
   {
     id: 'business_trip_province',
     name: 'Dinas Luar Provinsi',
     nameEn: 'Business Trip (Provincial)',
     description: 'Perjalanan dinas ke luar provinsi',
-    maxDays: null, // Sesuai kebutuhan
+    maxDays: null,
     requiresApproval: true,
     requiresDocument: false,
     isPaid: true,
     category: 'work',
-    icon: 'Plane',
+    icon: '✈️',
     color: 'blue',
+    excludeWeekends: false,
+    requiresDelegation: true,
   },
 
-  // OUT OF OFFICE (OOO)
+  // OUT OF OFFICE (with time)
   {
     id: 'out_of_office',
     name: 'Out of Office',
     nameEn: 'Out of Office',
     description: 'Tidak di kantor untuk keperluan tertentu (hitungan jam)',
-    maxDays: null, // Fleksibel
+    maxDays: 1, // Max 1 day
     requiresApproval: true,
     requiresDocument: false,
     isPaid: true,
     category: 'work',
-    icon: 'Clock3',
+    icon: '📴',
     color: 'yellow',
+    requiresTime: true, // NEEDS TIME INPUT!
+    excludeWeekends: true,
+    requiresDelegation: false,
   },
 
-  // WORK FROM HOME (WFH)
+  // WFH
   {
     id: 'wfh',
-    name: 'Work From Home (WFH)',
+    name: 'Work From Home',
     nameEn: 'Work From Home',
     description: 'Bekerja dari rumah',
-    maxDays: null, // Sesuai kebijakan perusahaan
+    maxDays: null,
     requiresApproval: true,
     requiresDocument: false,
     isPaid: true,
     category: 'work',
-    icon: 'House',
+    icon: '🏠',
     color: 'green',
+    excludeWeekends: true,
+    requiresDelegation: false,
   },
 
-  // WORK FROM ANYWHERE (WFA)
+  // WFA
   {
     id: 'wfa',
-    name: 'Work From Anywhere (WFA)',
+    name: 'Work From Anywhere',
     nameEn: 'Work From Anywhere',
     description: 'Bekerja dari lokasi manapun',
-    maxDays: null, // Sesuai kebijakan
+    maxDays: null,
     requiresApproval: true,
     requiresDocument: false,
     isPaid: true,
     category: 'work',
-    icon: 'Globe',
+    icon: '🌍',
     color: 'teal',
+    excludeWeekends: true,
+    requiresDelegation: false,
   },
 
-  // CUTI TANPA UPAH (Unpaid Leave)
+  // UNPAID LEAVE
   {
     id: 'unpaid',
     name: 'Cuti Tanpa Upah',
     nameEn: 'Unpaid Leave',
     description: 'Cuti tanpa dibayar untuk keperluan pribadi',
-    maxDays: null, // Sesuai persetujuan
+    maxDays: null,
     requiresApproval: true,
     requiresDocument: false,
     isPaid: false,
     category: 'unpaid',
-    icon: 'CircleOff',
+    icon: '🚫',
     color: 'gray',
+    excludeWeekends: true,
+    requiresDelegation: true,
   },
 ]
 
-// Helper functions
+// Helper: Calculate working days (exclude weekends)
+export function calculateWorkingDays(startDate: Date, endDate: Date): number {
+  let count = 0
+  const current = new Date(startDate)
+
+  while (current <= endDate) {
+    const day = current.getDay()
+    // 0 = Sunday, 6 = Saturday
+    if (day !== 0 && day !== 6) {
+      count++
+    }
+    current.setDate(current.getDate() + 1)
+  }
+
+  return count
+}
+
+// Helper: Calculate end date based on working days
+export function calculateEndDate(
+  startDate: Date,
+  workingDays: number,
+  excludeWeekends: boolean = true
+): Date {
+  const end = new Date(startDate)
+
+  if (!excludeWeekends) {
+    // Just add days
+    end.setDate(end.getDate() + workingDays - 1)
+    return end
+  }
+
+  // Add working days only
+  let added = 0
+  while (added < workingDays) {
+    const day = end.getDay()
+    if (day !== 0 && day !== 6) {
+      added++
+    }
+    if (added < workingDays) {
+      end.setDate(end.getDate() + 1)
+    }
+  }
+
+  return end
+}
+
+// Helper: Get leave type
 export function getLeaveType(id: string): LeaveTypeConfig | undefined {
   return INDONESIAN_LEAVE_TYPES.find((type) => type.id === id)
 }
 
-export function getLeaveTypesByCategory(
-  category: LeaveTypeConfig['category']
-): LeaveTypeConfig[] {
-  return INDONESIAN_LEAVE_TYPES.filter((type) => type.category === category)
+// Helper: Check if auto-calculate
+export function shouldAutoCalculate(leaveTypeId: string): boolean {
+  const type = getLeaveType(leaveTypeId)
+  return type?.autoCalculateDays ?? false
 }
 
-export function getPaidLeaveTypes(): LeaveTypeConfig[] {
-  return INDONESIAN_LEAVE_TYPES.filter((type) => type.isPaid)
+// Helper: Get auto days
+export function getAutoDays(leaveTypeId: string): number | null {
+  const type = getLeaveType(leaveTypeId)
+  return type?.autoDays ?? null
 }
 
-export function getUnpaidLeaveTypes(): LeaveTypeConfig[] {
-  return INDONESIAN_LEAVE_TYPES.filter((type) => !type.isPaid)
+// Helper: Check if needs time
+export function requiresTimeInput(leaveTypeId: string): boolean {
+  const type = getLeaveType(leaveTypeId)
+  return type?.requiresTime ?? false
 }
 
-export function getSpecialLeaveTypes(): LeaveTypeConfig[] {
-  return INDONESIAN_LEAVE_TYPES.filter((type) => type.category === 'special')
+// Helper: Check if excludes weekends
+export function shouldExcludeWeekends(leaveTypeId: string): boolean {
+  const type = getLeaveType(leaveTypeId)
+  return type?.excludeWeekends ?? true
 }
 
-export function getMaxDaysForLeaveType(leaveTypeId: string): number | null {
-  const leaveType = getLeaveType(leaveTypeId)
-  return leaveType?.maxDays || null
-}
-
-export function isLeaveTypePaid(leaveTypeId: string): boolean {
-  const leaveType = getLeaveType(leaveTypeId)
-  return leaveType?.isPaid ?? false
-}
-
-export function requiresDocument(leaveTypeId: string): boolean {
-  const leaveType = getLeaveType(leaveTypeId)
-  return leaveType?.requiresDocument ?? false
-}
-
-// Leave balance tracking
-export interface LeaveBalance {
-  leaveTypeId: string
-  quota: number | null // null = unlimited
-  used: number
-  remaining: number | null // null = unlimited
-}
-
-export function calculateLeaveBalance(
-  leaveTypeId: string,
-  usedDays: number
-): LeaveBalance {
-  const leaveType = getLeaveType(leaveTypeId)
-  const quota = leaveType?.maxDays || null
-
-  return {
-    leaveTypeId,
-    quota,
-    used: usedDays,
-    remaining: quota !== null ? Math.max(0, quota - usedDays) : null,
-  }
+// Helper: Check if needs delegation
+export function requiresDelegation(leaveTypeId: string): boolean {
+  const type = getLeaveType(leaveTypeId)
+  return type?.requiresDelegation ?? false
 }

@@ -115,9 +115,11 @@ model Employee {
   leaveRequests     LeaveRequest[]
   attendance        Attendance[]
   payrolls          Payroll[]
-  managedDepartment Department[]   @relation("DepartmentManager")
-  leaves           Leave[]
 
+  managedDepartment Department[]   @relation("DepartmentManager")
+  leaves             Leave[]              @relation
+  delegatedLeaves Leave[]      @relation("DelegatedLeaves")  // ADD THIS!
+  
   @@index([organizationId])
   @@index([authId])
   @@index([email])
@@ -194,27 +196,51 @@ model Leave {
   employeeId     String
   organizationId String
   
-  leaveType      String   // annual, sick, emergency
+  // Leave type and dates
+  leaveType      String   // annual, sick, maternity, marriage, etc.
   startDate      DateTime
   endDate        DateTime
-  days           Int
-  reason         String   @db.Text
-  attachmentUrl  String?
+  days           Int      // Number of days (working or calendar days)
   
-  status         String   @default("pending")
-  approvedBy     String?
+  // Time fields (for Out of Office)
+  startTime      String?  // "09:00"
+  endTime        String?  // "17:00"
+  totalHours     Float?   // 6.0 hours
+  
+  // Reason and documents
+  reason         String   @db.Text
+  attachmentUrl  String?  // URL to uploaded file
+  documentType   String?  // medical_cert, wedding_invitation, death_cert, etc.
+  
+  // Delegation (who covers the work)
+  delegateTo     String?  // Employee ID
+  delegateNotes  String?  // Notes for delegate
+  
+  // Status and approval
+  status         String   @default("pending") // pending, approved, rejected
+  approvedBy     String?  // Manager/HR who approved
   approvedAt     DateTime?
   rejectedReason String?
   
+  // Payment and category
+  isPaid         Boolean  @default(true)
+  category       String   @default("annual") // annual, special, work, unpaid, health, maternity
+  
+  // Timestamps
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   
+  // Relations
   employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  delegate       Employee?    @relation("DelegatedLeaves", fields: [delegateTo], references: [id])
   
   @@index([employeeId])
   @@index([organizationId])
   @@index([status])
+  @@index([leaveType])
+  @@index([delegateTo])
+  @@index([startDate, endDate])
 }
 
 // Payroll
