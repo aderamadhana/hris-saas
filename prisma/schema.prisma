@@ -49,9 +49,11 @@ model Organization {
   // Relations
   payrolls        Payroll[]
   salaryComponents SalaryComponent[]
-
-  annualLeaveQuota Int     @default(12)
-  sickLeaveQuota   Int     @default(12)
+  
+  // NEW: Approval rules
+  leaveApprovalLevels      Int     @default(1) // 1 = Manager only, 2 = Manager + HR
+  autoApproveBelow         Int     @default(0) // Auto-approve if <= X days (0 = disabled)
+  requireHrApprovalAbove   Int     @default(5) // Require HR if > X days
 
   leaves           Leave[]
 
@@ -110,11 +112,16 @@ model Employee {
   baseSalary        Decimal        @db.Decimal(12, 2)
   currency          String         @default("IDR")
   role              String         @default("employee")
+  managerId         String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   leaveRequests     LeaveRequest[]
+  leaveApprovals  LeaveApproval[]  @relation("LeaveApprovals")  // ADD THIS
   attendance        Attendance[]
   payrolls          Payroll[]
+
+  manager         Employee?        @relation("ManagerSubordinates", fields: [managerId], references: [id])
+  subordinates    Employee[]       @relation("ManagerSubordinates")
 
   managedDepartment Department[]   @relation("DepartmentManager")
   leaves             Leave[]              @relation
@@ -124,6 +131,7 @@ model Employee {
   @@index([authId])
   @@index([email])
   @@index([departmentId])
+  @@index([managerId])
 }
 
 // Department
@@ -168,6 +176,37 @@ model LeaveRequest {
   @@index([startDate])
 }
 
+model LeaveApproval {
+  id          String   @id @default(cuid())
+  leaveId     String
+  approverId  String   // Manager/HR who approves
+  
+  // Approval action
+  action      String   // approved, rejected, pending
+  comments    String?  @db.Text
+  actionDate  DateTime @default(now())
+  
+  // Approval level (for multi-level approval)
+  level       Int      @default(1) // 1 = Manager, 2 = HR, 3 = Director
+  sequence    Int      @default(1) // Order of approval
+  
+  // Status
+  status      String   @default("pending") // pending, completed, skipped
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  leave       Leave    @relation(fields: [leaveId], references: [id], onDelete: Cascade)
+  approver    Employee @relation("LeaveApprovals", fields: [approverId], references: [id])
+  
+  @@index([leaveId])
+  @@index([approverId])
+  @@index([status])
+  @@index([action])
+}
+
 // Attendance
 model Attendance {
   id               String       @id @default(cuid())
@@ -197,43 +236,48 @@ model Leave {
   organizationId String
   
   // Leave type and dates
-  leaveType      String   // annual, sick, maternity, marriage, etc.
+  leaveType      String
   startDate      DateTime
   endDate        DateTime
-  days           Int      // Number of days (working or calendar days)
+  days           Int
   
-  // Time fields (for Out of Office)
-  startTime      String?  // "09:00"
-  endTime        String?  // "17:00"
-  totalHours     Float?   // 6.0 hours
+  // Time fields
+  startTime      String?
+  endTime        String?
+  totalHours     Float?
   
   // Reason and documents
   reason         String   @db.Text
-  attachmentUrl  String?  // URL to uploaded file
-  documentType   String?  // medical_cert, wedding_invitation, death_cert, etc.
+  attachmentUrl  String?
+  documentType   String?
   
-  // Delegation (who covers the work)
-  delegateTo     String?  // Employee ID
-  delegateNotes  String?  // Notes for delegate
+  // Delegation
+  delegateTo     String?
+  delegateNotes  String?
   
   // Status and approval
-  status         String   @default("pending") // pending, approved, rejected
-  approvedBy     String?  // Manager/HR who approved
+  status         String   @default("pending") // pending, approved, rejected, cancelled
+  approvedBy     String?  // Final approver (kept for backward compatibility)
   approvedAt     DateTime?
   rejectedReason String?
   
+  // NEW: Approval workflow
+  currentApprovalLevel Int      @default(1)
+  requiresApprovalLevels Int    @default(1) // How many levels needed
+  
   // Payment and category
   isPaid         Boolean  @default(true)
-  category       String   @default("annual") // annual, special, work, unpaid, health, maternity
+  category       String   @default("annual")
   
   // Timestamps
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   
   // Relations
-  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  delegate       Employee?    @relation("DelegatedLeaves", fields: [delegateTo], references: [id])
+  employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  delegate       Employee?        @relation("DelegatedLeaves", fields: [delegateTo], references: [id])
+  approvals      LeaveApproval[]  // ADD THIS - All approval records
   
   @@index([employeeId])
   @@index([organizationId])
