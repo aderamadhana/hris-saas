@@ -1,5 +1,5 @@
 // src/app/api/leave/request/route.ts
-// Submit leave request
+// FIXED - Proper Prisma client usage and error handling
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/src/lib/supabase/server'
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get employee
+    // Get employee with proper error handling
     const employee = await prisma.employee.findUnique({
       where: { authId: user.id },
       select: {
@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
         organizationId: true,
         firstName: true,
         lastName: true,
+        managerId: true,
       },
     })
 
@@ -39,10 +40,19 @@ export async function POST(request: NextRequest) {
     const reason = formData.get('reason') as string
     const attachment = formData.get('attachment') as File | null
 
+    // Optional fields
+    const startTime = formData.get('startTime') as string | null
+    const endTime = formData.get('endTime') as string | null
+    const totalHours = formData.get('totalHours')
+      ? parseFloat(formData.get('totalHours') as string)
+      : null
+    const delegateTo = formData.get('delegateTo') as string | null
+    const delegateNotes = formData.get('delegateNotes') as string | null
+
     // Validate required fields
     if (!leaveType || !startDate || !endDate || !reason) {
       return NextResponse.json(
-        { error: 'All fields are required' },
+        { error: 'All required fields must be filled' },
         { status: 400 }
       )
     }
@@ -61,7 +71,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if dates overlap with existing leave
+    // Check overlapping leave
     const overlappingLeave = await prisma.leave.findFirst({
       where: {
         employeeId: employee.id,
@@ -70,22 +80,13 @@ export async function POST(request: NextRequest) {
         },
         OR: [
           {
-            AND: [
-              { startDate: { lte: start } },
-              { endDate: { gte: start } },
-            ],
+            AND: [{ startDate: { lte: start } }, { endDate: { gte: start } }],
           },
           {
-            AND: [
-              { startDate: { lte: end } },
-              { endDate: { gte: end } },
-            ],
+            AND: [{ startDate: { lte: end } }, { endDate: { gte: end } }],
           },
           {
-            AND: [
-              { startDate: { gte: start } },
-              { endDate: { lte: end } },
-            ],
+            AND: [{ startDate: { gte: start } }, { endDate: { lte: end } }],
           },
         ],
       },
@@ -98,14 +99,42 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Handle file upload if exists
+    // Handle file upload (placeholder for now)
     let attachmentUrl = null
     if (attachment && attachment.size > 0) {
-      // For now, we'll skip file upload
-      // In production, upload to Supabase Storage or S3
-      // attachmentUrl = await uploadFile(attachment)
-      console.log('File upload not implemented yet:', attachment.name)
+      // TODO: Upload to storage
+      console.log('File upload not implemented:', attachment.name)
     }
+
+    // Determine leave category and paid status
+    const leaveCategories: Record<string, { category: string; isPaid: boolean }> = {
+      annual: { category: 'annual', isPaid: true },
+      sick: { category: 'health', isPaid: true },
+      maternity: { category: 'maternity', isPaid: true },
+      marriage: { category: 'special', isPaid: true },
+      child_marriage: { category: 'special', isPaid: true },
+      child_circumcision: { category: 'special', isPaid: true },
+      child_baptism: { category: 'special', isPaid: true },
+      paternity: { category: 'special', isPaid: true },
+      family_death: { category: 'special', isPaid: true },
+      extended_family_death: { category: 'special', isPaid: true },
+      hajj: { category: 'special', isPaid: false },
+      compensatory: { category: 'work', isPaid: true },
+      business_trip_local: { category: 'work', isPaid: true },
+      business_trip_province: { category: 'work', isPaid: true },
+      out_of_office: { category: 'work', isPaid: true },
+      wfh: { category: 'work', isPaid: true },
+      wfa: { category: 'work', isPaid: true },
+      unpaid: { category: 'unpaid', isPaid: false },
+    }
+
+    const leaveInfo = leaveCategories[leaveType] || {
+      category: 'annual',
+      isPaid: true,
+    }
+
+    // Determine approval levels needed
+    const requiresApprovalLevels = days > 5 ? 2 : 1
 
     // Create leave request
     const leave = await prisma.leave.create({
@@ -118,9 +147,33 @@ export async function POST(request: NextRequest) {
         days,
         reason,
         status: 'pending',
-        // attachmentUrl, // Add this when file upload is implemented
+        isPaid: leaveInfo.isPaid,
+        category: leaveInfo.category,
+        currentApprovalLevel: 1,
+        requiresApprovalLevels,
+        // Optional fields
+        ...(startTime && { startTime }),
+        ...(endTime && { endTime }),
+        ...(totalHours && { totalHours }),
+        ...(delegateTo && { delegateTo }),
+        ...(delegateNotes && { delegateNotes }),
+        ...(attachmentUrl && { attachmentUrl }),
       },
     })
+
+    // Create first approval record if manager exists
+    if (employee.managerId) {
+      await prisma.leaveApproval.create({
+        data: {
+          leaveId: leave.id,
+          approverId: employee.managerId,
+          level: 1,
+          sequence: 1,
+          status: 'pending',
+          action: 'pending',
+        },
+      })
+    }
 
     return NextResponse.json({
       success: true,
@@ -136,8 +189,24 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('Submit leave request error:', error)
+    
+    // Better error messages
+    if (error.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'Duplicate leave request' },
+        { status: 400 }
+      )
+    }
+    
+    if (error.code === 'P2003') {
+      return NextResponse.json(
+        { error: 'Invalid employee or organization' },
+        { status: 400 }
+      )
+    }
+
     return NextResponse.json(
-      { error: error.message || 'Internal server error' },
+      { error: error.message || 'Failed to submit leave request' },
       { status: 500 }
     )
   }

@@ -1,5 +1,5 @@
 // src/lib/leave-types.ts
-// UPDATED - Indonesian Leave Types with Enhanced Features
+// FIXED - Icons instead of emoticons
 
 export interface LeaveTypeConfig {
   id: string
@@ -11,13 +11,12 @@ export interface LeaveTypeConfig {
   requiresDocument: boolean
   isPaid: boolean
   category: 'annual' | 'special' | 'work' | 'unpaid' | 'health' | 'maternity'
-  icon: string
   color: string
-  autoCalculateDays?: boolean // Auto-calculate end date
-  autoDays?: number // Default days when auto-calculate
-  requiresTime?: boolean // Need time input (for OOO)
-  excludeWeekends?: boolean // Exclude Sat-Sun from calculation
-  requiresDelegation?: boolean // Need delegation
+  autoCalculateDays?: boolean
+  autoDays?: number
+  requiresTime?: boolean
+  excludeWeekends?: boolean
+  requiresDelegation?: boolean
 }
 
 export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
@@ -32,9 +31,8 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: false,
     isPaid: true,
     category: 'annual',
-    icon: '🏖️',
     color: 'blue',
-    excludeWeekends: true, // Exclude weekend
+    excludeWeekends: true,
     requiresDelegation: true,
   },
 
@@ -49,28 +47,26 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: true,
     isPaid: true,
     category: 'health',
-    icon: '🏥',
     color: 'red',
-    excludeWeekends: false, // Include weekend
+    excludeWeekends: false,
     requiresDelegation: true,
   },
 
-  // CUTI MELAHIRKAN (NEW!)
+  // CUTI MELAHIRKAN
   {
     id: 'maternity',
     name: 'Cuti Melahirkan',
     nameEn: 'Maternity Leave',
     description: 'Cuti untuk ibu yang melahirkan',
-    maxDays: 90, // UU: 3 bulan (90 hari)
+    maxDays: 90,
     requiresApproval: true,
-    requiresDocument: true, // Surat RS
+    requiresDocument: true,
     isPaid: true,
     category: 'maternity',
-    icon: '🤱',
     color: 'pink',
-    autoCalculateDays: true, // Auto-calculate 90 days
+    autoCalculateDays: true,
     autoDays: 90,
-    excludeWeekends: false, // Include all days
+    excludeWeekends: false,
     requiresDelegation: true,
   },
 
@@ -85,9 +81,8 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: true,
     isPaid: true,
     category: 'special',
-    icon: '💒',
     color: 'pink',
-    autoCalculateDays: true, // Auto 3 days
+    autoCalculateDays: true,
     autoDays: 3,
     excludeWeekends: true,
     requiresDelegation: false,
@@ -104,7 +99,6 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: true,
     isPaid: true,
     category: 'special',
-    icon: '👰',
     color: 'pink',
     autoCalculateDays: true,
     autoDays: 2,
@@ -123,7 +117,6 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: false,
     isPaid: true,
     category: 'special',
-    icon: '🕌',
     color: 'green',
     autoCalculateDays: true,
     autoDays: 2,
@@ -142,7 +135,6 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: false,
     isPaid: true,
     category: 'special',
-    icon: '⛪',
     color: 'blue',
     autoCalculateDays: true,
     autoDays: 2,
@@ -150,7 +142,7 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDelegation: false,
   },
 
-  // CUTI ISTRI MELAHIRKAN (Paternity)
+  // CUTI ISTRI MELAHIRKAN
   {
     id: 'paternity',
     name: 'Cuti Istri Melahirkan',
@@ -161,7 +153,6 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: true,
     isPaid: true,
     category: 'special',
-    icon: '👶',
     color: 'purple',
     autoCalculateDays: true,
     autoDays: 2,
@@ -180,7 +171,6 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: true,
     isPaid: true,
     category: 'special',
-    icon: '🕯️',
     color: 'gray',
     autoCalculateDays: true,
     autoDays: 2,
@@ -199,7 +189,6 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: true,
     isPaid: true,
     category: 'special',
-    icon: '🕯️',
     color: 'gray',
     autoCalculateDays: true,
     autoDays: 1,
@@ -218,7 +207,6 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: true,
     isPaid: false,
     category: 'special',
-    icon: '🕋',
     color: 'green',
     excludeWeekends: false,
     requiresDelegation: true,
@@ -235,7 +223,6 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: false,
     isPaid: true,
     category: 'work',
-    icon: '🔄',
     color: 'orange',
     excludeWeekends: true,
     requiresDelegation: false,
@@ -252,7 +239,6 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: false,
     isPaid: true,
     category: 'work',
-    icon: '🚗',
     color: 'blue',
     excludeWeekends: false,
     requiresDelegation: true,
@@ -269,26 +255,24 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: false,
     isPaid: true,
     category: 'work',
-    icon: '✈️',
     color: 'blue',
     excludeWeekends: false,
     requiresDelegation: true,
   },
 
-  // OUT OF OFFICE (with time)
+  // OUT OF OFFICE
   {
     id: 'out_of_office',
     name: 'Out of Office',
     nameEn: 'Out of Office',
     description: 'Tidak di kantor untuk keperluan tertentu (hitungan jam)',
-    maxDays: 1, // Max 1 day
+    maxDays: 1,
     requiresApproval: true,
     requiresDocument: false,
     isPaid: true,
     category: 'work',
-    icon: '📴',
     color: 'yellow',
-    requiresTime: true, // NEEDS TIME INPUT!
+    requiresTime: true,
     excludeWeekends: true,
     requiresDelegation: false,
   },
@@ -304,7 +288,6 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: false,
     isPaid: true,
     category: 'work',
-    icon: '🏠',
     color: 'green',
     excludeWeekends: true,
     requiresDelegation: false,
@@ -321,7 +304,6 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: false,
     isPaid: true,
     category: 'work',
-    icon: '🌍',
     color: 'teal',
     excludeWeekends: true,
     requiresDelegation: false,
@@ -338,21 +320,44 @@ export const INDONESIAN_LEAVE_TYPES: LeaveTypeConfig[] = [
     requiresDocument: false,
     isPaid: false,
     category: 'unpaid',
-    icon: '🚫',
     color: 'gray',
     excludeWeekends: true,
     requiresDelegation: true,
   },
 ]
 
-// Helper: Calculate working days (exclude weekends)
+// Helper: Get icon component based on leave type
+export function getLeaveIcon(leaveTypeId: string) {
+  const iconMap: Record<string, string> = {
+    annual: 'Calendar',
+    sick: 'Heart',
+    maternity: 'Baby',
+    marriage: 'Heart',
+    child_marriage: 'Users',
+    child_circumcision: 'Star',
+    child_baptism: 'Star',
+    paternity: 'Baby',
+    family_death: 'AlertCircle',
+    extended_family_death: 'AlertCircle',
+    hajj: 'Star',
+    compensatory: 'RefreshCw',
+    business_trip_local: 'Car',
+    business_trip_province: 'Plane',
+    out_of_office: 'PhoneOff',
+    wfh: 'Home',
+    wfa: 'Globe',
+    unpaid: 'XCircle',
+  }
+  return iconMap[leaveTypeId] || 'FileText'
+}
+
+// Helper: Calculate working days
 export function calculateWorkingDays(startDate: Date, endDate: Date): number {
   let count = 0
   const current = new Date(startDate)
 
   while (current <= endDate) {
     const day = current.getDay()
-    // 0 = Sunday, 6 = Saturday
     if (day !== 0 && day !== 6) {
       count++
     }
@@ -362,7 +367,7 @@ export function calculateWorkingDays(startDate: Date, endDate: Date): number {
   return count
 }
 
-// Helper: Calculate end date based on working days
+// Helper: Calculate end date
 export function calculateEndDate(
   startDate: Date,
   workingDays: number,
@@ -371,12 +376,10 @@ export function calculateEndDate(
   const end = new Date(startDate)
 
   if (!excludeWeekends) {
-    // Just add days
     end.setDate(end.getDate() + workingDays - 1)
     return end
   }
 
-  // Add working days only
   let added = 0
   while (added < workingDays) {
     const day = end.getDay()
@@ -424,4 +427,11 @@ export function shouldExcludeWeekends(leaveTypeId: string): boolean {
 export function requiresDelegation(leaveTypeId: string): boolean {
   const type = getLeaveType(leaveTypeId)
   return type?.requiresDelegation ?? false
+}
+
+// Helper: Get categories
+export function getLeaveTypesByCategory(
+  category: LeaveTypeConfig['category']
+): LeaveTypeConfig[] {
+  return INDONESIAN_LEAVE_TYPES.filter((type) => type.category === category)
 }
