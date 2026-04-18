@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateEmployeeId } from '@/src/lib/utils'
-
 import prisma from '@/src/lib/prisma'
 
 export async function POST(request: NextRequest) {
@@ -24,10 +23,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (email.length > 255) {
-        return NextResponse.json(
-            { error: 'Email exceeds maximum allowed length' },
-            { status: 400 }
-        );
+      return NextResponse.json(
+        { error: 'Email exceeds maximum allowed length' },
+        { status: 400 }
+      )
     }
 
     // Check if organization slug already exists
@@ -68,9 +67,9 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // 3. Create Employee (Owner/Admin)
+      // 3. Create Employee (Owner)
       const employeeId = generateEmployeeId(organizationSlug, 0)
-      
+
       const employee = await tx.employee.create({
         data: {
           organizationId: organization.id,
@@ -81,9 +80,9 @@ export async function POST(request: NextRequest) {
           employeeId: employeeId,
           position: 'Owner',
           employmentType: 'full-time',
-          baseSalary: 0, // Owner bisa set sendiri nanti
+          baseSalary: 0,
           currency: 'IDR',
-          role: 'owner', // Highest privilege
+          role: 'owner',
           status: 'active',
         },
       })
@@ -98,12 +97,19 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Registration error:', error)
-    
+
+    // Handle known Prisma errors
+    if (error.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'Email or organization already exists' },
+        { status: 400 }
+      )
+    }
+
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
+  // ✅ Tidak ada prisma.$disconnect() di sini
 }
