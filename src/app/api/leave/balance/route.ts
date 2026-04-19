@@ -1,5 +1,4 @@
 // src/app/api/leave/balance/route.ts
-// Get employee leave balance
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@/src/lib/supabase/server'
@@ -16,83 +15,58 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get employee
     const employee = await prisma.employee.findUnique({
       where: { authId: user.id },
-      select: {
-        id: true,
-        organizationId: true,
-      },
+      select: { id: true, organizationId: true },
     })
 
     if (!employee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
     }
 
-    // Get organization leave quotas
-    const organization = await prisma.organization.findUnique({
-      where: { id: employee.organizationId },
-      select: {
-        annualLeaveQuota: true,
-        sickLeaveQuota: true,
-      },
-    })
+    // Coba ambil quota dari Organization, fallback ke default jika field belum ada
+    let annualQuota = 12
+    let sickQuota = 12
+    try {
+      const org = await prisma.organization.findUnique({
+        where: { id: employee.organizationId },
+      })
+      // Gunakan field jika ada, pakai type assertion supaya tidak error TypeScript
+      const orgAny = org as any
+      if (orgAny?.annualLeaveQuota) annualQuota = orgAny.annualLeaveQuota
+      if (orgAny?.sickLeaveQuota) sickQuota = orgAny.sickLeaveQuota
+    } catch {
+      // field belum ada di DB, pakai default
+    }
 
-    // Calculate used leave for current year
-    const currentYear = new Date().getFullYear()
-    const startOfYear = new Date(currentYear, 0, 1)
-    const endOfYear = new Date(currentYear, 11, 31)
+    // Hitung leave yang sudah dipakai tahun ini
+    const startOfYear = new Date(new Date().getFullYear(), 0, 1)
+    const endOfYear = new Date(new Date().getFullYear(), 11, 31, 23, 59, 59)
 
     const usedLeave = await prisma.leave.groupBy({
       by: ['leaveType'],
       where: {
         employeeId: employee.id,
-        startDate: {
-          gte: startOfYear,
-          lte: endOfYear,
-        },
-        status: {
-          in: ['approved', 'pending'], // Count both approved and pending
-        },
+        startDate: { gte: startOfYear, lte: endOfYear },
+        status: { in: ['approved', 'pending'] },
       },
-      _sum: {
-        days: true,
-      },
+      _sum: { days: true },
     })
 
-    // Calculate remaining balance
-    const annualQuota = organization?.annualLeaveQuota || 12
-    const sickQuota = organization?.sickLeaveQuota || 12
-
-    const usedAnnual =
-      usedLeave.find((l) => l.leaveType === 'annual')?._sum.days || 0
-    const usedSick =
-      usedLeave.find((l) => l.leaveType === 'sick')?._sum.days || 0
-    const usedEmergency =
-      usedLeave.find((l) => l.leaveType === 'emergency')?._sum.days || 0
-
-    const balance = {
-      annual: Math.max(0, annualQuota - usedAnnual),
-      sick: Math.max(0, sickQuota - usedSick),
-      emergency: Math.max(0, 3 - usedEmergency), // Usually 3 days per year
-    }
+    const usedAnnual = usedLeave.find((l) => l.leaveType === 'annual')?._sum.days ?? 0
+    const usedSick   = usedLeave.find((l) => l.leaveType === 'sick')?._sum.days ?? 0
 
     return NextResponse.json({
       success: true,
-      balance,
-      quota: {
-        annual: annualQuota,
-        sick: sickQuota,
-        emergency: 3,
+      balance: {
+        annual: Math.max(0, annualQuota - usedAnnual),
+        sick: sickQuota, // sick tidak terbatas, tampilkan quota saja
       },
-      used: {
-        annual: usedAnnual,
-        sick: usedSick,
-        emergency: usedEmergency,
-      },
+      quota: { annual: annualQuota, sick: sickQuota },
+      used:  { annual: usedAnnual, sick: usedSick },
     })
   } catch (error: any) {
-    console.error('Get leave balance error:', error)
+    console.error('Leave balance error:', error)
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

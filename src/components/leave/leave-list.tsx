@@ -1,277 +1,302 @@
 // src/components/leave/leave-list.tsx
-// Leave List Component - Client Component
+'use client'
 
-"use client";
-
-import { useEffect, useState } from "react";
+import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
-import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
+  Calendar,
+  Clock,
+  User,
+  FileText,
+  ChevronDown,
+  RefreshCw,
+  AlertCircle,
+} from 'lucide-react'
+import { Button } from '@/src/components/ui/button'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
-import { Loader2, Calendar, Clock, User, FileText } from "lucide-react";
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
-import { getLeaveType } from "@/src/lib/leave-types";
+  getLeaveType,
+  getStatusLabel,
+  getStatusColor,
+  formatLeaveDate,
+} from '@/src/lib/leave-types'
 
-interface Leave {
-  id: string;
-  leaveType: string;
-  startDate: string;
-  endDate: string;
-  days: number;
-  reason: string;
-  status: string;
-  isPaid: boolean;
-  category: string;
-  startTime?: string;
-  endTime?: string;
-  totalHours?: number;
-  delegateTo?: string;
-  delegateNotes?: string;
-  employee: {
-    id: string;
-    name: string;
-    email: string;
-  };
-  delegate?: {
-    id: string;
-    name: string;
-    email: string;
-  } | null;
-  createdAt: string;
+interface LeaveItem {
+  id: string
+  leaveType: string
+  startDate: string
+  endDate: string
+  days: number
+  reason: string
+  status: string
+  isPaid: boolean
+  category: string
+  startTime?: string | null
+  endTime?: string | null
+  totalHours?: number | null
+  delegateTo?: string | null
+  delegateNotes?: string | null
+  attachmentUrl?: string | null
+  approvedAt?: string | null
+  rejectedReason?: string | null
+  employee: { id: string; name: string; email: string }
+  delegate?: { id: string; name: string } | null
+  createdAt: string
 }
 
+const STATUS_TABS = [
+  { value: 'all', label: 'Semua' },
+  { value: 'pending', label: 'Menunggu' },
+  { value: 'approved', label: 'Disetujui' },
+  { value: 'rejected', label: 'Ditolak' },
+]
+
 export function LeaveList() {
-  const [leaves, setLeaves] = useState<Leave[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [leaves, setLeaves] = useState<LeaveItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [activeStatus, setActiveStatus] = useState('all')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const fetchLeaves = useCallback(async () => {
+    setIsLoading(true)
+    setError('')
+    try {
+      const params = new URLSearchParams()
+      if (activeStatus !== 'all') params.set('status', activeStatus)
+
+      const res = await fetch(`/api/leave/list?${params.toString()}`)
+      const data = await res.json()
+
+      if (!res.ok) throw new Error(data.error || 'Gagal mengambil data')
+      setLeaves(data.leaves ?? [])
+    } catch (err: any) {
+      setError(err.message || 'Gagal mengambil data cuti')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [activeStatus])
 
   useEffect(() => {
-    fetchLeaves();
-  }, [statusFilter, typeFilter]);
+    fetchLeaves()
+  }, [fetchLeaves])
 
-  const fetchLeaves = async () => {
-    setIsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (statusFilter !== "all") params.append("status", statusFilter);
-      if (typeFilter !== "all") params.append("type", typeFilter);
-
-      const response = await fetch(`/api/leave/list?${params}`);
-      const data = await response.json();
-
-      if (data.success) {
-        setLeaves(data.leaves);
-      }
-    } catch (error) {
-      console.error("Fetch leaves error:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, any> = {
-      pending: { variant: "secondary", label: "Pending" },
-      approved: {
-        variant: "default",
-        label: "Approved",
-        className: "bg-green-600",
-      },
-      rejected: { variant: "destructive", label: "Rejected" },
-    };
-    const config = variants[status] || variants.pending;
-    return (
-      <Badge variant={config.variant} className={config.className}>
-        {config.label}
-      </Badge>
-    );
-  };
-
-  const formatDate = (date: string) => {
-    return format(new Date(date), "dd MMM yyyy", { locale: idLocale });
-  };
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-        </CardContent>
-      </Card>
-    );
+  const toggleExpand = (id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id))
   }
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Status</label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      {/* Status filter tabs */}
+      <div className="flex gap-1 rounded-lg border bg-gray-50 p-1 w-fit">
+        {STATUS_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => setActiveStatus(tab.value)}
+            className={`rounded px-4 py-1.5 text-sm font-medium transition-colors ${
+              activeStatus === tab.value
+                ? 'bg-white text-gray-900 shadow-sm border'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-            <div>
-              <label className="text-sm font-medium mb-2 block">
-                Leave Type
-              </label>
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="annual">Cuti Tahunan</SelectItem>
-                  <SelectItem value="sick">Cuti Sakit</SelectItem>
-                  <SelectItem value="maternity">Cuti Melahirkan</SelectItem>
-                  <SelectItem value="marriage">Cuti Menikah</SelectItem>
-                  <SelectItem value="out_of_office">Out of Office</SelectItem>
-                  <SelectItem value="wfh">Work From Home</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      {/* Refresh */}
+      <div className="flex justify-end">
+        <button
+          onClick={fetchLeaves}
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Refresh
+        </button>
+      </div>
+
+      {/* Loading */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+          <span className="ml-2 text-gray-500">Memuat data...</span>
+        </div>
+      )}
+
+      {/* Error */}
+      {!isLoading && error && (
+        <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
+          <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-red-800">Gagal memuat data</p>
+            <p className="text-sm text-red-600">{error}</p>
           </div>
-        </CardContent>
-      </Card>
+          <Button variant="outline" size="sm" onClick={fetchLeaves} className="ml-auto">
+            Coba lagi
+          </Button>
+        </div>
+      )}
 
-      {/* Leave Items */}
-      {leaves.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Calendar className="h-12 w-12 text-gray-400 mb-4" />
-            <p className="text-gray-600 text-center">No leave requests found</p>
-            <p className="text-sm text-gray-500 mt-2">
-              Try adjusting your filters or create a new request
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
+      {/* Empty state */}
+      {!isLoading && !error && leaves.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
+          <Calendar className="h-10 w-10 text-gray-300 mb-3" />
+          <p className="text-base font-medium text-gray-900">Belum ada pengajuan cuti</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {activeStatus !== 'all'
+              ? `Tidak ada cuti dengan status "${getStatusLabel(activeStatus)}"`
+              : 'Klik tombol "Ajukan Cuti" untuk membuat pengajuan baru'}
+          </p>
+          {activeStatus !== 'all' && (
+            <button
+              onClick={() => setActiveStatus('all')}
+              className="mt-4 text-sm text-blue-600 hover:underline"
+            >
+              Lihat semua
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Leave cards */}
+      {!isLoading && !error && leaves.length > 0 && (
+        <div className="space-y-3">
           {leaves.map((leave) => {
-            const leaveTypeConfig = getLeaveType(leave.leaveType);
+            const typeConfig = getLeaveType(leave.leaveType)
+            const isExpanded = expandedId === leave.id
+            const isOOO = leave.leaveType === 'out_of_office'
 
             return (
-              <Card key={leave.id}>
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    {/* Left side */}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-2xl">
-                          {leaveTypeConfig?.icon || "📝"}
+              <div
+                key={leave.id}
+                className="rounded-lg border bg-white overflow-hidden"
+              >
+                {/* Card header */}
+                <div
+                  className="flex items-start justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => toggleExpand(leave.id)}
+                >
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    {/* Status bar */}
+                    <div
+                      className={`mt-1 h-10 w-1 rounded-full flex-shrink-0 ${
+                        leave.status === 'approved'
+                          ? 'bg-green-500'
+                          : leave.status === 'rejected'
+                          ? 'bg-red-500'
+                          : 'bg-yellow-400'
+                      }`}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-gray-900 text-sm">
+                          {typeConfig?.name ?? leave.leaveType}
                         </span>
-                        <div>
-                          <h3 className="font-semibold text-lg">
-                            {leaveTypeConfig?.name || leave.leaveType}
-                          </h3>
-                          <p className="text-sm text-gray-600">
-                            {leave.employee.name}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Dates */}
-                      <div className="flex items-center gap-4 mt-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <span>
-                            {formatDate(leave.startDate)} -{" "}
-                            {formatDate(leave.endDate)}
-                          </span>
-                        </div>
-                        <Badge variant="outline">
-                          {leave.days} {leave.days === 1 ? "day" : "days"}
-                        </Badge>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusColor(leave.status)}`}
+                        >
+                          {getStatusLabel(leave.status)}
+                        </span>
                         {!leave.isPaid && (
-                          <Badge variant="destructive">Unpaid</Badge>
+                          <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700 border border-red-100">
+                            Tidak berbayar
+                          </span>
                         )}
                       </div>
 
-                      {/* Time (for OOO) */}
-                      {leave.startTime && leave.endTime && (
-                        <div className="flex items-center gap-2 mt-2 text-sm">
-                          <Clock className="h-4 w-4 text-gray-400" />
-                          <span>
-                            {leave.startTime} - {leave.endTime} (
-                            {leave.totalHours} hours)
+                      {/* Date & duration */}
+                      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3.5 w-3.5" />
+                          {formatLeaveDate(leave.startDate)}
+                          {leave.startDate !== leave.endDate && (
+                            <> — {formatLeaveDate(leave.endDate)}</>
+                          )}
+                        </span>
+                        {isOOO && leave.startTime && leave.endTime ? (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5" />
+                            {leave.startTime} — {leave.endTime}
+                            {leave.totalHours && ` (${leave.totalHours.toFixed(1)} jam)`}
                           </span>
-                        </div>
-                      )}
-
-                      {/* Delegation */}
-                      {leave.delegate && (
-                        <div className="flex items-center gap-2 mt-2 text-sm">
-                          <User className="h-4 w-4 text-gray-400" />
-                          <span>
-                            Delegated to: <strong>{leave.delegate.name}</strong>
+                        ) : (
+                          <span className="font-medium text-gray-700">
+                            {leave.days} hari
                           </span>
-                        </div>
-                      )}
-
-                      {/* Reason */}
-                      <div className="mt-3">
-                        <p className="text-sm text-gray-700 line-clamp-2">
-                          {leave.reason}
-                        </p>
+                        )}
                       </div>
 
-                      {/* Document */}
-                      {leave.attachmentUrl && (
-                        <div className="mt-2">
-                          <a
-                            href={leave.attachmentUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                          >
-                            <FileText className="h-4 w-4" />
-                            View Document
-                          </a>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Right side - Status */}
-                    <div className="text-right">
-                      {getStatusBadge(leave.status)}
-                      <p className="text-xs text-gray-500 mt-2">
-                        {formatDate(leave.createdAt)}
-                      </p>
+                      {/* Employee name (visible to HR/Admin) */}
+                      <p className="mt-1 text-xs text-gray-400">{leave.employee.name}</p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            );
+
+                  <ChevronDown
+                    className={`h-4 w-4 text-gray-400 flex-shrink-0 ml-2 mt-1 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                  />
+                </div>
+
+                {/* Expanded detail */}
+                {isExpanded && (
+                  <div className="border-t px-4 py-4 bg-gray-50 space-y-3 text-sm">
+                    {/* Reason */}
+                    <div>
+                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Alasan</p>
+                      <p className="text-gray-700">{leave.reason}</p>
+                    </div>
+
+                    {/* Delegate */}
+                    {leave.delegate && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Delegasi kepada</p>
+                        <p className="flex items-center gap-1.5 text-gray-700">
+                          <User className="h-3.5 w-3.5 text-gray-400" />
+                          {leave.delegate.name}
+                        </p>
+                        {leave.delegateNotes && (
+                          <p className="mt-1 text-gray-500 text-xs pl-5">{leave.delegateNotes}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Attachment */}
+                    {leave.attachmentUrl && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Dokumen</p>
+                        <a
+                          href={leave.attachmentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-blue-600 hover:underline"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          Lihat dokumen
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Rejection reason */}
+                    {leave.status === 'rejected' && leave.rejectedReason && (
+                      <div className="rounded border border-red-200 bg-red-50 p-3">
+                        <p className="text-xs font-medium text-red-700 mb-1">Alasan penolakan</p>
+                        <p className="text-red-600">{leave.rejectedReason}</p>
+                      </div>
+                    )}
+
+                    {/* Approved info */}
+                    {leave.status === 'approved' && leave.approvedAt && (
+                      <div className="rounded border border-green-200 bg-green-50 p-3">
+                        <p className="text-xs text-green-700">
+                          Disetujui pada {formatLeaveDate(leave.approvedAt)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
           })}
         </div>
       )}
     </div>
-  );
+  )
 }
