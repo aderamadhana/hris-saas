@@ -1,468 +1,344 @@
 // src/components/admin-dashboard.tsx
-// Admin/HR/Manager view - Organization-wide stats and management
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card'
-import { Button } from '@/src/components/ui/button'
-import { Badge } from '@/src/components/ui/badge'
-import prisma from '@/src/lib/prisma'
+import Link from "next/link";
 import {
   Users,
   Clock,
   CalendarDays,
-  Building2,
-  TrendingUp,
-  AlertCircle,
   CheckCircle,
-  XCircle,
+  AlertCircle,
+  TrendingUp,
   UserPlus,
-} from 'lucide-react'
-import Link from 'next/link'
+  FileText,
+} from "lucide-react";
 
-interface AdminDashboardProps {
-  employee: any
+interface Props {
+  employee: any;
+  role: string;
+  stats: {
+    totalEmployees: number;
+    activeEmployees: number;
+    presentToday: number;
+    absentToday: number;
+    pendingLeave: number;
+    approvedLeaveThisMonth: number;
+    newEmployeesThisMonth: number;
+    attendanceRate: number;
+  };
+  recentLeaves: {
+    id: string;
+    employeeName: string;
+    leaveType: string;
+    startDate: string;
+    days: number;
+    status: string;
+  }[];
 }
 
-export async function AdminDashboard({ employee }: AdminDashboardProps) {
-  const today = new Date()
-  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+const STATUS_STYLE: Record<string, string> = {
+  pending: "bg-yellow-100 text-yellow-800",
+  approved: "bg-green-100 text-green-800",
+  rejected: "bg-red-100 text-red-800",
+};
 
-  // Employee Stats
-  const totalEmployees = await prisma.employee.count({
-    where: { organizationId: employee.organizationId },
-  })
+export function AdminDashboard({ employee, role, stats, recentLeaves }: Props) {
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 
-  const activeEmployees = await prisma.employee.count({
-    where: {
-      organizationId: employee.organizationId,
-      status: 'active',
-    },
-  })
-
-  const newEmployeesThisMonth = await prisma.employee.count({
-    where: {
-      organizationId: employee.organizationId,
-      joinDate: { gte: startOfMonth },
-    },
-  })
-
-  // Attendance Stats (Today)
-  const todayStart = new Date(today.setHours(0, 0, 0, 0))
-  const todayEnd = new Date(today.setHours(23, 59, 59, 999))
-
-  const todayAttendance = await prisma.attendance.findMany({
-    where: {
-      organizationId: employee.organizationId,
-      date: { gte: todayStart, lte: todayEnd },
-    },
-  })
-
-  const presentToday = todayAttendance.filter((a) => a.status === 'present').length
-  const lateToday = todayAttendance.filter((a) => a.status === 'late').length
-  const absentToday = activeEmployees - todayAttendance.length
-
-  // Leave Requests
-  const pendingLeaves = await prisma.leaveRequest.count({
-    where: {
-      organizationId: employee.organizationId,
-      status: 'pending',
-    },
-  })
-
-  const approvedLeavesThisMonth = await prisma.leaveRequest.count({
-    where: {
-      organizationId: employee.organizationId,
-      status: 'approved',
-      startDate: { gte: startOfMonth },
-    },
-  })
-
-  const rejectedLeavesThisMonth = await prisma.leaveRequest.count({
-    where: {
-      organizationId: employee.organizationId,
-      status: 'rejected',
-      reviewedAt: { gte: startOfMonth },
-    },
-  })
-
-  // Department Stats
-  const totalDepartments = await prisma.department.count({
-    where: { organizationId: employee.organizationId },
-  })
-
-  const departmentsWithoutManager = await prisma.department.count({
-    where: {
-      organizationId: employee.organizationId,
-      managerId: null,
-    },
-  })
-
-  // Recent Activities (Latest 5 employees)
-  const recentEmployees = await prisma.employee.findMany({
-    where: { organizationId: employee.organizationId },
-    orderBy: { createdAt: 'desc' },
-    take: 5,
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      position: true,
-      joinDate: true,
-      status: true,
-    },
-  })
-
-  // Recent Leave Requests
-  const recentLeaves = await prisma.leaveRequest.findMany({
-    where: {
-      organizationId: employee.organizationId,
-      status: 'pending',
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 5,
-    include: {
-      employee: {
-        select: {
-          firstName: true,
-          lastName: true,
-          position: true,
-        },
-      },
-    },
-  })
-
-  // Attendance rate this month
-  const workingDays = Math.floor(
-    (today.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60 * 24)
-  )
-  const expectedAttendance = activeEmployees * workingDays
-  const actualAttendance = await prisma.attendance.count({
-    where: {
-      organizationId: employee.organizationId,
-      date: { gte: startOfMonth },
-      status: { in: ['present', 'late'] },
-    },
-  })
-  const attendanceRate = expectedAttendance > 0
-    ? Math.round((actualAttendance / expectedAttendance) * 100)
-    : 0
+  const roleTitle =
+    role === "manager" ? "Team Overview" : "Organization Overview";
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Dashboard Overview
-          </h1>
-          <p className="mt-1 text-gray-600">
-            {employee.organization.name} - {employee.role.toUpperCase()}
-          </p>
-        </div>
-        {['owner', 'admin', 'hr'].includes(employee.role) && (
-          <Link href="/employees/new">
-            <Button>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Add Employee
-            </Button>
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">
+          Welcome back, {employee.firstName}!
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">
+          {today} · {roleTitle}
+        </p>
+      </div>
+
+      {/* Pending approvals alert */}
+      {stats.pendingLeave > 0 && (
+        <div className="flex items-center justify-between rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-yellow-800">
+                {stats.pendingLeave} leave request
+                {stats.pendingLeave !== 1 ? "s" : ""} awaiting your approval
+              </p>
+              <p className="text-xs text-yellow-600 mt-0.5">
+                Review and approve pending requests
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/leave"
+            className="flex-shrink-0 rounded-lg border border-yellow-300 px-4 py-2 text-sm font-medium text-yellow-700 hover:bg-yellow-100 transition-colors"
+          >
+            Review Now
           </Link>
-        )}
+        </div>
+      )}
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard
+          label="Total Employees"
+          value={stats.totalEmployees}
+          sub={`${stats.activeEmployees} active`}
+          color="blue"
+          icon={<Users className="h-5 w-5" />}
+          href="/employees"
+        />
+        <StatCard
+          label="Present Today"
+          value={stats.presentToday}
+          sub={`${stats.attendanceRate}% attendance rate`}
+          color="green"
+          icon={<Clock className="h-5 w-5" />}
+          href="/attendance"
+        />
+        <StatCard
+          label="Pending Leave"
+          value={stats.pendingLeave}
+          sub="awaiting approval"
+          color="yellow"
+          icon={<AlertCircle className="h-5 w-5" />}
+          href="/leave"
+        />
+        <StatCard
+          label="Approved This Month"
+          value={stats.approvedLeaveThisMonth}
+          sub="leave requests"
+          color="purple"
+          icon={<CheckCircle className="h-5 w-5" />}
+          href="/leave"
+        />
       </div>
 
-      {/* Main Stats Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Total Employees */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">
-                  Total Employees
-                </p>
-                <p className="mt-2 text-3xl font-bold">{totalEmployees}</p>
-                <p className="mt-1 text-xs text-gray-500">
-                  {activeEmployees} active
-                </p>
-              </div>
-              <div className="rounded-full bg-blue-100 p-3">
-                <Users className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-            {newEmployeesThisMonth > 0 && (
-              <div className="mt-3 flex items-center gap-1 text-xs text-green-600">
-                <TrendingUp className="h-3 w-3" />
-                <span>+{newEmployeesThisMonth} this month</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* Secondary stats */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border bg-white p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">Absent Today</p>
+            <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+              {stats.absentToday}
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-bold text-gray-900">
+            {stats.absentToday}
+          </p>
+          <div className="mt-2 h-1.5 w-full rounded-full bg-gray-100">
+            <div
+              className="h-1.5 rounded-full bg-red-400"
+              style={{
+                width: `${stats.totalEmployees > 0 ? (stats.absentToday / stats.totalEmployees) * 100 : 0}%`,
+              }}
+            />
+          </div>
+        </div>
 
-        {/* Present Today */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Present Today</p>
-                <p className="mt-2 text-3xl font-bold text-green-600">
-                  {presentToday}
-                </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  {lateToday} late • {absentToday} absent
-                </p>
-              </div>
-              <div className="rounded-full bg-green-100 p-3">
-                <CheckCircle className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border bg-white p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">New Employees</p>
+            <TrendingUp className="h-4 w-4 text-green-500" />
+          </div>
+          <p className="mt-2 text-2xl font-bold text-gray-900">
+            {stats.newEmployeesThisMonth}
+          </p>
+          <p className="mt-1 text-xs text-gray-400">joined this month</p>
+        </div>
 
-        {/* Pending Leaves */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">
-                  Pending Leaves
-                </p>
-                <p className="mt-2 text-3xl font-bold text-yellow-600">
-                  {pendingLeaves}
-                </p>
-                <p className="mt-1 text-xs text-gray-500">Awaiting approval</p>
-              </div>
-              <div className="rounded-full bg-yellow-100 p-3">
-                <AlertCircle className="h-6 w-6 text-yellow-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Departments */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Departments</p>
-                <p className="mt-2 text-3xl font-bold">{totalDepartments}</p>
-                {departmentsWithoutManager > 0 && (
-                  <p className="mt-1 text-xs text-red-500">
-                    {departmentsWithoutManager} without manager
-                  </p>
-                )}
-              </div>
-              <div className="rounded-full bg-purple-100 p-3">
-                <Building2 className="h-6 w-6 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl border bg-white p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">Attendance Rate</p>
+            <span
+              className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                stats.attendanceRate >= 90
+                  ? "bg-green-50 text-green-700"
+                  : stats.attendanceRate >= 75
+                    ? "bg-yellow-50 text-yellow-700"
+                    : "bg-red-50 text-red-700"
+              }`}
+            >
+              {stats.attendanceRate >= 90
+                ? "Good"
+                : stats.attendanceRate >= 75
+                  ? "Fair"
+                  : "Low"}
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-bold text-gray-900">
+            {stats.attendanceRate}%
+          </p>
+          <div className="mt-2 h-1.5 w-full rounded-full bg-gray-100">
+            <div
+              className="h-1.5 rounded-full bg-blue-500"
+              style={{ width: `${stats.attendanceRate}%` }}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Attendance & Leave Stats */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Attendance Rate */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Attendance Rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-blue-600">
-                {attendanceRate}%
-              </div>
-              <p className="mt-2 text-sm text-gray-600">This month</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Leave Approvals */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Leave This Month</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Approved</span>
-                <span className="font-semibold text-green-600">
-                  {approvedLeavesThisMonth}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Rejected</span>
-                <span className="font-semibold text-red-600">
-                  {rejectedLeavesThisMonth}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Pending</span>
-                <span className="font-semibold text-yellow-600">
-                  {pendingLeaves}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Today's Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Today's Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-green-500" />
-                  <span className="text-sm text-gray-600">Present</span>
-                </div>
-                <span className="font-semibold">{presentToday}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-yellow-500" />
-                  <span className="text-sm text-gray-600">Late</span>
-                </div>
-                <span className="font-semibold">{lateToday}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-red-500" />
-                  <span className="text-sm text-gray-600">Absent</span>
-                </div>
-                <span className="font-semibold">{absentToday}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Activities */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Recent Employees */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Recent Employees</CardTitle>
-              <Link href="/employees">
-                <Button variant="ghost" size="sm">
-                  View All
-                </Button>
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentEmployees.length > 0 ? (
-                recentEmployees.map((emp) => (
-                  <div
-                    key={emp.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div>
-                      <p className="font-medium">
-                        {emp.firstName} {emp.lastName}
-                      </p>
-                      <p className="text-sm text-gray-600">{emp.position}</p>
-                    </div>
-                    <Badge
-                      variant={
-                        emp.status === 'active'
-                          ? 'success'
-                          : emp.status === 'inactive'
-                          ? 'secondary'
-                          : 'destructive'
-                      }
-                    >
-                      {emp.status}
-                    </Badge>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500">No recent employees</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pending Leave Requests */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Pending Leave Requests</CardTitle>
-              <Link href="/leave">
-                <Button variant="ghost" size="sm">
-                  View All
-                </Button>
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentLeaves.length > 0 ? (
-                recentLeaves.map((leave) => (
-                  <div
-                    key={leave.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div>
-                      <p className="font-medium">
-                        {leave.employee.firstName} {leave.employee.lastName}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {leave.leaveType} • {leave.totalDays} days
-                      </p>
-                    </div>
-                    <Badge variant="warning">Pending</Badge>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500">
-                  No pending leave requests
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {['owner', 'admin', 'hr'].includes(employee.role) && (
-              <>
-                <Link href="/employees/new">
-                  <Button variant="outline" className="w-full justify-start">
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Add Employee
-                  </Button>
-                </Link>
-                <Link href="/departments/new">
-                  <Button variant="outline" className="w-full justify-start">
-                    <Building2 className="mr-2 h-4 w-4" />
-                    Add Department
-                  </Button>
-                </Link>
-              </>
-            )}
-            <Link href="/attendance">
-              <Button variant="outline" className="w-full justify-start">
-                <Clock className="mr-2 h-4 w-4" />
-                View Attendance
-              </Button>
-            </Link>
-            <Link href="/leave">
-              <Button variant="outline" className="w-full justify-start">
-                <CalendarDays className="mr-2 h-4 w-4" />
-                Manage Leaves
-              </Button>
+      {/* Bottom section */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Recent leave requests */}
+        <div className="rounded-xl border bg-white">
+          <div className="flex items-center justify-between border-b px-5 py-4">
+            <h2 className="text-sm font-semibold text-gray-900">
+              Recent Leave Requests
+            </h2>
+            <Link
+              href="/leave"
+              className="text-xs text-blue-600 hover:underline"
+            >
+              View all
             </Link>
           </div>
-        </CardContent>
-      </Card>
+          <div className="divide-y">
+            {recentLeaves.length === 0 ? (
+              <p className="px-5 py-8 text-center text-sm text-gray-400">
+                No leave requests
+              </p>
+            ) : (
+              recentLeaves.slice(0, 5).map((leave) => (
+                <div
+                  key={leave.id}
+                  className="flex items-center justify-between px-5 py-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {leave.employeeName}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {leave.leaveType.replace(/_/g, " ")} · {leave.days} day
+                      {leave.days !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <span
+                    className={`ml-3 flex-shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLE[leave.status] ?? "bg-gray-100 text-gray-700"}`}
+                  >
+                    {leave.status.charAt(0).toUpperCase() +
+                      leave.status.slice(1)}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Quick actions */}
+        <div className="rounded-xl border bg-white">
+          <div className="border-b px-5 py-4">
+            <h2 className="text-sm font-semibold text-gray-900">
+              Quick Actions
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3 p-5">
+            {[
+              {
+                href: "/employees/new",
+                icon: <UserPlus className="h-4 w-4" />,
+                label: "Add Employee",
+                color: "text-blue-600 bg-blue-50",
+              },
+              {
+                href: "/attendance",
+                icon: <Clock className="h-4 w-4" />,
+                label: "Attendance",
+                color: "text-green-600 bg-green-50",
+              },
+              {
+                href: "/leave",
+                icon: <CalendarDays className="h-4 w-4" />,
+                label: "Leave Requests",
+                color: "text-yellow-600 bg-yellow-50",
+              },
+              {
+                href: "/payroll",
+                icon: <FileText className="h-4 w-4" />,
+                label: "Payroll",
+                color: "text-purple-600 bg-purple-50",
+              },
+            ].map((action) => (
+              <Link
+                key={action.href}
+                href={action.href}
+                className="flex items-center gap-2.5 rounded-lg border p-3 hover:bg-gray-50 transition-colors"
+              >
+                <span className={`rounded-lg p-1.5 ${action.color}`}>
+                  {action.icon}
+                </span>
+                <span className="text-sm font-medium text-gray-700">
+                  {action.label}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
-  )
+  );
+}
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
+
+function StatCard({
+  label,
+  value,
+  sub,
+  color,
+  icon,
+  href,
+}: {
+  label: string;
+  value: number;
+  sub: string;
+  color: "blue" | "green" | "yellow" | "purple";
+  icon: React.ReactNode;
+  href: string;
+}) {
+  const colors = {
+    blue: {
+      bg: "bg-blue-50",
+      icon: "bg-blue-100 text-blue-600",
+      val: "text-blue-700",
+    },
+    green: {
+      bg: "bg-green-50",
+      icon: "bg-green-100 text-green-600",
+      val: "text-green-700",
+    },
+    yellow: {
+      bg: "bg-yellow-50",
+      icon: "bg-yellow-100 text-yellow-600",
+      val: "text-yellow-700",
+    },
+    purple: {
+      bg: "bg-purple-50",
+      icon: "bg-purple-100 text-purple-600",
+      val: "text-purple-700",
+    },
+  };
+  const c = colors[color];
+  return (
+    <Link
+      href={href}
+      className={`rounded-xl border p-4 ${c.bg} hover:opacity-90 transition-opacity block`}
+    >
+      <div className={`inline-flex rounded-lg p-2 ${c.icon}`}>{icon}</div>
+      <p className={`mt-3 text-2xl font-bold ${c.val}`}>{value}</p>
+      <p className="text-xs font-medium text-gray-600 mt-1">{label}</p>
+      <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+    </Link>
+  );
 }

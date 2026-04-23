@@ -1,12 +1,9 @@
 // src/components/sidebar.tsx
-// FIXED VERSION - Proper role-based navigation with correct paths
-
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/src/lib/utils";
-import { CreditCard } from "lucide-react";
 import {
   LayoutDashboard,
   Users,
@@ -17,6 +14,7 @@ import {
   Settings,
   UserCircle,
   FileText,
+  CreditCard,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -25,7 +23,7 @@ interface SidebarProps {
   userEmail: string;
 }
 
-interface NavigationItem {
+interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -33,136 +31,101 @@ interface NavigationItem {
   badge?: string;
 }
 
-// Define navigation items per role
-const getNavigationItems = (role: string): NavigationItem[] => {
-  const commonItems = [
-    {
-      name: "Dashboard",
-      href: "/dashboard",
-      icon: LayoutDashboard,
-      roles: ["employee", "manager", "hr", "admin", "owner"],
-    },
-    {
-      name: "My Profile",
-      href: "/profile", // ✅ Fixed path
-      icon: UserCircle,
-      roles: ["employee", "manager", "hr", "admin", "owner"],
-    },
-  ];
+const NAV_ITEMS: NavItem[] = [
+  {
+    name: "Dashboard",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    roles: ["employee", "manager", "hr", "admin", "owner"],
+  },
+  {
+    name: "My Profile",
+    href: "/profile",
+    icon: UserCircle,
+    roles: ["employee", "manager", "hr", "admin", "owner"],
+  },
+  {
+    name: "Billing",
+    href: "/billing",
+    icon: CreditCard,
+    roles: ["owner"],
+  },
+  {
+    name: "Attendance",
+    href: "/attendance",
+    icon: Clock,
+    roles: ["employee", "manager", "hr", "admin", "owner"],
+  },
+  {
+    name: "Leave",
+    href: "/leave",
+    icon: CalendarDays,
+    roles: ["employee", "manager", "hr", "admin", "owner"],
+  },
+  {
+    name: "Payslip",
+    href: "/payslip",
+    icon: FileText,
+    roles: ["employee", "manager", "hr", "admin", "owner"],
+  },
+  {
+    name: "Employees",
+    href: "/employees",
+    icon: Users,
+    roles: ["manager", "hr", "admin", "owner"],
+    badge: "Management",
+  },
+  {
+    name: "Departments",
+    href: "/departments",
+    icon: Building2,
+    roles: ["hr", "admin", "owner"],
+  },
+  {
+    name: "Payroll",
+    href: "/payroll",
+    icon: Wallet,
+    roles: ["hr", "admin", "owner"],
+  },
+  {
+    name: "Settings",
+    href: "/settings",
+    icon: Settings,
+    roles: ["admin", "owner"],
+  },
+];
 
-  const attendanceLeaveItems = [
-    {
-      name: "Attendance",
-      href: "/attendance", // ✅ Fixed path
-      icon: Clock,
-      roles: ["employee", "manager", "hr", "admin", "owner"],
-    },
-    {
-      name: "Leave",
-      href: "/leave", // ✅ Fixed path
-      icon: CalendarDays,
-      roles: ["employee", "manager", "hr", "admin", "owner"],
-    },
-  ];
+const ROLE_LABEL: Record<string, string> = {
+  employee: "Employee",
+  manager: "Manager",
+  hr: "HR Manager",
+  admin: "Administrator",
+  owner: "Owner",
+};
 
-  const payslipItems = [
-    {
-      name: "Payslip", // ✅ Added for employee
-      href: "/payslip",
-      icon: FileText,
-      roles: ["employee", "manager", "hr", "admin", "owner"],
-    },
-  ];
-
-  const managementItems = [
-    {
-      name: "Employees",
-      href: "/employees", // ✅ Fixed path
-      icon: Users,
-      roles: ["manager", "hr", "admin", "owner"],
-      badge: "Management",
-    },
-    {
-      name: "Departments",
-      href: "/departments", // ✅ Fixed path
-      icon: Building2,
-      roles: ["hr", "admin", "owner"],
-    },
-  ];
-
-  const payrollSettingsItems = [
-    {
-      name: "Payroll", // ✅ For HR/Admin to manage
-      href: "/payroll",
-      icon: Wallet,
-      roles: ["hr", "admin", "owner"],
-    },
-    {
-      name: "Settings",
-      href: "/settings", // ✅ Fixed path
-      icon: Settings,
-      roles: ["admin", "owner"],
-    },
-  ];
-
-  const billingItems = [
-    {
-      name: "Billing",
-      href: "/billing",
-      icon: CreditCard,
-      roles: ["owner"], // ✅ OWNER ONLY!
-    },
-  ];
-
-  const canAccessBilling = (role: string) => {
-    return role === "owner";
-  };
-  const canViewBilling = ["owner", "admin"].includes(role);
-
-  // ✅ Order items logically
-  const allItems = [
-    ...commonItems,
-    ...billingItems,
-    ...attendanceLeaveItems,
-    ...payslipItems, // After Leave, before management
-    ...managementItems,
-    ...payrollSettingsItems,
-  ];
-
-  return allItems.filter((item) => item.roles.includes(role));
+const ROLE_COLOR: Record<string, string> = {
+  employee: "bg-gray-100 text-gray-700",
+  manager: "bg-blue-100 text-blue-700",
+  hr: "bg-purple-100 text-purple-700",
+  admin: "bg-orange-100 text-orange-700",
+  owner: "bg-red-100 text-red-700",
 };
 
 export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
   const pathname = usePathname();
-  const navigationItems = getNavigationItems(userRole);
 
-  // Get role display name
-  const getRoleDisplayName = (role: string) => {
-    const roleMap: Record<string, string> = {
-      employee: "Employee",
-      manager: "Manager",
-      hr: "HR Manager",
-      admin: "Administrator",
-      owner: "Owner",
-    };
-    return roleMap[role] || "User";
-  };
+  const visibleItems = NAV_ITEMS.filter((item) =>
+    item.roles.includes(userRole),
+  );
 
-  // Get role color
-  const getRoleColor = (role: string) => {
-    const colorMap: Record<string, string> = {
-      employee: "bg-gray-100 text-gray-700",
-      manager: "bg-blue-100 text-blue-700",
-      hr: "bg-purple-100 text-purple-700",
-      admin: "bg-orange-100 text-orange-700",
-      owner: "bg-red-100 text-red-700",
-    };
-    return colorMap[role] || "bg-gray-100 text-gray-700";
-  };
+  const isActive = (href: string) =>
+    href === "/dashboard"
+      ? pathname === "/dashboard"
+      : pathname.startsWith(href);
 
   return (
     <div className="flex h-full w-64 flex-col bg-white border-r">
-      {/* Logo & Brand */}
+      {/* Logo */}
       <div className="flex h-16 items-center border-b px-6">
         <Link href="/dashboard" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
@@ -172,53 +135,55 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
         </Link>
       </div>
 
-      {/* User Info */}
+      {/* User info */}
       <div className="border-b px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
             <span className="text-sm font-semibold text-blue-600">
               {userName.charAt(0).toUpperCase()}
             </span>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-gray-900">
               {userName}
             </p>
-            <div className="flex items-center gap-2 mt-1">
-              <span
-                className={cn(
-                  "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                  getRoleColor(userRole),
-                )}
-              >
-                {getRoleDisplayName(userRole)}
-              </span>
-            </div>
+            <span
+              className={cn(
+                "mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                ROLE_COLOR[userRole] ?? "bg-gray-100 text-gray-700",
+              )}
+            >
+              {ROLE_LABEL[userRole] ?? userRole}
+            </span>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
-        {navigationItems.map((item) => {
-          const isActive = pathname === item.href;
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
+        {visibleItems.map((item) => {
+          const active = isActive(item.href);
           const Icon = item.icon;
-
           return (
             <Link
               key={item.name}
               href={item.href}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                isActive
+                active
                   ? "bg-blue-50 text-blue-600"
-                  : "text-gray-700 hover:bg-gray-50 hover:text-gray-900",
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
               )}
             >
-              <Icon className="h-5 w-5" />
+              <Icon
+                className={cn(
+                  "h-4 w-4 flex-shrink-0",
+                  active ? "text-blue-600" : "text-gray-400",
+                )}
+              />
               <span>{item.name}</span>
-              {item.badge && (
-                <span className="ml-auto text-xs text-gray-500">
+              {item.badge && !active && (
+                <span className="ml-auto text-xs text-gray-400">
                   {item.badge}
                 </span>
               )}
@@ -227,13 +192,13 @@ export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
         })}
       </nav>
 
-      {/* Help Section (Optional) */}
+      {/* Bottom tip for employee */}
       {userRole === "employee" && (
         <div className="border-t p-4">
           <div className="rounded-lg bg-blue-50 p-3">
-            <p className="text-xs font-medium text-blue-900">Need Help?</p>
-            <p className="mt-1 text-xs text-blue-700">
-              Contact HR for assistance
+            <p className="text-xs font-medium text-blue-900">Need help?</p>
+            <p className="mt-0.5 text-xs text-blue-600">
+              Contact your HR team for assistance.
             </p>
           </div>
         </div>
