@@ -1,98 +1,91 @@
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
-import { DepartmentForm } from '@/src/components/departments/department-form'
-import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card'
-import { Button } from '@/src/components/ui/button'
-import { ArrowLeft } from 'lucide-react'
-import Link from 'next/link'
-import { notFound } from 'next/navigation'
+// src/app/(dashboard)/departments/[id]/edit/page.tsx
+
+import { createClient } from "@/src/lib/supabase/server";
+import { redirect, notFound } from "next/navigation";
+import prisma from "@/src/lib/prisma";
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
+import { DepartmentForm } from "@/src/components/departments/department-form";
+
+export const dynamic = "force-dynamic";
 
 export default async function EditDepartmentPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>;
 }) {
-  const supabase = await createClient()
+  const { id } = await params;
+
+  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) return null
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
   const currentEmployee = await prisma.employee.findUnique({
     where: { authId: user.id },
-    select: { organizationId: true },
-  })
+    select: { organizationId: true, role: true },
+  });
+  if (!currentEmployee) redirect("/login");
 
-  if (!currentEmployee) return null
+  if (!["owner", "admin", "hr"].includes(currentEmployee.role)) {
+    redirect("/departments");
+  }
 
-  const department = await prisma.department.findFirst({
-    where: {
-      id: params.id,
-      organizationId: currentEmployee.organizationId,
-    },
-  })
-
-  if (!department) notFound()
-
-  const potentialManagers = await prisma.employee.findMany({
-    where: {
-      organizationId: currentEmployee.organizationId,
-      status: 'active',
-    },
+  const dept = await prisma.department.findUnique({
+    where: { id },
     select: {
       id: true,
-      firstName: true,
-      lastName: true,
-      position: true,
+      name: true,
+      description: true,
+      managerId: true,
+      organizationId: true,
     },
-    orderBy: {
-      firstName: 'asc',
-    },
-  })
+  });
 
-  const managers = potentialManagers.map((emp) => ({
-    id: emp.id,
-    name: `${emp.firstName} ${emp.lastName}`,
-    position: emp.position,
-  }))
-
-  const initialData = {
-    id: department.id,
-    name: department.name,
-    description: department.description || '',
-    managerId: department.managerId || '',
+  if (!dept || dept.organizationId !== currentEmployee.organizationId) {
+    notFound();
   }
+
+  const managers = await prisma.employee.findMany({
+    where: { organizationId: currentEmployee.organizationId, status: "active" },
+    select: { id: true, firstName: true, lastName: true, position: true },
+    orderBy: { firstName: "asc" },
+  });
+
+  const managerOptions = managers.map((m) => ({
+    id: m.id,
+    name: `${m.firstName} ${m.lastName}`,
+    position: m.position,
+  }));
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/departments">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Edit Department</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Update department information
-          </p>
-        </div>
+      <Link
+        href="/departments"
+        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to Departments
+      </Link>
+
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Edit Department</h1>
+        <p className="mt-1 text-sm text-gray-500">{dept.name}</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Department Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DepartmentForm
-            organizationId={currentEmployee.organizationId}
-            managers={managers}
-            initialData={initialData}
-            isEdit={true}
-          />
-        </CardContent>
-      </Card>
+      <div className="max-w-lg rounded-xl border bg-white p-6 shadow-sm">
+        <DepartmentForm
+          managers={managerOptions}
+          initialData={{
+            id: dept.id,
+            name: dept.name,
+            description: dept.description ?? "",
+            managerId: dept.managerId ?? "no-manager",
+          }}
+          isEdit
+        />
+      </div>
     </div>
-  )
+  );
 }
