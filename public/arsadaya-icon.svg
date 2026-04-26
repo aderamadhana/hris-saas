@@ -1,0 +1,13 @@
+<svg width="512" height="512" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- ARSADAYA App Icon -->
+  <!-- Background: deep teal rounded square -->
+  <rect width="200" height="200" rx="42" fill="#0A5140"/>
+  <!-- A lettermark: left leg -->
+  <line x1="100" y1="52" x2="44" y2="162" stroke="white" stroke-width="22" stroke-linecap="round"/>
+  <!-- A lettermark: right leg -->
+  <line x1="100" y1="52" x2="156" y2="162" stroke="white" stroke-width="22" stroke-linecap="round"/>
+  <!-- A lettermark: crossbar -->
+  <line x1="65" y1="122" x2="135" y2="122" stroke="white" stroke-width="19" stroke-linecap="round"/>
+  <!-- Energy accent: amber dot at apex -->
+  <circle cx="100" cy="38" r="16" fill="#F5A623"/>
+</svg>
