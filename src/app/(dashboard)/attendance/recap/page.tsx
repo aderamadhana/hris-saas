@@ -30,7 +30,7 @@ export default async function AttendanceRecapPage({ searchParams }: PageProps) {
 
   // Only admin/HR/manager can see recap
   const allowed = ['admin', 'hr', 'owner', 'manager']
-  if (!allowed.includes(currentEmployee.role)) redirect('/dashboard/attendance')
+  if (!allowed.includes(currentEmployee.role)) redirect('/attendance')
 
   const params = await searchParams
   const now = new Date()

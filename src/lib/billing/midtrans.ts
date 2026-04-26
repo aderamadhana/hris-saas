@@ -84,9 +84,9 @@ export async function createSnapToken(params: MidtransSnapParams): Promise<Midtr
       },
     ],
     callbacks: {
-      finish: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing?payment=success`,
-      error: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing?payment=error`,
-      pending: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing?payment=pending`,
+      finish: `${process.env.NEXT_PUBLIC_APP_URL}/billing?payment=success`,
+      error: `${process.env.NEXT_PUBLIC_APP_URL}/billing?payment=error`,
+      pending: `${process.env.NEXT_PUBLIC_APP_URL}/billing?payment=pending`,
     },
     custom_field1: params.organizationId,
     custom_field2: params.planId,

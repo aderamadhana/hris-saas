@@ -1,6 +1,6 @@
 'use client'
 
-// src/components/dashboard/sidebar.tsx
+// src/components/sidebar.tsx
 // UPDATE: Tambahkan menu Notifikasi dan Laporan
 
 import Link from 'next/link'
@@ -48,7 +48,7 @@ const navigationItems: NavigationItem[] = [
   },
   {
     name: 'Profil Saya',
-    href: '/dashboard/profile',
+    href: '/profile',
     icon: UserCircle,
     roles: ['employee', 'manager', 'hr', 'admin', 'owner'],
   },
@@ -56,13 +56,13 @@ const navigationItems: NavigationItem[] = [
   // Time & Leave — semua role
   {
     name: 'Absensi',
-    href: '/dashboard/attendance',
+    href: '/attendance',
     icon: Clock,
     roles: ['employee', 'manager', 'hr', 'admin', 'owner'],
   },
   {
     name: 'Cuti',
-    href: '/dashboard/leave',
+    href: '/leave',
     icon: CalendarDays,
     roles: ['employee', 'manager', 'hr', 'admin', 'owner'],
   },
@@ -70,7 +70,7 @@ const navigationItems: NavigationItem[] = [
   // Finance — semua role (masing-masing lihat datanya sendiri / semua)
   {
     name: 'Slip Gaji',
-    href: '/dashboard/payslip',
+    href: '/payslip',
     icon: FileText,
     roles: ['employee', 'manager', 'hr', 'admin', 'owner'],
   },
@@ -78,13 +78,13 @@ const navigationItems: NavigationItem[] = [
   // Management — Manager ke atas
   {
     name: 'Karyawan',
-    href: '/dashboard/employees',
+    href: '/employees',
     icon: Users,
     roles: ['manager', 'hr', 'admin', 'owner'],
   },
   {
     name: 'Departemen',
-    href: '/dashboard/departments',
+    href: '/departments',
     icon: Building2,
     roles: ['hr', 'admin', 'owner'],
   },
@@ -92,13 +92,13 @@ const navigationItems: NavigationItem[] = [
   // HR Tools — HR ke atas
   {
     name: 'Payroll',
-    href: '/dashboard/payroll',
+    href: '/payroll',
     icon: Wallet,
     roles: ['hr', 'admin', 'owner'],
   },
   {
     name: 'Laporan',
-    href: '/dashboard/reports',
+    href: '/reports',
     icon: BarChart3,
     roles: ['hr', 'admin', 'owner'],
   },
@@ -106,7 +106,7 @@ const navigationItems: NavigationItem[] = [
   // Admin only
   {
     name: 'Pengaturan',
-    href: '/dashboard/settings',
+    href: '/settings',
     icon: Settings,
     roles: ['admin', 'owner'],
   },
@@ -114,7 +114,7 @@ const navigationItems: NavigationItem[] = [
   // Owner only
   {
     name: 'Billing',
-    href: '/dashboard/billing',
+    href: '/billing',
     icon: CreditCard,
     roles: ['owner'],
   },
@@ -122,7 +122,7 @@ const navigationItems: NavigationItem[] = [
   // Common — semua role (di bawah)
   {
     name: 'Notifikasi',
-    href: '/dashboard/notifications',
+    href: '/notifications',
     icon: Bell,
     roles: ['employee', 'manager', 'hr', 'admin', 'owner'],
   },

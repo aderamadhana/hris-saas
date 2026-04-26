@@ -147,11 +147,11 @@ model Employee {
   reviewsAsEmployee  PerformanceReview[]  @relation("ReviewedEmployee")
   reviewsAsReviewer  PerformanceReview[]  @relation("ReviewerEmployee")
   goalTrackings      GoalTracking[]
-  documents          EmployeeDocument[]
-  uploadedDocuments  EmployeeDocument[]   @relation("DocumentUploader")
-  announcements      Announcement[]
-  announcementReads  AnnouncementRead[]
-  companyEvents      CompanyEvent[]
+  documents             EmployeeDocument[]   @relation("EmployeeDocs")
+  uploadedDocuments     EmployeeDocument[]   @relation("DocumentUploader")
+  authoredAnnouncements Announcement[]       @relation("AnnouncementAuthor")
+  announcementReads     AnnouncementRead[]   @relation("AnnouncementReads")
+  createdEvents         CompanyEvent[]       @relation("CalendarCreator")
 
   @@index([organizationId])
   @@index([authId])
@@ -171,8 +171,8 @@ model Department {
   manager        Employee?    @relation("DepartmentManager", fields: [managerId], references: [id])
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   employees      Employee[]
-  announcements   Announcement[]
-  calendarEvents  CompanyEvent[]  @relation("CalendarDepartment")
+  announcements  Announcement[]  @relation("AnnouncementDept")
+  calendarEvents CompanyEvent[]  @relation("CalendarDept")
   
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -363,4 +363,198 @@ model Notification {
   @@index([isRead])
   @@index([type])
   @@index([createdAt])
+}
+
+model ReviewCycle {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  type           String   // quarterly, semi_annual, annual
+  startDate      DateTime
+  endDate        DateTime
+  status         String   @default("draft") // draft, active, completed
+  description    String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviews      PerformanceReview[]
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model PerformanceReview {
+  id             String @id @default(cuid())
+  organizationId String
+  cycleId        String
+  employeeId     String
+  reviewerId     String
+
+  attendanceScore    Float?
+  workQualityScore   Float?
+  teamworkScore      Float?
+  initiativeScore    Float?
+  communicationScore Float?
+  overallScore       Float?
+
+  strengths      String? @db.Text
+  improvements   String? @db.Text
+  goals          String? @db.Text
+  reviewerNotes  String? @db.Text
+  selfAssessment String? @db.Text
+  selfScore      Float?
+
+  status      String    @default("pending") // pending, self_submitted, reviewed, completed
+  submittedAt DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  cycle        ReviewCycle   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  employee     Employee      @relation("ReviewedEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer     Employee      @relation("ReviewerEmployee", fields: [reviewerId], references: [id], onDelete: Cascade)
+  goals_list   GoalTracking[]
+
+  @@unique([cycleId, employeeId])
+  @@index([organizationId])
+  @@index([employeeId])
+  @@index([reviewerId])
+  @@index([status])
+}
+
+model GoalTracking {
+  id          String    @id @default(cuid())
+  reviewId    String
+  employeeId  String
+  title       String
+  description String?   @db.Text
+  target      String
+  progress    Int       @default(0)
+  status      String    @default("in_progress") // in_progress, completed, cancelled
+  dueDate     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  review   PerformanceReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  employee Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+  @@index([employeeId])
+}
+
+model EmployeeDocument {
+  id             String  @id @default(cuid())
+  organizationId String
+  employeeId     String
+  uploadedBy     String
+
+  category    String  // contract, id_card, certificate, diploma, photo, bpjs, tax, medical, other
+  name        String
+  description String?  @db.Text
+  fileUrl     String
+  fileType    String   // pdf, jpg, png, docx, xlsx
+  fileSize    Int
+  isPrivate   Boolean  @default(false)
+  isVerified  Boolean  @default(false)
+  verifiedBy  String?
+  expiresAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation("EmployeeDocs", fields: [employeeId], references: [id], onDelete: Cascade)
+  uploader     Employee     @relation("DocumentUploader", fields: [uploadedBy], references: [id])
+
+  @@index([organizationId])
+  @@index([employeeId])
+  @@index([category])
+}
+
+model Announcement {
+  id             String   @id @default(cuid())
+  organizationId String
+  authorId       String
+
+  title       String
+  content     String   @db.Text
+  type        String   @default("info") // info, warning, urgent, event
+  isPinned    Boolean  @default(false)
+  isPublished Boolean  @default(false)
+  publishedAt DateTime?
+
+  targetRoles        String?  // "all", "employee,manager"
+  targetDepartmentId String?
+
+  expiresAt      DateTime?
+  attachmentUrl  String?
+  attachmentName String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  author           Employee          @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  targetDepartment Department?       @relation("AnnouncementDept", fields: [targetDepartmentId], references: [id])
+  reads            AnnouncementRead[]
+
+  @@index([organizationId])
+  @@index([authorId])
+  @@index([isPublished])
+  @@index([isPinned])
+}
+
+model AnnouncementRead {
+  id             String   @id @default(cuid())
+  announcementId String
+  employeeId     String
+  readAt         DateTime @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  employee     Employee     @relation("AnnouncementReads", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, employeeId])
+  @@index([employeeId])
+}
+
+model CompanyEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  createdBy      String
+
+  title       String
+  description String?  @db.Text
+  type        String   // holiday, event, meeting, reminder, birthday, training
+  color       String   @default("#3B82F6")
+
+  startDate DateTime
+  endDate   DateTime
+  isAllDay  Boolean  @default(true)
+  startTime String?
+  endTime   String?
+
+  isNational    Boolean  @default(false)
+  isRecurring   Boolean  @default(false)
+  recurringType String?
+
+  location   String?
+  meetingUrl String?
+
+  targetRoles        String?
+  targetDepartmentId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator          Employee     @relation("CalendarCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  targetDepartment Department?  @relation("CalendarDept", fields: [targetDepartmentId], references: [id])
+
+  @@index([organizationId])
+  @@index([startDate])
+  @@index([type])
 }

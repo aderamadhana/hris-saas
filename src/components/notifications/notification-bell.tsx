@@ -66,9 +66,9 @@ const resourceLink = (resourceType?: string, resourceId?: string) => {
   if (!resourceType || !resourceId) return null
   switch (resourceType) {
     case 'leave':
-      return `/dashboard/leave`
+      return `/leave`
     case 'payroll':
-      return `/dashboard/payslip`
+      return `/payslip`
     default:
       return null
   }
@@ -245,7 +245,7 @@ export function NotificationBell() {
               <button
                 onClick={() => {
                   setIsOpen(false)
-                  router.push('/dashboard/notifications')
+                  router.push('/notifications')
                 }}
                 className="w-full text-center text-xs text-blue-600 hover:text-blue-700 font-medium"
               >
