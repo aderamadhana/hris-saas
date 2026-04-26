@@ -1,9 +1,11 @@
-// src/components/sidebar.tsx
-"use client";
+'use client'
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/src/lib/utils";
+// src/components/dashboard/sidebar.tsx
+// UPDATE: Tambahkan menu Notifikasi dan Laporan
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { cn } from '@/src/lib/utils'
 import {
   LayoutDashboard,
   Users,
@@ -14,195 +16,220 @@ import {
   Settings,
   UserCircle,
   FileText,
+  Bell,
+  BarChart3,
   CreditCard,
-} from "lucide-react";
+  LogOut,
+} from 'lucide-react'
+import { createClient } from '@/src/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 
 interface SidebarProps {
-  userRole: string;
-  userName: string;
-  userEmail: string;
+  userRole: string
+  userName: string
+  userEmail: string
 }
 
-interface NavItem {
-  name: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  roles: string[];
-  badge?: string;
+interface NavigationItem {
+  name: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  roles: string[]
+  badge?: string
 }
 
-const NAV_ITEMS: NavItem[] = [
+const navigationItems: NavigationItem[] = [
+  // Common — semua role
   {
-    name: "Dashboard",
-    href: "/dashboard",
+    name: 'Dashboard',
+    href: '/dashboard',
     icon: LayoutDashboard,
-    roles: ["employee", "manager", "hr", "admin", "owner"],
+    roles: ['employee', 'manager', 'hr', 'admin', 'owner'],
   },
   {
-    name: "My Profile",
-    href: "/profile",
+    name: 'Profil Saya',
+    href: '/dashboard/profile',
     icon: UserCircle,
-    roles: ["employee", "manager", "hr", "admin", "owner"],
+    roles: ['employee', 'manager', 'hr', 'admin', 'owner'],
   },
+
+  // Time & Leave — semua role
   {
-    name: "Billing",
-    href: "/billing",
-    icon: CreditCard,
-    roles: ["owner"],
-  },
-  {
-    name: "Attendance",
-    href: "/attendance",
+    name: 'Absensi',
+    href: '/dashboard/attendance',
     icon: Clock,
-    roles: ["employee", "manager", "hr", "admin", "owner"],
+    roles: ['employee', 'manager', 'hr', 'admin', 'owner'],
   },
   {
-    name: "Leave",
-    href: "/leave",
+    name: 'Cuti',
+    href: '/dashboard/leave',
     icon: CalendarDays,
-    roles: ["employee", "manager", "hr", "admin", "owner"],
+    roles: ['employee', 'manager', 'hr', 'admin', 'owner'],
   },
+
+  // Finance — semua role (masing-masing lihat datanya sendiri / semua)
   {
-    name: "Payslip",
-    href: "/payslip",
+    name: 'Slip Gaji',
+    href: '/dashboard/payslip',
     icon: FileText,
-    roles: ["employee", "manager", "hr", "admin", "owner"],
+    roles: ['employee', 'manager', 'hr', 'admin', 'owner'],
   },
+
+  // Management — Manager ke atas
   {
-    name: "Employees",
-    href: "/employees",
+    name: 'Karyawan',
+    href: '/dashboard/employees',
     icon: Users,
-    roles: ["manager", "hr", "admin", "owner"],
-    badge: "Management",
+    roles: ['manager', 'hr', 'admin', 'owner'],
   },
   {
-    name: "Departments",
-    href: "/departments",
+    name: 'Departemen',
+    href: '/dashboard/departments',
     icon: Building2,
-    roles: ["hr", "admin", "owner"],
+    roles: ['hr', 'admin', 'owner'],
   },
+
+  // HR Tools — HR ke atas
   {
-    name: "Payroll",
-    href: "/payroll",
+    name: 'Payroll',
+    href: '/dashboard/payroll',
     icon: Wallet,
-    roles: ["hr", "admin", "owner"],
+    roles: ['hr', 'admin', 'owner'],
   },
   {
-    name: "Settings",
-    href: "/settings",
-    icon: Settings,
-    roles: ["admin", "owner"],
+    name: 'Laporan',
+    href: '/dashboard/reports',
+    icon: BarChart3,
+    roles: ['hr', 'admin', 'owner'],
   },
-];
 
-const ROLE_LABEL: Record<string, string> = {
-  employee: "Employee",
-  manager: "Manager",
-  hr: "HR Manager",
-  admin: "Administrator",
-  owner: "Owner",
-};
+  // Admin only
+  {
+    name: 'Pengaturan',
+    href: '/dashboard/settings',
+    icon: Settings,
+    roles: ['admin', 'owner'],
+  },
 
-const ROLE_COLOR: Record<string, string> = {
-  employee: "bg-gray-100 text-gray-700",
-  manager: "bg-blue-100 text-blue-700",
-  hr: "bg-purple-100 text-purple-700",
-  admin: "bg-orange-100 text-orange-700",
-  owner: "bg-red-100 text-red-700",
-};
+  // Owner only
+  {
+    name: 'Billing',
+    href: '/dashboard/billing',
+    icon: CreditCard,
+    roles: ['owner'],
+  },
+
+  // Common — semua role (di bawah)
+  {
+    name: 'Notifikasi',
+    href: '/dashboard/notifications',
+    icon: Bell,
+    roles: ['employee', 'manager', 'hr', 'admin', 'owner'],
+  },
+]
+
+const roleLabel: Record<string, string> = {
+  owner: 'Owner',
+  admin: 'Admin',
+  hr: 'HR',
+  manager: 'Manager',
+  employee: 'Karyawan',
+}
+
+const roleColor: Record<string, string> = {
+  owner: 'bg-red-100 text-red-700',
+  admin: 'bg-orange-100 text-orange-700',
+  hr: 'bg-purple-100 text-purple-700',
+  manager: 'bg-blue-100 text-blue-700',
+  employee: 'bg-gray-100 text-gray-600',
+}
 
 export function Sidebar({ userRole, userName, userEmail }: SidebarProps) {
-  const pathname = usePathname();
+  const pathname = usePathname()
+  const router = useRouter()
 
-  const visibleItems = NAV_ITEMS.filter((item) =>
-    item.roles.includes(userRole),
-  );
+  const visibleItems = navigationItems.filter((item) =>
+    item.roles.includes(userRole)
+  )
 
-  const isActive = (href: string) =>
-    href === "/dashboard"
-      ? pathname === "/dashboard"
-      : pathname.startsWith(href);
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
+  const initials = userName
+    .split(' ')
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
 
   return (
-    <div className="flex h-full w-64 flex-col bg-white border-r">
+    <aside className="flex h-full w-56 flex-col border-r border-gray-200 bg-white">
       {/* Logo */}
-      <div className="flex h-16 items-center border-b px-6">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
-            <span className="text-lg font-bold text-white">H</span>
-          </div>
-          <span className="text-xl font-bold text-gray-900">HRIS</span>
-        </Link>
-      </div>
-
-      {/* User info */}
-      <div className="border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
-            <span className="text-sm font-semibold text-blue-600">
-              {userName.charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-gray-900">
-              {userName}
-            </p>
-            <span
-              className={cn(
-                "mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-                ROLE_COLOR[userRole] ?? "bg-gray-100 text-gray-700",
-              )}
-            >
-              {ROLE_LABEL[userRole] ?? userRole}
-            </span>
-          </div>
+      <div className="flex h-14 items-center gap-2.5 border-b border-gray-100 px-4">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600">
+          <span className="text-xs font-bold text-white">HR</span>
         </div>
+        <span className="text-sm font-bold text-gray-900">HRIS</span>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
-        {visibleItems.map((item) => {
-          const active = isActive(item.href);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-blue-50 text-blue-600"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
-              )}
-            >
-              <Icon
-                className={cn(
-                  "h-4 w-4 flex-shrink-0",
-                  active ? "text-blue-600" : "text-gray-400",
-                )}
-              />
-              <span>{item.name}</span>
-              {item.badge && !active && (
-                <span className="ml-auto text-xs text-gray-400">
-                  {item.badge}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto py-3 px-2">
+        <ul className="space-y-0.5">
+          {visibleItems.map((item) => {
+            const Icon = item.icon
+            const isActive =
+              pathname === item.href ||
+              (item.href !== '/dashboard' && pathname.startsWith(item.href))
+
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      'h-4 w-4 shrink-0',
+                      isActive ? 'text-blue-600' : 'text-gray-400'
+                    )}
+                  />
+                  {item.name}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
       </nav>
 
-      {/* Bottom tip for employee */}
-      {userRole === "employee" && (
-        <div className="border-t p-4">
-          <div className="rounded-lg bg-blue-50 p-3">
-            <p className="text-xs font-medium text-blue-900">Need help?</p>
-            <p className="mt-0.5 text-xs text-blue-600">
-              Contact your HR team for assistance.
-            </p>
+      {/* User Info + Logout */}
+      <div className="border-t border-gray-100 p-3">
+        <div className="flex items-center gap-2.5 mb-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-blue-700 text-xs font-bold text-white">
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="truncate text-xs font-semibold text-gray-900">{userName}</p>
+            <span className={cn('mt-0.5 inline-flex rounded-full px-1.5 py-px text-[10px] font-medium', roleColor[userRole] || 'bg-gray-100 text-gray-600')}>
+              {roleLabel[userRole] || userRole}
+            </span>
           </div>
         </div>
-      )}
-    </div>
-  );
+        <button
+          onClick={handleLogout}
+          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          Keluar
+        </button>
+      </div>
+    </aside>
+  )
 }

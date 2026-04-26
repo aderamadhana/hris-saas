@@ -1,38 +1,44 @@
-import { NextRequest, NextResponse } from 'next/server'
+// src/app/api/billing/route.ts
+// Returns billing data: current plan, usage, and transaction history
+
+import { NextResponse } from 'next/server'
 import { createClient } from '@/src/lib/supabase/server'
 import prisma from '@/src/lib/prisma'
 
-// Track and record current usage
-export async function POST(request: NextRequest) {
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
   try {
     const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const currentEmployee = await prisma.employee.findUnique({
       where: { authId: user.id },
-      select: {
-        organizationId: true,
-        role: true,
-      },
+      select: { organizationId: true, role: true },
     })
 
     if (!currentEmployee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
     }
 
-    // Only owner can record usage manually
     if (currentEmployee.role !== 'owner') {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 }
-      )
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+
+    const org = await prisma.organization.findUnique({
+      where: { id: currentEmployee.organizationId },
+      select: {
+        planType: true,
+        planStatus: true,
+        employeeLimit: true,
+        currentPeriodEnd: true,
+        lastPaymentAt: true,
+        lastPaymentAmount: true,
+      },
+    })
+
+    if (!org) return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
 
     // Count active employees
     const employeeCount = await prisma.employee.count({
@@ -42,84 +48,45 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Record usage
-    await prisma.usageLog.create({
-      data: {
-        organizationId: currentEmployee.organizationId,
-        employeeCount,
-        storageUsed: 0, // TODO: Calculate actual storage
-      },
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        employeeCount,
-        storageUsed: 0,
-      },
-    })
-  } catch (error: any) {
-    console.error('Record usage error:', error)
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
-
-// Get usage history
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const currentEmployee = await prisma.employee.findUnique({
-      where: { authId: user.id },
+    // Fetch last 10 transactions
+    const transactions = await prisma.billingTransaction.findMany({
+      where: { organizationId: currentEmployee.organizationId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
       select: {
-        organizationId: true,
-        role: true,
+        id: true,
+        orderId: true,
+        planId: true,
+        billingCycle: true,
+        amount: true,
+        status: true,
+        paymentType: true,
+        paidAt: true,
+        createdAt: true,
       },
-    })
-
-    if (!currentEmployee) {
-      return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
-    }
-
-    if (currentEmployee.role !== 'owner') {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 }
-      )
-    }
-
-    // Get last 30 days of usage
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-    const usageLogs = await prisma.usageLog.findMany({
-      where: {
-        organizationId: currentEmployee.organizationId,
-        recordedAt: { gte: thirtyDaysAgo },
-      },
-      orderBy: { recordedAt: 'desc' },
-      take: 30,
     })
 
     return NextResponse.json({
       success: true,
-      data: usageLogs,
+      data: {
+        plan: {
+          id: org.planType || 'free',
+          name: org.planType || 'free',
+          status: org.planStatus || 'active',
+          employeeLimit: org.employeeLimit || 5,
+          currentPeriodEnd: org.currentPeriodEnd,
+          lastPaymentAt: org.lastPaymentAt,
+          lastPaymentAmount: org.lastPaymentAmount,
+        },
+        usage: {
+          employees: employeeCount,
+          storageGB: 0.2, // placeholder — integrate Supabase storage API if needed
+        },
+        transactions,
+      },
     })
   } catch (error: any) {
-    console.error('Get usage error:', error)
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    )
+    console.error('Billing GET error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

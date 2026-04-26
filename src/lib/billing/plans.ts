@@ -1,23 +1,15 @@
-export const PLAN_TYPES = {
-  FREE: 'free',
-  STARTER: 'starter',
-  PROFESSIONAL: 'professional',
-  ENTERPRISE: 'enterprise',
-} as const
-
-export type PlanType = typeof PLAN_TYPES[keyof typeof PLAN_TYPES]
+// src/lib/billing/plans.ts
 
 export interface Plan {
-  id: PlanType
+  id: string
   name: string
-  price: number | null
-  currency: string
-  interval: 'month' | 'year'
+  price: number          // per month in IDR
+  priceYearly: number    // total per year (20% discount)
   employeeLimit: number
-  storageLimit: number
+  storageGB: number
   features: string[]
-  limitations?: string[]
   popular?: boolean
+  color: string
 }
 
 export const PLANS: Plan[] = [
@@ -25,93 +17,90 @@ export const PLANS: Plan[] = [
     id: 'free',
     name: 'Free',
     price: 0,
-    currency: 'USD',
-    interval: 'month',
+    priceYearly: 0,
     employeeLimit: 5,
-    storageLimit: 1,
+    storageGB: 1,
     features: [
-      'Up to 5 employees',
-      'Basic attendance tracking',
-      'Leave management',
-      'Basic reports',
+      'Hingga 5 karyawan',
+      'Absensi dasar',
+      'Manajemen cuti',
+      'Profil karyawan',
       'Email support',
     ],
-    limitations: [
-      'No payroll',
-      'Limited storage (1GB)',
-      'No API access',
-    ],
+    color: 'gray',
   },
   {
     id: 'starter',
     name: 'Starter',
-    price: 49,
-    currency: 'USD',
-    interval: 'month',
-    employeeLimit: 20,
-    storageLimit: 10,
+    price: 299_000,
+    priceYearly: 2_870_400, // 299k * 12 * 0.8
+    employeeLimit: 25,
+    storageGB: 10,
     features: [
-      'Up to 20 employees',
-      'Full attendance tracking',
-      'Leave management',
-      'Basic payroll',
-      'Advanced reports',
-      'Email support',
+      'Hingga 25 karyawan',
+      'Absensi lengkap',
+      'Manajemen cuti (18 jenis)',
+      'Payroll & slip gaji',
+      'Laporan absensi',
       'Priority email support',
     ],
     popular: true,
+    color: 'blue',
   },
   {
     id: 'professional',
     name: 'Professional',
-    price: 99,
-    currency: 'USD',
-    interval: 'month',
-    employeeLimit: 50,
-    storageLimit: 50,
+    price: 699_000,
+    priceYearly: 6_710_400,
+    employeeLimit: 100,
+    storageGB: 50,
     features: [
-      'Up to 50 employees',
-      'Advanced attendance',
-      'Leave management',
-      'Full payroll with tax calculation',
-      'Advanced reports & analytics',
-      'API access',
+      'Hingga 100 karyawan',
+      'Semua fitur Starter',
+      'Multi-level approval',
+      'Laporan lanjutan',
+      'Export Excel & PDF',
+      'Manajemen departemen',
+      'Rekap absensi bulanan',
       'Priority support',
-      'Custom integrations',
     ],
+    color: 'purple',
   },
   {
     id: 'enterprise',
     name: 'Enterprise',
-    price: null,
-    currency: 'USD',
-    interval: 'month',
-    employeeLimit: 999999,
-    storageLimit: 999,
+    price: 0,   // custom
+    priceYearly: 0,
+    employeeLimit: 999_999,
+    storageGB: 500,
     features: [
-      'Unlimited employees',
-      'All Professional features',
+      'Karyawan tidak terbatas',
+      'Semua fitur Professional',
       'Dedicated account manager',
-      'Custom development',
-      'SLA guarantee (99.9% uptime)',
-      'SSO integration',
-      'White-label option',
-      '24/7 phone support',
+      'Custom integrations',
+      'SLA guarantee',
+      'On-premise option',
+      'Pelatihan tim',
     ],
+    color: 'orange',
   },
 ]
 
-export const getPlanById = (planId: string): Plan | undefined => {
-  return PLANS.find((plan) => plan.id === planId)
+export function getPlanById(id: string): Plan | undefined {
+  return PLANS.find(p => p.id === id)
 }
 
-export const formatPrice = (price: number | null, currency: string = 'USD'): string => {
-  if (price === null) return 'Custom'
-  if (price === 0) return 'Free'
-  
-  return new Intl.NumberFormat('en-US', {
+export function formatPrice(amount: number): string {
+  if (amount === 0) return 'Gratis'
+  return new Intl.NumberFormat('id-ID', {
     style: 'currency',
-    currency,
+    currency: 'IDR',
     minimumFractionDigits: 0,
-  }).format(price)
+    maximumFractionDigits: 0,
+  }).format(amount)
+}
+
+export function getYearlyDiscount(plan: Plan): number {
+  if (plan.price === 0) return 0
+  return Math.round(((plan.price * 12 - plan.priceYearly) / (plan.price * 12)) * 100)
 }
