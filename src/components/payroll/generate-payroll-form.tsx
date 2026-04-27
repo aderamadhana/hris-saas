@@ -122,7 +122,7 @@ export function GeneratePayrollForm() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to generate payroll");
-      router.push("/dashboard/payroll");
+      router.push("/payroll");
       router.refresh();
     } catch (err: any) {
       setError(err.message);
@@ -285,7 +285,7 @@ export function GeneratePayrollForm() {
         <Button
           variant="outline"
           className="h-11 px-6"
-          onClick={() => router.push("/dashboard/payroll")}
+          onClick={() => router.push("/payroll")}
           disabled={submitting}
         >
           Cancel

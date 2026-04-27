@@ -238,7 +238,7 @@ export function LeaveRequestForm() {
         throw new Error(data.error ?? "Failed to submit leave request.");
 
       setSuccess(true);
-      setTimeout(() => router.push("/dashboard/leave"), 1800);
+      setTimeout(() => router.push("/leave"), 1800);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -628,7 +628,7 @@ export function LeaveRequestForm() {
           type="button"
           variant="outline"
           className="h-11 px-6"
-          onClick={() => router.push("/dashboard/leave")}
+          onClick={() => router.push("/leave")}
           disabled={submitting}
         >
           Cancel

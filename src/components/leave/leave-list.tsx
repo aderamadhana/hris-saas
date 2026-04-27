@@ -122,7 +122,7 @@ export function LeaveList({ leaves, userRole }: LeaveListProps) {
         </div>
         <div className="flex gap-2">
           {canApprove && (
-            <Link href="/dashboard/leave/approvals">
+            <Link href="/leave/approvals">
               <Button variant="outline" size="sm" className="gap-2">
                 <CheckCircle className="h-4 w-4" />
                 Pending Approvals
@@ -134,7 +134,7 @@ export function LeaveList({ leaves, userRole }: LeaveListProps) {
               </Button>
             </Link>
           )}
-          <Link href="/dashboard/leave/new">
+          <Link href="/leave/new">
             <Button size="sm" className="gap-2">
               <Plus className="h-4 w-4" />
               Request Leave
@@ -216,7 +216,7 @@ export function LeaveList({ leaves, userRole }: LeaveListProps) {
               : "Try adjusting your search or filter."}
           </p>
           {leaves.length === 0 && (
-            <Link href="/dashboard/leave/new" className="mt-4">
+            <Link href="/leave/new" className="mt-4">
               <Button size="sm" variant="outline">
                 Request Leave
               </Button>
@@ -315,7 +315,7 @@ function LeaveCard({
           <span className="text-xs text-gray-400">
             {format(new Date(leave.createdAt), "MMM d")}
           </span>
-          <Link href={`/dashboard/leave/${leave.id}`}>
+          <Link href={`/leave/${leave.id}`}>
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
               <Eye className="h-4 w-4" />
             </Button>

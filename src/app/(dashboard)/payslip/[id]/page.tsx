@@ -125,7 +125,7 @@ export default async function PayslipDetailPage({
     <div className="mx-auto max-w-2xl space-y-6">
       {/* ── Back ── */}
       <Link
-        href="/dashboard/payslip"
+        href="/payslip"
         className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800"
       >
         <ArrowLeft className="h-4 w-4" />

@@ -160,7 +160,7 @@ export function EmployeeForm({
       return;
     }
 
-    router.push("/dashboard/employees");
+    router.push("/employees");
     router.refresh();
   }
 
@@ -343,7 +343,7 @@ export function EmployeeForm({
           type="button"
           variant="outline"
           className="h-11 px-6"
-          onClick={() => router.push("/dashboard/employees")}
+          onClick={() => router.push("/employees")}
           disabled={isSubmitting}
         >
           Cancel
