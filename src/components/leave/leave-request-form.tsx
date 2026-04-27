@@ -1,8 +1,29 @@
-// src/components/leave/leave-request-form.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import {
+  Calendar,
+  Heart,
+  Baby,
+  Users,
+  Star,
+  AlertCircle,
+  RefreshCw,
+  Car,
+  Plane,
+  PhoneOff,
+  Home,
+  Globe,
+  XCircle,
+  FileText,
+  Clock,
+  Upload,
+  X,
+  Info,
+  ChevronDown,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
@@ -17,319 +38,295 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import {
-  Loader2,
-  FileText,
-  Info,
-  Calendar,
-  Clock,
-  User,
-  AlertTriangle,
-  CheckCircle,
-} from "lucide-react";
-import {
-  INDONESIAN_LEAVE_TYPES,
+  LEAVE_TYPES,
+  LEAVE_CATEGORIES,
   getLeaveType,
+  autoCalculateEndDate,
+  getDurationLabel,
   calculateWorkingDays,
-  calculateEndDate,
-  shouldAutoCalculate,
-  getAutoDays,
-  requiresTimeInput,
-  shouldExcludeWeekends,
-  requiresDelegation,
+  calculateCalendarDays,
+  LeaveCategory,
 } from "@/src/lib/leave-types";
 
+// ─── Icon map ────────────────────────────────────────────────────────────────
+const ICON_MAP: Record<string, React.ElementType> = {
+  Calendar,
+  Heart,
+  Baby,
+  Users,
+  Star,
+  AlertCircle,
+  RefreshCw,
+  Car,
+  Plane,
+  PhoneOff,
+  Home,
+  Globe,
+  XCircle,
+  FileText,
+};
+
+function LeaveIcon({
+  iconName,
+  className,
+}: {
+  iconName: string;
+  className?: string;
+}) {
+  const Icon = ICON_MAP[iconName] ?? FileText;
+  return <Icon className={className} />;
+}
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 interface Employee {
   id: string;
   name: string;
+  position: string;
 }
+
 interface LeaveBalance {
   annual: number;
   sick: number;
 }
 
+// ─── Component ───────────────────────────────────────────────────────────────
 export function LeaveRequestForm() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+
+  // Form state
+  const [leaveTypeId, setLeaveTypeId] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("17:00");
+  const [reason, setReason] = useState("");
+  const [delegateId, setDelegateId] = useState("");
+  const [delegateNotes, setDelegateNotes] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+
+  // Remote data
+  const [balance, setBalance] = useState<LeaveBalance>({ annual: 0, sick: 0 });
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [balance, setBalance] = useState<LeaveBalance | null>(null);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [submitError, setSubmitError] = useState("");
+  const [loadingBalance, setLoadingBalance] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
-  const [formData, setFormData] = useState({
-    leaveType: "",
-    startDate: "",
-    endDate: "",
-    startTime: "",
-    endTime: "",
-    reason: "",
-    attachment: null as File | null,
-    delegateTo: "",
-    delegateNotes: "",
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const leaveType = getLeaveType(leaveTypeId);
 
-  const selectedLeaveType = formData.leaveType
-    ? getLeaveType(formData.leaveType)
-    : null;
-  const isAutoCalculated = selectedLeaveType
-    ? shouldAutoCalculate(selectedLeaveType.id)
-    : false;
-  const needsTime = selectedLeaveType
-    ? requiresTimeInput(selectedLeaveType.id)
-    : false;
-  const needsDelegation = selectedLeaveType
-    ? requiresDelegation(selectedLeaveType.id)
-    : false;
-
-  // Fetch leave balance
+  // ─── Fetch leave balance ────────────────────────────────────────
   useEffect(() => {
     fetch("/api/leave/balance")
       .then((r) => r.json())
       .then((data) => {
-        if (data.success)
-          setBalance({ annual: data.balance.annual, sick: data.balance.sick });
+        if (data.success) setBalance(data.balance);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingBalance(false));
   }, []);
 
-  // Auto-calculate end date for special leaves
+  // ─── Fetch employees for delegation ────────────────────────────
   useEffect(() => {
-    if (isAutoCalculated && formData.startDate && selectedLeaveType) {
-      const autoDays = getAutoDays(selectedLeaveType.id)!;
-      const start = new Date(formData.startDate);
-      const end = calculateEndDate(
-        start,
-        autoDays,
-        shouldExcludeWeekends(selectedLeaveType.id),
-      );
-      setFormData((prev) => ({
-        ...prev,
-        endDate: end.toISOString().split("T")[0],
-      }));
-    }
-  }, [formData.startDate, formData.leaveType]);
-
-  // Fetch employees for delegation
-  useEffect(() => {
-    if (!needsDelegation) return;
+    if (!leaveType?.requiresDelegation) return;
     fetch("/api/employees/list")
       .then((r) => r.json())
       .then((data) => {
-        const list = (data.employees ?? []).map((e: any) => ({
-          id: e.id,
-          name: `${e.firstName} ${e.lastName}`,
-        }));
-        setEmployees(list);
+        if (data.success) setEmployees(data.employees ?? []);
       })
       .catch(() => {});
-  }, [needsDelegation]);
+  }, [leaveType?.requiresDelegation]);
 
-  const calculateDays = (): number => {
-    if (!formData.startDate || !formData.endDate) return 0;
-    const start = new Date(formData.startDate);
-    const end = new Date(formData.endDate);
-    if (selectedLeaveType && shouldExcludeWeekends(selectedLeaveType.id)) {
-      return calculateWorkingDays(start, end);
+  // ─── Auto-fill end date for special leave types ─────────────────
+  useEffect(() => {
+    if (!startDate || !leaveTypeId) return;
+    if (leaveType?.autoCalculate) {
+      setEndDate(autoCalculateEndDate(leaveTypeId, startDate));
     }
-    return (
-      Math.ceil(
-        Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
-      ) + 1
-    );
-  };
+  }, [startDate, leaveTypeId, leaveType?.autoCalculate]);
 
-  const calculateHours = (): number => {
-    if (!formData.startTime || !formData.endTime) return 0;
-    const [sh, sm] = formData.startTime.split(":").map(Number);
-    const [eh, em] = formData.endTime.split(":").map(Number);
-    return (eh * 60 + em - (sh * 60 + sm)) / 60;
-  };
+  // ─── Reset dates when leave type changes ───────────────────────
+  useEffect(() => {
+    setStartDate("");
+    setEndDate("");
+    setStartTime("09:00");
+    setEndTime("17:00");
+    setDelegateId("");
+    setDelegateNotes("");
+    setFile(null);
+    setError(null);
+  }, [leaveTypeId]);
 
-  const requestedDays = calculateDays();
-  const totalHours = calculateHours();
+  // ─── Derived calculations ───────────────────────────────────────
+  const totalHours = (() => {
+    if (!leaveType?.requiresTime || !startTime || !endTime) return 0;
+    const [sh, sm] = startTime.split(":").map(Number);
+    const [eh, em] = endTime.split(":").map(Number);
+    return Math.max(0, (eh * 60 + em - sh * 60 - sm) / 60);
+  })();
 
-  const validate = (): boolean => {
-    const e: Record<string, string> = {};
-    if (!formData.leaveType) e.leaveType = "Please select a leave type";
-    if (!formData.startDate) e.startDate = "Start date is required";
-    if (!formData.endDate) e.endDate = "End date is required";
-    if (formData.startDate && formData.endDate) {
-      if (new Date(formData.endDate) < new Date(formData.startDate))
-        e.endDate = "End date must be after start date";
-      if (
-        selectedLeaveType?.maxDays &&
-        requestedDays > selectedLeaveType.maxDays
-      )
-        e.leaveType = `Maximum ${selectedLeaveType.maxDays} days for ${selectedLeaveType.name}`;
+  const durationLabel =
+    startDate && endDate
+      ? getDurationLabel(
+          leaveTypeId,
+          startDate,
+          endDate,
+          totalHours || undefined,
+        )
+      : null;
+
+  const remainingBalance = (() => {
+    if (!leaveType || !startDate || !endDate) return null;
+    if (leaveTypeId === "annual") {
+      const requested = leaveType.includeWeekends
+        ? calculateCalendarDays(new Date(startDate), new Date(endDate))
+        : calculateWorkingDays(new Date(startDate), new Date(endDate));
+      return balance.annual - requested;
     }
-    if (needsTime) {
-      if (!formData.startTime) e.startTime = "Start time is required";
-      if (!formData.endTime) e.endTime = "End time is required";
-      if (
-        formData.startTime &&
-        formData.endTime &&
-        formData.endTime <= formData.startTime
-      )
-        e.endTime = "End time must be after start time";
-    }
-    if (!formData.reason.trim()) e.reason = "Reason is required";
-    else if (formData.reason.trim().length < 10)
-      e.reason = "Reason must be at least 10 characters";
-    if (selectedLeaveType?.requiresDocument && !formData.attachment)
-      e.attachment = `Supporting document required for ${selectedLeaveType.name}`;
-    if (needsDelegation && !formData.delegateTo)
-      e.delegateTo = "Delegation is required";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
+    return null;
+  })();
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
-  };
-
-  const handleSelect = (name: string, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-      ...(name === "leaveType" ? { endDate: "" } : {}),
-    }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
-  };
-
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setErrors((prev) => ({
-        ...prev,
-        attachment: "File size must be under 5MB",
-      }));
-      return;
-    }
-    setFormData((prev) => ({ ...prev, attachment: file }));
-    setErrors((prev) => ({ ...prev, attachment: "" }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  // ─── Submit ─────────────────────────────────────────────────────
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitError("");
-    if (!validate()) return;
-    setIsLoading(true);
+    setError(null);
+
+    // Validation
+    if (!leaveTypeId) return setError("Please select a leave type.");
+    if (!startDate) return setError("Please select a start date.");
+    if (!endDate && !leaveType?.requiresTime)
+      return setError("Please select an end date.");
+    if (leaveType?.requiresTime && !startTime)
+      return setError("Please enter the start time.");
+    if (leaveType?.requiresTime && !endTime)
+      return setError("Please enter the end time.");
+    if (leaveType?.requiresTime && totalHours <= 0)
+      return setError("End time must be after start time.");
+    if (reason.trim().length < 10)
+      return setError("Reason must be at least 10 characters.");
+    if (leaveType?.requiresDocument && !file)
+      return setError("A supporting document is required for this leave type.");
+    if (leaveType?.requiresDelegation && !delegateId)
+      return setError("Please select someone to delegate your tasks to.");
+    if (remainingBalance !== null && remainingBalance < 0)
+      return setError("Insufficient leave balance.");
+
+    setSubmitting(true);
     try {
-      const body = new FormData();
-      body.append("leaveType", formData.leaveType);
-      body.append("startDate", formData.startDate);
-      body.append("endDate", formData.endDate);
-      body.append("reason", formData.reason);
-      if (needsTime) {
-        body.append("startTime", formData.startTime);
-        body.append("endTime", formData.endTime);
-        body.append("totalHours", totalHours.toString());
+      const form = new FormData();
+      form.append("leaveTypeId", leaveTypeId);
+      form.append("startDate", startDate);
+      form.append("endDate", endDate || startDate);
+      form.append("reason", reason);
+      if (leaveType?.requiresTime) {
+        form.append("startTime", startTime);
+        form.append("endTime", endTime);
+        form.append("totalHours", totalHours.toString());
       }
-      if (needsDelegation && formData.delegateTo) {
-        body.append("delegateTo", formData.delegateTo);
-        if (formData.delegateNotes)
-          body.append("delegateNotes", formData.delegateNotes);
+      if (delegateId) {
+        form.append("delegateId", delegateId);
+        form.append("delegateNotes", delegateNotes);
       }
-      if (formData.attachment) body.append("attachment", formData.attachment);
+      if (file) form.append("attachment", file);
 
-      const res = await fetch("/api/leave/request", { method: "POST", body });
+      const res = await fetch("/api/leave/request", {
+        method: "POST",
+        body: form,
+      });
       const data = await res.json();
-      if (!res.ok)
-        throw new Error(data.error || "Failed to submit leave request");
-      setSubmitSuccess(true);
-      setTimeout(() => router.push("/leave"), 1500);
-    } catch (err: any) {
-      setSubmitError(err.message || "Failed to submit leave request");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  if (submitSuccess) {
+      if (!res.ok)
+        throw new Error(data.error ?? "Failed to submit leave request.");
+
+      setSuccess(true);
+      setTimeout(() => router.push("/dashboard/leave"), 1800);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // ─── Group leave types by category ─────────────────────────────
+  const categories = Object.keys(LEAVE_CATEGORIES) as LeaveCategory[];
+
+  // ─── Success state ──────────────────────────────────────────────
+  if (success) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
-        <h3 className="text-lg font-semibold text-gray-900">
-          Leave Request Submitted
-        </h3>
-        <p className="text-sm text-gray-500 mt-1">
-          Redirecting to leave requests...
+      <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+          <FileText className="h-8 w-8 text-green-600" />
+        </div>
+        <h2 className="text-xl font-semibold text-gray-900">
+          Request Submitted!
+        </h2>
+        <p className="text-gray-500">
+          Your leave request has been sent for approval. Redirecting…
         </p>
       </div>
     );
   }
 
-  const byCategory = (cat: string) =>
-    INDONESIAN_LEAVE_TYPES.filter((t) => t.category === cat);
-
-  const GROUPS = [
-    { label: "ANNUAL LEAVE", cat: "annual" },
-    { label: "HEALTH LEAVE", cat: "health" },
-    { label: "MATERNITY LEAVE", cat: "maternity" },
-    { label: "SPECIAL LEAVE", cat: "special" },
-    { label: "WORK ARRANGEMENT", cat: "work" },
-    { label: "UNPAID LEAVE", cat: "unpaid" },
-  ];
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {submitError && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4">
-          <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" />
-          <p className="text-sm text-red-700">{submitError}</p>
-        </div>
-      )}
-
-      {/* Balance cards */}
-      {balance && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border bg-gray-50 p-3">
-            <p className="text-xs text-gray-500">Annual Leave Balance</p>
-            <p className="text-xl font-bold text-gray-900">
-              {balance.annual} days
-            </p>
-          </div>
-          <div className="rounded-lg border bg-gray-50 p-3">
-            <p className="text-xs text-gray-500">Sick Leave</p>
-            <p className="text-xl font-bold text-gray-900">Unlimited</p>
+    <form onSubmit={handleSubmit} className="space-y-8">
+      {/* ── Leave Balance ── */}
+      {!loadingBalance && (
+        <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
+            Your Leave Balance
+          </p>
+          <div className="flex flex-wrap gap-6">
+            <div>
+              <p className="text-2xl font-bold text-blue-600">
+                {balance.annual}
+              </p>
+              <p className="text-xs text-gray-500">Annual days remaining</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-green-600">∞</p>
+              <p className="text-xs text-gray-500">Sick leave (unlimited)</p>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Leave type */}
+      {/* ── Leave Type ── */}
       <div className="space-y-2">
-        <Label>
+        <Label htmlFor="leaveType">
           Leave Type <span className="text-red-500">*</span>
         </Label>
-        <Select
-          value={formData.leaveType}
-          onValueChange={(v) => handleSelect("leaveType", v)}
-          disabled={isLoading}
-        >
-          <SelectTrigger className={errors.leaveType ? "border-red-500" : ""}>
+        <Select value={leaveTypeId} onValueChange={setLeaveTypeId}>
+          <SelectTrigger id="leaveType" className="h-11">
             <SelectValue placeholder="Select leave type" />
           </SelectTrigger>
           <SelectContent>
-            {GROUPS.map(({ label, cat }) => {
-              const items = byCategory(cat);
+            {categories.map((cat) => {
+              const items = LEAVE_TYPES.filter((t) => t.category === cat);
               if (!items.length) return null;
               return (
                 <SelectGroup key={cat}>
-                  <SelectLabel className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    {label}
+                  <SelectLabel className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    {LEAVE_CATEGORIES[cat]}
                   </SelectLabel>
-                  {items.map((leave) => (
-                    <SelectItem key={leave.id} value={leave.id}>
-                      <span className="font-medium">{leave.name}</span>
-                      <span className="ml-2 text-xs text-gray-400">
-                        {leave.maxDays ? `${leave.maxDays} days` : "Unlimited"}
-                        {!leave.isPaid ? " · Unpaid" : ""}
-                      </span>
+                  {items.map((lt) => (
+                    <SelectItem key={lt.id} value={lt.id}>
+                      <div className="flex items-center gap-2">
+                        <LeaveIcon
+                          iconName={lt.iconName}
+                          className="h-4 w-4 text-gray-500"
+                        />
+                        <span>{lt.label}</span>
+                        {lt.maxDays && (
+                          <span className="ml-auto text-xs text-gray-400">
+                            {lt.maxDays}{" "}
+                            {lt.includeWeekends ? "days" : "working days"}
+                          </span>
+                        )}
+                        {!lt.isPaid && (
+                          <span className="ml-1 rounded bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-600">
+                            Unpaid
+                          </span>
+                        )}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectGroup>
@@ -337,49 +334,50 @@ export function LeaveRequestForm() {
             })}
           </SelectContent>
         </Select>
-        {errors.leaveType && (
-          <p className="text-xs text-red-600">{errors.leaveType}</p>
-        )}
       </div>
 
-      {/* Info card */}
-      {selectedLeaveType && (
-        <div
-          className={`rounded-lg border p-4 ${selectedLeaveType.isPaid ? "bg-blue-50 border-blue-200" : "bg-red-50 border-red-200"}`}
-        >
+      {/* ── Info Card ── */}
+      {leaveType && (
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
           <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 mt-0.5 text-blue-600 flex-shrink-0" />
-            <div>
-              <p className="font-medium text-gray-900">
-                {selectedLeaveType.name}
+            <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-blue-100">
+              <LeaveIcon
+                iconName={leaveType.iconName}
+                className="h-4 w-4 text-blue-600"
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-blue-900">{leaveType.label}</p>
+              <p className="mt-0.5 text-sm text-blue-700">
+                {leaveType.description}
               </p>
-              <p className="text-sm text-gray-600 mt-1">
-                {selectedLeaveType.description}
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                <span className="rounded bg-white px-2 py-1 border">
-                  {selectedLeaveType.maxDays
-                    ? `Max ${selectedLeaveType.maxDays} days`
-                    : "Unlimited"}
-                </span>
+              <div className="mt-2 flex flex-wrap gap-2">
                 <span
-                  className={`rounded px-2 py-1 border ${selectedLeaveType.isPaid ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${leaveType.isPaid ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
                 >
-                  {selectedLeaveType.isPaid ? "Paid" : "Unpaid"}
+                  {leaveType.isPaid ? "Paid" : "Unpaid"}
                 </span>
-                {selectedLeaveType.requiresDocument && (
-                  <span className="rounded bg-yellow-50 px-2 py-1 border border-yellow-200 text-yellow-700">
+                {leaveType.maxDays && (
+                  <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                    Max {leaveType.maxDays}{" "}
+                    {leaveType.includeWeekends
+                      ? "calendar days"
+                      : "working days"}
+                  </span>
+                )}
+                {leaveType.requiresDocument && (
+                  <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
                     Document required
                   </span>
                 )}
-                {isAutoCalculated && (
-                  <span className="rounded bg-purple-50 px-2 py-1 border border-purple-200 text-purple-700">
-                    Auto-calculated dates
+                {leaveType.autoCalculate && (
+                  <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700">
+                    Dates auto-calculated
                   </span>
                 )}
-                {needsTime && (
-                  <span className="rounded bg-indigo-50 px-2 py-1 border border-indigo-200 text-indigo-700">
-                    Time input required
+                {leaveType.requiresTime && (
+                  <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700">
+                    Time required
                   </span>
                 )}
               </div>
@@ -388,239 +386,250 @@ export function LeaveRequestForm() {
         </div>
       )}
 
-      {/* Dates */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="startDate">
-            Start Date <span className="text-red-500">*</span>
-          </Label>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+      {/* ── Dates ── */}
+      {leaveTypeId && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="startDate">
+              Start Date <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="startDate"
-              name="startDate"
               type="date"
-              value={formData.startDate}
-              onChange={handleChange}
-              disabled={isLoading}
-              className={`pl-10 ${errors.startDate ? "border-red-500" : ""}`}
+              value={startDate}
               min={new Date().toISOString().split("T")[0]}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-11"
             />
           </div>
-          {errors.startDate && (
-            <p className="text-xs text-red-600">{errors.startDate}</p>
+          {!leaveType?.requiresTime && (
+            <div className="space-y-2">
+              <Label htmlFor="endDate">
+                End Date <span className="text-red-500">*</span>
+                {leaveType?.autoCalculate && (
+                  <span className="ml-2 text-xs font-normal text-purple-600">
+                    (auto-filled)
+                  </span>
+                )}
+              </Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={endDate}
+                min={startDate || new Date().toISOString().split("T")[0]}
+                onChange={(e) =>
+                  !leaveType?.autoCalculate && setEndDate(e.target.value)
+                }
+                disabled={leaveType?.autoCalculate}
+                className="h-11 disabled:opacity-70"
+              />
+            </div>
           )}
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="endDate">
-            End Date <span className="text-red-500">*</span>
-            {isAutoCalculated && (
-              <span className="ml-2 text-xs text-blue-600">(Auto-filled)</span>
-            )}
-          </Label>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <Input
-              id="endDate"
-              name="endDate"
-              type="date"
-              value={formData.endDate}
-              onChange={handleChange}
-              disabled={isLoading || !!isAutoCalculated}
-              className={`pl-10 ${errors.endDate ? "border-red-500" : ""} ${isAutoCalculated ? "bg-gray-100" : ""}`}
-              min={formData.startDate || new Date().toISOString().split("T")[0]}
-            />
-          </div>
-          {errors.endDate && (
-            <p className="text-xs text-red-600">{errors.endDate}</p>
-          )}
-        </div>
-      </div>
+      )}
 
-      {/* Time (Out of Office) */}
-      {needsTime && (
-        <div className="grid gap-4 sm:grid-cols-2">
+      {/* ── Time (Out of Office) ── */}
+      {leaveType?.requiresTime && (
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="startTime">
               Start Time <span className="text-red-500">*</span>
             </Label>
-            <div className="relative">
-              <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <Input
-                id="startTime"
-                name="startTime"
-                type="time"
-                value={formData.startTime}
-                onChange={handleChange}
-                disabled={isLoading}
-                className={`pl-10 ${errors.startTime ? "border-red-500" : ""}`}
-              />
-            </div>
-            {errors.startTime && (
-              <p className="text-xs text-red-600">{errors.startTime}</p>
-            )}
+            <Input
+              id="startTime"
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className="h-11"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="endTime">
               End Time <span className="text-red-500">*</span>
             </Label>
-            <div className="relative">
-              <Clock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <Input
-                id="endTime"
-                name="endTime"
-                type="time"
-                value={formData.endTime}
-                onChange={handleChange}
-                disabled={isLoading}
-                className={`pl-10 ${errors.endTime ? "border-red-500" : ""}`}
-              />
+            <Input
+              id="endTime"
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              className="h-11"
+            />
+          </div>
+          {totalHours > 0 && (
+            <div className="col-span-2 rounded-lg bg-orange-50 px-4 py-2.5 text-sm font-medium text-orange-700">
+              <Clock className="mr-2 inline h-4 w-4" />
+              Duration: {totalHours.toFixed(1)} hour
+              {totalHours !== 1 ? "s" : ""}
             </div>
-            {errors.endTime && (
-              <p className="text-xs text-red-600">{errors.endTime}</p>
+          )}
+        </div>
+      )}
+
+      {/* ── Duration Summary ── */}
+      {durationLabel && (
+        <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+          <Calendar className="h-5 w-5 flex-shrink-0 text-blue-500" />
+          <div className="flex flex-wrap gap-4">
+            <div>
+              <p className="text-xs text-gray-500">Requested duration</p>
+              <p className="font-semibold text-gray-900">{durationLabel}</p>
+            </div>
+            {remainingBalance !== null && (
+              <div>
+                <p className="text-xs text-gray-500">
+                  Remaining after approval
+                </p>
+                <p
+                  className={`font-semibold ${remainingBalance >= 0 ? "text-green-600" : "text-red-600"}`}
+                >
+                  {remainingBalance} day{remainingBalance !== 1 ? "s" : ""}
+                </p>
+              </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Duration summary */}
-      {(requestedDays > 0 || totalHours > 0) && (
-        <div className="rounded-lg border bg-gray-50 p-4">
-          <p className="text-sm text-gray-500">Duration</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">
-            {needsTime
-              ? `${totalHours.toFixed(1)} hours`
-              : `${requestedDays} working day${requestedDays !== 1 ? "s" : ""}`}
-          </p>
-        </div>
-      )}
-
-      {/* Delegation */}
-      {needsDelegation && (
-        <div className="space-y-4 rounded-lg border border-orange-200 bg-orange-50 p-4">
+      {/* ── Delegation ── */}
+      {leaveType?.requiresDelegation && (
+        <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 space-y-4">
           <div className="flex items-center gap-2">
-            <User className="h-5 w-5 text-orange-600" />
-            <h3 className="font-semibold text-orange-900">Task Delegation</h3>
+            <Users className="h-4 w-4 text-amber-600" />
+            <p className="font-semibold text-amber-900">Task Delegation</p>
           </div>
           <div className="space-y-2">
-            <Label>
+            <Label htmlFor="delegate">
               Delegate to <span className="text-red-500">*</span>
             </Label>
-            <Select
-              value={formData.delegateTo}
-              onValueChange={(v) => handleSelect("delegateTo", v)}
-              disabled={isLoading}
-            >
-              <SelectTrigger
-                className={errors.delegateTo ? "border-red-500" : ""}
-              >
-                <SelectValue placeholder="Select employee" />
+            <Select value={delegateId} onValueChange={setDelegateId}>
+              <SelectTrigger id="delegate" className="h-11">
+                <SelectValue placeholder="Select a colleague" />
               </SelectTrigger>
               <SelectContent>
                 {employees.map((emp) => (
                   <SelectItem key={emp.id} value={emp.id}>
-                    {emp.name}
+                    {emp.name} — {emp.position}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {errors.delegateTo && (
-              <p className="text-xs text-red-600">{errors.delegateTo}</p>
-            )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="delegateNotes">Notes for delegate (Optional)</Label>
+            <Label htmlFor="delegateNotes">Delegation Notes</Label>
             <Textarea
               id="delegateNotes"
-              name="delegateNotes"
-              rows={2}
-              value={formData.delegateNotes}
-              onChange={handleChange}
-              disabled={isLoading}
-              placeholder="e.g. Please handle the client meeting on..."
+              value={delegateNotes}
+              onChange={(e) => setDelegateNotes(e.target.value)}
+              placeholder="Describe the tasks or handover instructions…"
+              rows={3}
             />
           </div>
         </div>
       )}
 
-      {/* Reason */}
+      {/* ── Reason ── */}
       <div className="space-y-2">
         <Label htmlFor="reason">
           Reason <span className="text-red-500">*</span>
         </Label>
         <Textarea
           id="reason"
-          name="reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Please explain the reason for your leave request…"
           rows={4}
-          value={formData.reason}
-          onChange={handleChange}
-          disabled={isLoading}
-          className={errors.reason ? "border-red-500" : ""}
-          placeholder="Describe the reason for your leave request (min. 10 characters)..."
         />
-        {errors.reason && (
-          <p className="text-xs text-red-600">{errors.reason}</p>
-        )}
         <p className="text-xs text-gray-400">
-          {formData.reason.length} characters
+          {reason.length} character{reason.length !== 1 ? "s" : ""} (minimum 10)
         </p>
       </div>
 
-      {/* Attachment */}
+      {/* ── Document Upload ── */}
       <div className="space-y-2">
         <Label htmlFor="attachment">
-          Supporting Document{" "}
-          {selectedLeaveType?.requiresDocument ? (
-            <span className="text-red-500">*</span>
-          ) : (
-            <span className="text-gray-400">(Optional)</span>
+          Supporting Document
+          {leaveType?.requiresDocument && (
+            <span className="ml-1 text-red-500">*</span>
+          )}
+          {!leaveType?.requiresDocument && (
+            <span className="ml-1 text-xs font-normal text-gray-400">
+              (optional)
+            </span>
           )}
         </Label>
-        {selectedLeaveType?.requiresDocument && (
-          <div className="flex items-start gap-2 rounded border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800">
-            <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-            <span>
-              {selectedLeaveType.name} requires a supporting document (medical
-              certificate, letter, etc.)
-            </span>
+        {file ? (
+          <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <FileText className="h-4 w-4 text-blue-500" />
+              <span>{file.name}</span>
+              <span className="text-gray-400">
+                ({(file.size / 1024).toFixed(1)} KB)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFile(null)}
+              className="text-gray-400 hover:text-red-500"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
+        ) : (
+          <label
+            htmlFor="attachment"
+            className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 px-6 py-8 text-center transition hover:border-blue-300 hover:bg-blue-50"
+          >
+            <Upload className="mb-2 h-8 w-8 text-gray-300" />
+            <p className="text-sm font-medium text-gray-600">
+              Click to upload or drag and drop
+            </p>
+            <p className="mt-1 text-xs text-gray-400">
+              PDF, JPG, PNG — max 5 MB
+            </p>
+            <input
+              id="attachment"
+              type="file"
+              className="hidden"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f && f.size > 5 * 1024 * 1024) {
+                  setError("File size must not exceed 5 MB.");
+                  return;
+                }
+                setFile(f ?? null);
+              }}
+            />
+          </label>
         )}
-        <Input
-          id="attachment"
-          name="attachment"
-          type="file"
-          onChange={handleFile}
-          disabled={isLoading}
-          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-          className="file:mr-4 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-gray-200"
-        />
-        {formData.attachment && (
-          <p className="flex items-center gap-1.5 text-sm text-green-700">
-            <FileText className="h-4 w-4" />
-            {formData.attachment.name} (
-            {(formData.attachment.size / 1024).toFixed(1)} KB)
-          </p>
-        )}
-        {errors.attachment && (
-          <p className="text-xs text-red-600">{errors.attachment}</p>
-        )}
-        <p className="text-xs text-gray-400">
-          Formats: PDF, JPG, PNG, DOC, DOCX (Max 5MB)
-        </p>
       </div>
 
-      {/* Buttons */}
-      <div className="flex items-center gap-3 border-t pt-4">
-        <Button type="submit" disabled={isLoading} size="lg">
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {isLoading ? "Submitting..." : "Submit Request"}
+      {/* ── Error ── */}
+      {error && (
+        <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <p>{error}</p>
+        </div>
+      )}
+
+      {/* ── Actions ── */}
+      <div className="flex gap-3 pt-2">
+        <Button type="submit" disabled={submitting} className="flex-1 h-11">
+          {submitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Submitting…
+            </>
+          ) : (
+            "Submit Leave Request"
+          )}
         </Button>
         <Button
           type="button"
           variant="outline"
-          size="lg"
-          onClick={() => router.push("/leave")}
-          disabled={isLoading}
+          className="h-11 px-6"
+          onClick={() => router.push("/dashboard/leave")}
+          disabled={submitting}
         >
           Cancel
         </Button>

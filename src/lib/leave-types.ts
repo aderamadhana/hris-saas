@@ -1,305 +1,342 @@
 // src/lib/leave-types.ts
+// Indonesian Labor Law (UU Ketenagakerjaan) Leave Types - English Version
 
 export interface LeaveType {
   id: string
-  name: string
+  label: string
   description: string
-  category: 'annual' | 'health' | 'maternity' | 'special' | 'work' | 'unpaid'
-  maxDays: number | null       // null = unlimited
+  category: LeaveCategory
+  maxDays: number | null // null = unlimited
   isPaid: boolean
   requiresDocument: boolean
-  autoCalculateDays: number | null  // null = user picks dates
-  excludeWeekends: boolean
-  requiresTime: boolean        // true = needs startTime/endTime (Out of Office)
+  autoCalculate: boolean // auto-fill end date
+  includeWeekends: boolean // false = working days only
   requiresDelegation: boolean
+  requiresTime: boolean // for OOO - needs start/end time
+  iconName: string
+  color: string
 }
 
-export const INDONESIAN_LEAVE_TYPES: LeaveType[] = [
-  // ── CUTI TAHUNAN ──────────────────────────────────────────
+export type LeaveCategory =
+  | 'annual'
+  | 'health'
+  | 'maternity'
+  | 'special'
+  | 'work_arrangement'
+  | 'unpaid'
+
+export const LEAVE_CATEGORIES: Record<LeaveCategory, string> = {
+  annual: 'Annual Leave',
+  health: 'Medical Leave',
+  maternity: 'Maternity Leave',
+  special: 'Special Leave',
+  work_arrangement: 'Work Arrangement',
+  unpaid: 'Unpaid Leave',
+}
+
+export const LEAVE_TYPES: LeaveType[] = [
+  // ─── ANNUAL LEAVE ───────────────────────────────────────────────
   {
     id: 'annual',
-    name: 'Cuti Tahunan',
-    description: 'Cuti tahunan sesuai UU Ketenagakerjaan minimal 12 hari kerja per tahun.',
+    label: 'Annual Leave',
+    description: 'Paid yearly leave entitlement (minimum 12 days per year)',
     category: 'annual',
     maxDays: 12,
     isPaid: true,
     requiresDocument: false,
-    autoCalculateDays: null,
-    excludeWeekends: true,
-    requiresTime: false,
+    autoCalculate: false,
+    includeWeekends: false,
     requiresDelegation: true,
+    requiresTime: false,
+    iconName: 'Calendar',
+    color: 'blue',
   },
 
-  // ── CUTI KESEHATAN ────────────────────────────────────────
+  // ─── MEDICAL LEAVE ──────────────────────────────────────────────
   {
     id: 'sick',
-    name: 'Cuti Sakit',
-    description: 'Cuti karena sakit. Tidak ada batasan maksimal hari, wajib melampirkan surat dokter.',
+    label: 'Sick Leave',
+    description: 'Medical leave due to illness — unlimited duration with doctor\'s note',
     category: 'health',
-    maxDays: null,
+    maxDays: null, // unlimited
     isPaid: true,
     requiresDocument: true,
-    autoCalculateDays: null,
-    excludeWeekends: false,
+    autoCalculate: false,
+    includeWeekends: true,
+    requiresDelegation: true,
     requiresTime: false,
-    requiresDelegation: false,
+    iconName: 'Heart',
+    color: 'red',
   },
 
-  // ── CUTI MELAHIRKAN ───────────────────────────────────────
+  // ─── MATERNITY LEAVE ────────────────────────────────────────────
   {
     id: 'maternity',
-    name: 'Cuti Melahirkan',
-    description: 'Cuti untuk ibu yang akan melahirkan. Diberikan 90 hari kalender.',
+    label: 'Maternity Leave',
+    description: 'Paid leave for mothers — automatically set to 90 calendar days',
     category: 'maternity',
     maxDays: 90,
     isPaid: true,
     requiresDocument: true,
-    autoCalculateDays: 90,
-    excludeWeekends: false,
-    requiresTime: false,
+    autoCalculate: true,
+    includeWeekends: true, // 90 consecutive days
     requiresDelegation: true,
+    requiresTime: false,
+    iconName: 'Baby',
+    color: 'pink',
   },
 
-  // ── CUTI KHUSUS ───────────────────────────────────────────
+  // ─── SPECIAL LEAVE ──────────────────────────────────────────────
   {
     id: 'marriage',
-    name: 'Cuti Menikah',
-    description: 'Cuti untuk karyawan yang menikah.',
+    label: 'Marriage Leave',
+    description: 'Leave for own wedding ceremony — 3 working days',
     category: 'special',
     maxDays: 3,
     isPaid: true,
     requiresDocument: true,
-    autoCalculateDays: 3,
-    excludeWeekends: true,
-    requiresTime: false,
+    autoCalculate: true,
+    includeWeekends: false,
     requiresDelegation: false,
+    requiresTime: false,
+    iconName: 'Heart',
+    color: 'rose',
   },
   {
     id: 'child_marriage',
-    name: 'Cuti Menikahkan Anak',
-    description: 'Cuti untuk karyawan yang menikahkan anaknya.',
+    label: "Child's Wedding Leave",
+    description: "Leave to attend your child's wedding — 2 working days",
     category: 'special',
     maxDays: 2,
     isPaid: true,
     requiresDocument: true,
-    autoCalculateDays: 2,
-    excludeWeekends: true,
-    requiresTime: false,
+    autoCalculate: true,
+    includeWeekends: false,
     requiresDelegation: false,
+    requiresTime: false,
+    iconName: 'Users',
+    color: 'purple',
   },
   {
     id: 'child_circumcision',
-    name: 'Cuti Khitanan Anak',
-    description: 'Cuti untuk karyawan yang mengkhitankan anaknya.',
+    label: "Child's Circumcision Leave",
+    description: "Leave for your child's circumcision ceremony — 2 working days",
     category: 'special',
     maxDays: 2,
     isPaid: true,
     requiresDocument: false,
-    autoCalculateDays: 2,
-    excludeWeekends: true,
-    requiresTime: false,
+    autoCalculate: true,
+    includeWeekends: false,
     requiresDelegation: false,
+    requiresTime: false,
+    iconName: 'Star',
+    color: 'yellow',
   },
   {
     id: 'child_baptism',
-    name: 'Cuti Baptis Anak',
-    description: 'Cuti untuk karyawan yang membaptis anaknya.',
+    label: "Child's Baptism Leave",
+    description: "Leave for your child's baptism ceremony — 2 working days",
     category: 'special',
     maxDays: 2,
     isPaid: true,
     requiresDocument: false,
-    autoCalculateDays: 2,
-    excludeWeekends: true,
-    requiresTime: false,
+    autoCalculate: true,
+    includeWeekends: false,
     requiresDelegation: false,
+    requiresTime: false,
+    iconName: 'Star',
+    color: 'sky',
   },
   {
     id: 'paternity',
-    name: 'Cuti Istri Melahirkan / Keguguran',
-    description: 'Cuti untuk suami yang istrinya melahirkan atau mengalami keguguran.',
+    label: "Paternity Leave (Wife Giving Birth)",
+    description: "Leave for father when wife gives birth or has a miscarriage — 2 working days",
     category: 'special',
     maxDays: 2,
     isPaid: true,
     requiresDocument: true,
-    autoCalculateDays: 2,
-    excludeWeekends: true,
-    requiresTime: false,
+    autoCalculate: true,
+    includeWeekends: false,
     requiresDelegation: false,
+    requiresTime: false,
+    iconName: 'Baby',
+    color: 'teal',
   },
   {
-    id: 'family_death',
-    name: 'Cuti Keluarga Meninggal (Serumah)',
-    description: 'Cuti untuk anggota keluarga inti yang meninggal dan tinggal satu rumah.',
+    id: 'immediate_family_death',
+    label: 'Immediate Family Bereavement',
+    description: 'Leave for death of a household family member (same address) — 2 working days',
     category: 'special',
     maxDays: 2,
     isPaid: true,
     requiresDocument: true,
-    autoCalculateDays: 2,
-    excludeWeekends: false,
-    requiresTime: false,
+    autoCalculate: true,
+    includeWeekends: false,
     requiresDelegation: false,
+    requiresTime: false,
+    iconName: 'AlertCircle',
+    color: 'gray',
   },
   {
     id: 'extended_family_death',
-    name: 'Cuti Anggota Keluarga Meninggal (Beda Rumah)',
-    description: 'Cuti untuk anggota keluarga yang meninggal namun tidak tinggal satu rumah.',
+    label: 'Extended Family Bereavement',
+    description: 'Leave for death of a family member not living in the same household — 1 working day',
     category: 'special',
     maxDays: 1,
     isPaid: true,
     requiresDocument: true,
-    autoCalculateDays: 1,
-    excludeWeekends: false,
-    requiresTime: false,
+    autoCalculate: true,
+    includeWeekends: false,
     requiresDelegation: false,
+    requiresTime: false,
+    iconName: 'AlertCircle',
+    color: 'slate',
   },
   {
     id: 'hajj',
-    name: 'Cuti Ibadah Haji',
-    description: 'Cuti untuk melaksanakan ibadah haji. Diberikan sekali selama bekerja.',
+    label: 'Hajj (Pilgrimage) Leave',
+    description: 'Leave for performing the Hajj pilgrimage — up to 40 days (once per employment)',
     category: 'special',
     maxDays: 40,
-    isPaid: false,
+    isPaid: false, // unpaid — per UU
     requiresDocument: true,
-    autoCalculateDays: null,
-    excludeWeekends: false,
-    requiresTime: false,
+    autoCalculate: false,
+    includeWeekends: true,
     requiresDelegation: true,
+    requiresTime: false,
+    iconName: 'Star',
+    color: 'amber',
   },
   {
     id: 'compensatory',
-    name: 'Cuti Pengganti Libur',
-    description: 'Cuti pengganti karena bekerja pada hari libur nasional.',
+    label: 'Compensatory Day Off',
+    description: 'Time off in lieu of working on a public holiday or rest day',
     category: 'special',
     maxDays: null,
     isPaid: true,
     requiresDocument: false,
-    autoCalculateDays: null,
-    excludeWeekends: true,
-    requiresTime: false,
+    autoCalculate: false,
+    includeWeekends: false,
     requiresDelegation: false,
+    requiresTime: false,
+    iconName: 'RefreshCw',
+    color: 'green',
   },
 
-  // ── PENGATURAN KERJA ──────────────────────────────────────
+  // ─── WORK ARRANGEMENT ───────────────────────────────────────────
   {
     id: 'business_trip_local',
-    name: 'Dinas Luar Kota',
-    description: 'Perjalanan dinas keluar kota dalam provinsi yang sama.',
-    category: 'work',
+    label: 'Local Business Trip',
+    description: 'Official travel within the same province',
+    category: 'work_arrangement',
     maxDays: null,
     isPaid: true,
     requiresDocument: false,
-    autoCalculateDays: null,
-    excludeWeekends: true,
-    requiresTime: false,
+    autoCalculate: false,
+    includeWeekends: false,
     requiresDelegation: true,
+    requiresTime: false,
+    iconName: 'Car',
+    color: 'indigo',
   },
   {
-    id: 'business_trip_province',
-    name: 'Dinas Luar Provinsi',
-    description: 'Perjalanan dinas keluar provinsi atau ke luar negeri.',
-    category: 'work',
+    id: 'business_trip_out_of_province',
+    label: 'Out-of-Province Business Trip',
+    description: 'Official travel to another province or region',
+    category: 'work_arrangement',
     maxDays: null,
     isPaid: true,
     requiresDocument: false,
-    autoCalculateDays: null,
-    excludeWeekends: true,
-    requiresTime: false,
+    autoCalculate: false,
+    includeWeekends: false,
     requiresDelegation: true,
+    requiresTime: false,
+    iconName: 'Plane',
+    color: 'violet',
   },
   {
     id: 'out_of_office',
-    name: 'Out of Office',
-    description: 'Keluar kantor untuk keperluan tertentu dalam jam kerja.',
-    category: 'work',
-    maxDays: null,
+    label: 'Out of Office (OOO)',
+    description: 'Away from the office during working hours — requires start & end time',
+    category: 'work_arrangement',
+    maxDays: 1,
     isPaid: true,
     requiresDocument: false,
-    autoCalculateDays: null,
-    excludeWeekends: true,
-    requiresTime: true,  // Perlu jam mulai & selesai
+    autoCalculate: false,
+    includeWeekends: false,
     requiresDelegation: false,
+    requiresTime: true, // ← show time picker
+    iconName: 'PhoneOff',
+    color: 'orange',
   },
   {
     id: 'wfh',
-    name: 'Work From Home',
-    description: 'Bekerja dari rumah.',
-    category: 'work',
+    label: 'Work From Home (WFH)',
+    description: 'Remote work from home',
+    category: 'work_arrangement',
     maxDays: null,
     isPaid: true,
     requiresDocument: false,
-    autoCalculateDays: null,
-    excludeWeekends: true,
-    requiresTime: false,
+    autoCalculate: false,
+    includeWeekends: false,
     requiresDelegation: false,
+    requiresTime: false,
+    iconName: 'Home',
+    color: 'cyan',
   },
   {
     id: 'wfa',
-    name: 'Work From Anywhere',
-    description: 'Bekerja dari lokasi mana saja selain kantor dan rumah.',
-    category: 'work',
+    label: 'Work From Anywhere (WFA)',
+    description: 'Remote work from any location (not home office)',
+    category: 'work_arrangement',
     maxDays: null,
     isPaid: true,
     requiresDocument: false,
-    autoCalculateDays: null,
-    excludeWeekends: true,
-    requiresTime: false,
+    autoCalculate: false,
+    includeWeekends: false,
     requiresDelegation: false,
+    requiresTime: false,
+    iconName: 'Globe',
+    color: 'emerald',
   },
 
-  // ── CUTI TIDAK BERBAYAR ───────────────────────────────────
+  // ─── UNPAID LEAVE ───────────────────────────────────────────────
   {
     id: 'unpaid',
-    name: 'Cuti Tanpa Upah (Unpaid Leave)',
-    description: 'Cuti tanpa mendapatkan gaji. Berdasarkan kesepakatan antara karyawan dan perusahaan.',
+    label: 'Unpaid Leave',
+    description: 'Leave without pay — subject to manager approval',
     category: 'unpaid',
     maxDays: null,
     isPaid: false,
     requiresDocument: false,
-    autoCalculateDays: null,
-    excludeWeekends: true,
+    autoCalculate: false,
+    includeWeekends: false,
+    requiresDelegation: true,
     requiresTime: false,
-    requiresDelegation: false,
+    iconName: 'XCircle',
+    color: 'red',
   },
 ]
 
-// ── Helper functions ──────────────────────────────────────────
+// ─── HELPER FUNCTIONS ────────────────────────────────────────────────────────
 
 export function getLeaveType(id: string): LeaveType | undefined {
-  return INDONESIAN_LEAVE_TYPES.find((t) => t.id === id)
+  return LEAVE_TYPES.find((t) => t.id === id)
 }
 
-export function shouldAutoCalculate(id: string): boolean {
-  const t = getLeaveType(id)
-  return t?.autoCalculateDays !== null && t?.autoCalculateDays !== undefined
+export function getLeavesByCategory(category: LeaveCategory): LeaveType[] {
+  return LEAVE_TYPES.filter((t) => t.category === category)
 }
 
-export function getAutoDays(id: string): number | null {
-  return getLeaveType(id)?.autoCalculateDays ?? null
+export function getLeaveIcon(leaveTypeId: string): string {
+  return getLeaveType(leaveTypeId)?.iconName ?? 'FileText'
 }
 
-export function requiresTimeInput(id: string): boolean {
-  return getLeaveType(id)?.requiresTime ?? false
-}
-
-export function shouldExcludeWeekends(id: string): boolean {
-  return getLeaveType(id)?.excludeWeekends ?? true
-}
-
-export function requiresDelegation(id: string): boolean {
-  return getLeaveType(id)?.requiresDelegation ?? false
-}
-
-/**
- * Hitung hari kerja antara dua tanggal (exclude Sabtu & Minggu)
- */
+/** Calculate working days between two dates (Mon–Fri only) */
 export function calculateWorkingDays(start: Date, end: Date): number {
   let count = 0
   const current = new Date(start)
-  current.setHours(0, 0, 0, 0)
-  const endDate = new Date(end)
-  endDate.setHours(0, 0, 0, 0)
-
-  while (current <= endDate) {
+  while (current <= end) {
     const day = current.getDay()
     if (day !== 0 && day !== 6) count++
     current.setDate(current.getDate() + 1)
@@ -307,66 +344,57 @@ export function calculateWorkingDays(start: Date, end: Date): number {
   return count
 }
 
-/**
- * Hitung tanggal akhir berdasarkan jumlah hari dari tanggal mulai.
- * excludeWeekends = true → skip Sabtu & Minggu
- */
-export function calculateEndDate(
-  start: Date,
-  days: number,
-  excludeWeekends: boolean
-): Date {
-  const result = new Date(start)
-  result.setHours(0, 0, 0, 0)
-
-  if (!excludeWeekends) {
-    result.setDate(result.getDate() + days - 1)
-    return result
-  }
-
-  let remaining = days - 1
-  while (remaining > 0) {
-    result.setDate(result.getDate() + 1)
-    const day = result.getDay()
-    if (day !== 0 && day !== 6) remaining--
-  }
-  return result
+/** Calculate total calendar days between two dates (inclusive) */
+export function calculateCalendarDays(start: Date, end: Date): number {
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1
 }
 
 /**
- * Format tanggal ke bahasa Indonesia
+ * Auto-compute the end date for a leave type that has `autoCalculate: true`.
+ * Returns the end date as a string (YYYY-MM-DD).
  */
-export function formatLeaveDate(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleDateString('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+export function autoCalculateEndDate(leaveTypeId: string, startDateStr: string): string {
+  const leaveType = getLeaveType(leaveTypeId)
+  if (!leaveType || !leaveType.autoCalculate || !leaveType.maxDays) return startDateStr
+
+  const start = new Date(startDateStr)
+  const end = new Date(start)
+
+  if (leaveType.includeWeekends) {
+    // Calendar days
+    end.setDate(end.getDate() + leaveType.maxDays - 1)
+  } else {
+    // Working days only
+    let added = 0
+    const cursor = new Date(start)
+    while (added < leaveType.maxDays - 1) {
+      cursor.setDate(cursor.getDate() + 1)
+      const day = cursor.getDay()
+      if (day !== 0 && day !== 6) added++
+    }
+    end.setTime(cursor.getTime())
+  }
+
+  return end.toISOString().split('T')[0]
 }
 
-/**
- * Label status dalam bahasa Indonesia
- */
-export function getStatusLabel(status: string): string {
-  const map: Record<string, string> = {
-    pending: 'Menunggu',
-    approved: 'Disetujui',
-    rejected: 'Ditolak',
-    cancelled: 'Dibatalkan',
-  }
-  return map[status] ?? status
-}
+/** Calculate duration label for a leave request */
+export function getDurationLabel(leaveTypeId: string, startDate: string, endDate: string, totalHours?: number): string {
+  const leaveType = getLeaveType(leaveTypeId)
+  if (!leaveType) return ''
 
-/**
- * Warna badge per status
- */
-export function getStatusColor(status: string): string {
-  const map: Record<string, string> = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    approved: 'bg-green-100 text-green-800',
-    rejected: 'bg-red-100 text-red-800',
-    cancelled: 'bg-gray-100 text-gray-700',
+  if (leaveType.requiresTime && totalHours) {
+    return `${totalHours.toFixed(1)} hour${totalHours !== 1 ? 's' : ''}`
   }
-  return map[status] ?? 'bg-gray-100 text-gray-700'
+
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+
+  if (leaveType.includeWeekends) {
+    const days = calculateCalendarDays(start, end)
+    return `${days} day${days !== 1 ? 's' : ''}`
+  }
+
+  const days = calculateWorkingDays(start, end)
+  return `${days} working day${days !== 1 ? 's' : ''}`
 }

@@ -1,296 +1,349 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { createClient } from '@/src/lib/supabase/client'
-import { Button } from '@/src/components/ui/button'
-import { Input } from '@/src/components/ui/input'
-import { Label } from '@/src/components/ui/label'
-import { Eye, EyeOff, Loader2, Mail } from 'lucide-react'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { createClient } from "@/src/lib/supabase/client";
+import { Button } from "@/src/components/ui/button";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
+import { Checkbox } from "@/src/components/ui/checkbox";
 
-const registerSchema = z
+const schema = z
   .object({
-    firstName: z.string().min(2, 'Nama depan minimal 2 karakter'),
-    lastName: z.string().min(2, 'Nama belakang minimal 2 karakter'),
-    email: z.string().email('Email tidak valid'),
-    organizationName: z.string().min(3, 'Nama perusahaan minimal 3 karakter'),
-    password: z.string().min(8, 'Password minimal 8 karakter'),
+    firstName: z.string().min(2, "First name must be at least 2 characters"),
+    lastName: z.string().min(2, "Last name must be at least 2 characters"),
+    email: z.string().email("Please enter a valid email address"),
+    organizationName: z
+      .string()
+      .min(3, "Company name must be at least 3 characters"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string(),
+    acceptTerms: z.literal(true, {
+      errorMap: () => ({ message: "You must accept the Terms of Service" }),
+    }),
   })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: 'Password tidak cocok',
-    path: ['confirmPassword'],
-  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
-type RegisterFormData = z.infer<typeof registerSchema>
+type FormData = z.infer<typeof schema>;
 
-const generateSlug = (name: string): string => {
+function generateSlug(name: string): string {
   return name
     .toLowerCase()
     .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    .replace(/[^\w\s-]/g, "")
+    .replace(/[\s_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export default function RegisterPage() {
-  const supabase = createClient()
-
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null)
+  const router = useRouter();
+  const supabase = createClient();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [tosAccepted, setTosAccepted] = useState(false);
 
   const {
     register,
     handleSubmit,
-    formState: { errors },
-  } = useForm<RegisterFormData>({
-    resolver: zodResolver(registerSchema),
-  })
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<FormData>({ resolver: zodResolver(schema) });
 
-  const onSubmit = async (data: RegisterFormData) => {
-    setIsLoading(true)
-    setError(null)
-
+  async function onSubmit(data: FormData) {
+    setServerError(null);
     try {
-      // Step 1: Buat auth user di Supabase
-      // Simpan data organization di metadata — akan dipakai di /auth/callback
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
-          // Setelah user klik link konfirmasi → diarahkan ke /auth/callback
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: {
-            first_name: data.firstName,
-            last_name: data.lastName,
-            organization_name: data.organizationName,
-            organization_slug: generateSlug(data.organizationName),
-          },
+          data: { first_name: data.firstName, last_name: data.lastName },
         },
-      })
+      });
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("Failed to create account");
 
-      if (authError) throw authError
-      if (!authData.user) throw new Error('Gagal membuat akun')
-
-      // Cek apakah email sudah pernah didaftarkan
-      if (authData.user.identities && authData.user.identities.length === 0) {
-        throw new Error('Email sudah terdaftar. Silakan login.')
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: authData.user.id,
+          email: data.email,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          organizationName: data.organizationName,
+          organizationSlug: generateSlug(data.organizationName),
+        }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error ?? "Registration failed");
       }
-
-      // Tampilkan halaman "cek email"
-      setRegisteredEmail(data.email)
-
+      setSuccess(true);
+      setTimeout(() => router.push("/login"), 3000);
     } catch (err: any) {
-      console.error('Register error:', err)
-      if (err.message?.includes('sudah terdaftar') || err.message?.includes('already registered')) {
-        setError('Email sudah terdaftar. Silakan login.')
+      if (err.message?.includes("User already registered")) {
+        setServerError("An account with this email already exists.");
       } else {
-        setError(err.message || 'Terjadi kesalahan. Silakan coba lagi.')
+        setServerError(
+          err.message ?? "Something went wrong. Please try again.",
+        );
       }
-    } finally {
-      setIsLoading(false)
     }
   }
 
-  // Tampilan setelah register — minta user cek email
-  if (registeredEmail) {
+  if (success) {
     return (
-      <div className="bg-white rounded-lg shadow-xl p-8 text-center">
-        <div className="flex justify-center mb-4">
-          <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center">
-            <Mail className="h-8 w-8 text-blue-600" />
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+        <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+            <CheckCircle className="h-8 w-8 text-green-600" />
           </div>
+          <h2 className="text-2xl font-bold text-gray-900">Account created!</h2>
+          <p className="mt-2 text-gray-500">
+            Please check your email to verify your account. Redirecting to sign
+            in…
+          </p>
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Cek Email Kamu!</h2>
-        <p className="text-gray-600 mb-1">Kami sudah kirim link konfirmasi ke:</p>
-        <p className="font-semibold text-gray-900 mb-4">{registeredEmail}</p>
-        <p className="text-sm text-gray-500 mb-6">
-          Klik link di email tersebut untuk mengaktifkan akun dan langsung masuk ke dashboard.
-        </p>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
-          Tidak menerima email? Cek folder <strong>Spam</strong> atau{' '}
-          <button
-            onClick={() => setRegisteredEmail(null)}
-            className="underline font-medium"
-          >
-            coba daftar ulang
-          </button>
-        </div>
-        <p className="mt-6 text-sm text-gray-500">
-          Sudah konfirmasi?{' '}
-          <Link href="/login" className="text-blue-600 hover:underline font-medium">
-            Masuk di sini
-          </Link>
-        </p>
       </div>
-    )
+    );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-xl p-8">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Buat Akun</h1>
-        <p className="text-gray-600 mt-2">Mulai kelola tim kamu hari ini</p>
-      </div>
-
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-sm text-red-800">{error}</p>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4 py-12">
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600">
+            <span className="text-xl font-bold text-white">H</span>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Create your account
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Start managing your team today
+          </p>
         </div>
-      )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-        {/* Personal Information */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-            Informasi Pribadi
-          </h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="firstName">Nama Depan</Label>
-              <Input id="firstName" placeholder="John" {...register('firstName')} className="mt-1" />
-              {errors.firstName && (
-                <p className="text-sm text-red-600 mt-1">{errors.firstName.message}</p>
+        {/* Card */}
+        <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-sm">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            {serverError && (
+              <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                {serverError}
+              </div>
+            )}
+
+            {/* Name */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="firstName">
+                  First Name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="firstName"
+                  placeholder="John"
+                  className="h-11"
+                  {...register("firstName")}
+                />
+                {errors.firstName && (
+                  <p className="text-xs text-red-500">
+                    {errors.firstName.message}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="lastName">
+                  Last Name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="lastName"
+                  placeholder="Doe"
+                  className="h-11"
+                  {...register("lastName")}
+                />
+                {errors.lastName && (
+                  <p className="text-xs text-red-500">
+                    {errors.lastName.message}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Email */}
+            <div className="space-y-1.5">
+              <Label htmlFor="email">
+                Email Address <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@company.com"
+                className="h-11"
+                {...register("email")}
+              />
+              {errors.email && (
+                <p className="text-xs text-red-500">{errors.email.message}</p>
               )}
             </div>
-            <div>
-              <Label htmlFor="lastName">Nama Belakang</Label>
-              <Input id="lastName" placeholder="Doe" {...register('lastName')} className="mt-1" />
-              {errors.lastName && (
-                <p className="text-sm text-red-600 mt-1">{errors.lastName.message}</p>
+
+            {/* Org */}
+            <div className="space-y-1.5">
+              <Label htmlFor="organizationName">
+                Company Name <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="organizationName"
+                placeholder="Acme Corporation"
+                className="h-11"
+                {...register("organizationName")}
+              />
+              {errors.organizationName && (
+                <p className="text-xs text-red-500">
+                  {errors.organizationName.message}
+                </p>
               )}
             </div>
-          </div>
-          <div>
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="john@perusahaan.com"
-              {...register('email')}
-              className="mt-1"
-            />
-            {errors.email && (
-              <p className="text-sm text-red-600 mt-1">{errors.email.message}</p>
-            )}
-          </div>
-        </div>
 
-        {/* Organization */}
-        <div className="space-y-4 pt-4 border-t">
-          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-            Informasi Perusahaan
-          </h3>
-          <div>
-            <Label htmlFor="organizationName">Nama Perusahaan</Label>
-            <Input
-              id="organizationName"
-              placeholder="PT. Contoh Indonesia"
-              {...register('organizationName')}
-              className="mt-1"
-            />
-            {errors.organizationName && (
-              <p className="text-sm text-red-600 mt-1">{errors.organizationName.message}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Password */}
-        <div className="space-y-4 pt-4 border-t">
-          <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-            Keamanan
-          </h3>
-          <div>
-            <Label htmlFor="password">Password</Label>
-            <div className="relative mt-1">
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Min. 8 karakter"
-                {...register('password')}
-                className="pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
-              >
-                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
+            {/* Password */}
+            <div className="space-y-1.5">
+              <Label htmlFor="password">
+                Password <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Min. 8 characters"
+                  className="h-11 pr-10"
+                  {...register("password")}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {errors.password && (
+                <p className="text-xs text-red-500">
+                  {errors.password.message}
+                </p>
+              )}
             </div>
-            {errors.password && (
-              <p className="text-sm text-red-600 mt-1">{errors.password.message}</p>
-            )}
-          </div>
-          <div>
-            <Label htmlFor="confirmPassword">Konfirmasi Password</Label>
-            <div className="relative mt-1">
-              <Input
-                id="confirmPassword"
-                type={showConfirmPassword ? 'text' : 'password'}
-                placeholder="Ulangi password"
-                {...register('confirmPassword')}
-                className="pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
-              >
-                {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
-            </div>
-            {errors.confirmPassword && (
-              <p className="text-sm text-red-600 mt-1">{errors.confirmPassword.message}</p>
-            )}
-          </div>
-        </div>
 
-        {/* Terms */}
-        <div className="flex items-start">
-          <input
-            id="terms"
-            type="checkbox"
-            required
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
-          />
-          <label htmlFor="terms" className="ml-2 block text-sm text-gray-900">
-            Saya setuju dengan{' '}
-            <Link href="/terms" target="_blank" className="text-blue-600 hover:text-blue-500">
-              Syarat & Ketentuan
-            </Link>{' '}
-            dan{' '}
-            <Link href="/privacy" target="_blank" className="text-blue-600 hover:text-blue-500">
-              Kebijakan Privasi
+            {/* Confirm */}
+            <div className="space-y-1.5">
+              <Label htmlFor="confirmPassword">
+                Confirm Password <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirm ? "text" : "password"}
+                  placeholder="••••••••"
+                  className="h-11 pr-10"
+                  {...register("confirmPassword")}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirm ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {errors.confirmPassword && (
+                <p className="text-xs text-red-500">
+                  {errors.confirmPassword.message}
+                </p>
+              )}
+            </div>
+
+            {/* ToS */}
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="terms"
+                checked={tosAccepted}
+                onCheckedChange={(v) => {
+                  const val = v === true;
+                  setTosAccepted(val);
+                  if (val) setValue("acceptTerms", true);
+                }}
+                className="mt-0.5"
+              />
+              <label
+                htmlFor="terms"
+                className="text-sm text-gray-600 leading-snug cursor-pointer"
+              >
+                I agree to the{" "}
+                <Link
+                  href="/terms"
+                  target="_blank"
+                  className="font-medium text-blue-600 hover:underline"
+                >
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link
+                  href="/privacy"
+                  target="_blank"
+                  className="font-medium text-blue-600 hover:underline"
+                >
+                  Privacy Policy
+                </Link>
+              </label>
+            </div>
+            {errors.acceptTerms && (
+              <p className="text-xs text-red-500">
+                {errors.acceptTerms.message}
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              className="h-11 w-full"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Create Account"
+              )}
+            </Button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-gray-500">
+            Already have an account?{" "}
+            <Link
+              href="/login"
+              className="font-medium text-blue-600 hover:text-blue-700"
+            >
+              Sign in
             </Link>
-          </label>
+          </p>
         </div>
-
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Membuat akun...
-            </>
-          ) : (
-            'Buat Akun'
-          )}
-        </Button>
-      </form>
-
-      <p className="mt-6 text-center text-sm text-gray-600">
-        Sudah punya akun?{' '}
-        <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
-          Masuk
-        </Link>
-      </p>
+      </div>
     </div>
-  )
+  );
 }

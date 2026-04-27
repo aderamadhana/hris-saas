@@ -1,83 +1,101 @@
 // src/app/(dashboard)/layout.tsx
-import { redirect } from 'next/navigation'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma' // ← Changed
-import { Sidebar } from '@/src/components/dashboard/sidebar'
-import { Header } from '@/src/components/dashboard/header'
-import { MobileSidebar } from '@/src/components/dashboard/mobile-sidebar'
+// Layout dashboard — fetch data user nyata dari DB untuk header & sidebar
+
+import { redirect } from "next/navigation";
+import { createClient } from "@/src/lib/supabase/server";
+import prisma from "@/src/lib/prisma";
+import { Sidebar } from "@/src/components/dashboard/sidebar";
+import { Header } from "@/src/components/dashboard/header";
 
 export default async function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
-  // Get authenticated user
-  const supabase = await createClient()
+  // 1. Cek session Supabase
+  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
-  if (!user) {
-    console.log('arema');
-    redirect('/login')
-  }
-
-  // Get employee data from database
-  const employee = await prisma.employee.findUnique({
+  // 2. Ambil data employee dari database
+  //    Coba cari via authId dulu, fallback ke email
+  let employee = await prisma.employee.findFirst({
     where: { authId: user.id },
-    include: {
-      organization: true,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      role: true,
+      organizationId: true,
     },
-  })
+  });
 
   if (!employee) {
-    // If employee not found, logout and redirect
-    await supabase.auth.signOut()
-    redirect('/login')
+    // Fallback: cari via email & auto-link
+    employee = await prisma.employee.findFirst({
+      where: { email: user.email ?? "" },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        organizationId: true,
+      },
+    });
+    if (employee) {
+      // Auto-link authId supaya next request langsung ketemu
+      await prisma.employee.update({
+        where: { id: employee.id },
+        data: { authId: user.id },
+      });
+    }
   }
 
-  const userData = {
-    firstName: employee.firstName,
-    lastName: employee.lastName,
-    email: employee.email,
-    role: employee.role,
-  }
+  // 3. Siapkan nilai display
+  const userName = employee
+    ? `${employee.firstName} ${employee.lastName}`.trim()
+    : (user.email ?? "Pengguna");
 
-  const organizationData = {
-    name: employee.organization.name,
+  const userRole = employee?.role ?? "employee";
+  const userEmail = employee?.email ?? user.email ?? "";
+
+  // 4. Hitung notifikasi pending (opsional — hapus jika model belum ada)
+  let notificationCount = 0;
+  try {
+    // Contoh: hitung cuti pending yang perlu diapprove oleh user ini
+    if (["hr", "admin", "owner", "manager"].includes(userRole) && employee) {
+      notificationCount = await prisma.leave.count({
+        where: {
+          organizationId: employee.organizationId,
+          status: "pending",
+        },
+      });
+    }
+  } catch {
+    // Abaikan error jika model belum ada
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:block">
-        <Sidebar 
-          userName={`${userData.firstName} ${userData.lastName}`}
-          userEmail={userData.email}
-          userRole={userData.role}
+    <div className="flex h-screen overflow-hidden bg-[#F7F8F7]">
+      {/* Sidebar kiri */}
+      <Sidebar userRole={userRole} userName={userName} userEmail={userEmail} />
+
+      {/* Area konten kanan */}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        {/* Header atas */}
+        <Header
+          userName={userName}
+          userRole={userRole}
+          notificationCount={notificationCount}
         />
-      </aside>
 
-      {/* Main Content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center gap-4 px-4 md:px-0">
-          {/* Mobile Menu Button */}
-          <div className="md:hidden">
-            <MobileSidebar />
-          </div>
-          
-          {/* Header Component */}
-          <div className="flex-1">
-            <Header user={userData} organization={organizationData} />
-          </div>
-        </div>
-
-        {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-6">
-          {children}
-        </main>
+        {/* Konten halaman */}
+        <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>
-  )
+  );
 }

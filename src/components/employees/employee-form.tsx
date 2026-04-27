@@ -1,8 +1,11 @@
-// src/components/employees/employee-form.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
@@ -10,339 +13,217 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectGroup,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { Loader2, CheckCircle, AlertTriangle } from "lucide-react";
 
-interface Department {
-  id: string;
-  name: string;
-}
-interface EmployeeFormProps {
-  departments: Department[];
-  mode: "create" | "edit";
-  employee?: any;
-  currentUserRole: string;
-}
+// ─── Schema ───────────────────────────────────────────────────────────────────
+const schema = z.object({
+  firstName: z.string().min(2, "First name must be at least 2 characters"),
+  lastName: z.string().min(2, "Last name must be at least 2 characters"),
+  email: z.string().email("Please enter a valid email address"),
+  position: z.string().min(2, "Position must be at least 2 characters"),
+  employeeId: z.string().min(1, "Employee ID is required"),
+  departmentId: z.string().optional(),
+  role: z.string().min(1, "Please select a role"),
+  employmentType: z.string().min(1, "Please select an employment type"),
+  baseSalary: z.coerce.number().min(0, "Salary must be a positive number"),
+  joinDate: z.string().min(1, "Join date is required"),
+  phoneNumber: z.string().optional(),
+});
 
-const ROLE_OPTIONS = [
+type FormData = z.infer<typeof schema>;
+
+// ─── Role Definitions ─────────────────────────────────────────────────────────
+const ALL_ROLES = [
   {
     value: "employee",
     label: "Employee",
-    description: "Self-service access only",
+    description: "Regular staff — self-service access only",
   },
   {
     value: "manager",
     label: "Manager",
-    description: "Manage team and approve leave",
+    description: "Team lead — can approve leave for direct reports",
   },
-  { value: "hr", label: "HR", description: "Manage employees & payroll" },
+  {
+    value: "hr",
+    label: "HR Manager",
+    description: "HR team — full employee and payroll management",
+  },
   {
     value: "admin",
     label: "Administrator",
-    description: "Full access except billing",
+    description: "System admin — full access except billing",
   },
   {
     value: "owner",
     label: "Owner",
-    description: "Full access including billing",
+    description: "Company owner — full access including billing",
   },
 ];
 
-const ROLE_HINT: Record<string, string> = {
-  owner: "As owner, you can assign any role.",
-  admin: "As admin, you can assign all roles except Owner.",
-  hr: "As HR, you can only assign Employee or Manager roles.",
-};
-
-const EMPLOYMENT_TYPES = [
-  { value: "full-time", label: "Full-time" },
-  { value: "part-time", label: "Part-time" },
-  { value: "contract", label: "Contract" },
-  { value: "intern", label: "Intern" },
-];
-
-const STATUS_OPTIONS = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-  { value: "terminated", label: "Terminated" },
-];
-
-function Field({
-  label,
-  required,
-  error,
-  hint,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  error?: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-sm font-medium text-gray-700">
-        {label}
-        {required && <span className="ml-1 text-red-500">*</span>}
-      </Label>
-      {children}
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      {hint && !error && <p className="text-xs text-gray-400">{hint}</p>}
-    </div>
-  );
+function getRolesForUser(currentUserRole: string) {
+  const hierarchy = ["employee", "manager", "hr", "admin", "owner"];
+  const currentIndex = hierarchy.indexOf(currentUserRole);
+  // Can only assign roles up to and including own role
+  return ALL_ROLES.filter((r) => hierarchy.indexOf(r.value) <= currentIndex);
 }
 
+// ─── Props ────────────────────────────────────────────────────────────────────
+interface Department {
+  id: string;
+  name: string;
+}
+
+interface EmployeeData {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  position: string;
+  employeeId: string;
+  departmentId?: string;
+  role: string;
+  employmentType: string;
+  baseSalary: number;
+  joinDate: string;
+  phoneNumber?: string;
+}
+
+interface EmployeeFormProps {
+  mode: "create" | "edit";
+  departments: Department[];
+  employee?: EmployeeData;
+  currentUserRole: string;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 export function EmployeeForm({
-  departments,
   mode,
+  departments,
   employee,
   currentUserRole,
 }: EmployeeFormProps) {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [serverError, setServerError] = useState<string | null>(null);
+  const availableRoles = getRolesForUser(currentUserRole);
 
-  const [form, setForm] = useState({
-    firstName: employee?.firstName ?? "",
-    lastName: employee?.lastName ?? "",
-    email: employee?.email ?? "",
-    employeeId: employee?.employeeId ?? "",
-    phoneNumber: employee?.phoneNumber ?? "",
-    position: employee?.position ?? "",
-    departmentId: employee?.departmentId ?? "none",
-    role: employee?.role ?? "employee",
-    baseSalary: employee?.baseSalary?.toString() ?? "",
-    dateOfBirth: employee?.dateOfBirth
-      ? new Date(employee.dateOfBirth).toISOString().split("T")[0]
-      : "",
-    address: employee?.address ?? "",
-    joinDate: employee?.joinDate
-      ? new Date(employee.joinDate).toISOString().split("T")[0]
-      : new Date().toISOString().split("T")[0],
-    employmentType: employee?.employmentType ?? "full-time",
-    status: employee?.status ?? "active",
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      firstName: employee?.firstName ?? "",
+      lastName: employee?.lastName ?? "",
+      email: employee?.email ?? "",
+      position: employee?.position ?? "",
+      employeeId: employee?.employeeId ?? "",
+      departmentId: employee?.departmentId ?? "",
+      role: employee?.role ?? "employee",
+      employmentType: employee?.employmentType ?? "full-time",
+      baseSalary: employee?.baseSalary ?? 0,
+      joinDate: employee?.joinDate
+        ? employee.joinDate.slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
+      phoneNumber: employee?.phoneNumber ?? "",
+    },
   });
 
-  const assignableRoles = ROLE_OPTIONS.filter((r) => {
-    if (currentUserRole === "owner") return true;
-    if (currentUserRole === "admin") return r.value !== "owner";
-    if (currentUserRole === "hr")
-      return ["employee", "manager"].includes(r.value);
-    return r.value === "employee";
-  });
+  const selectedRole = watch("role");
+  const selectedRoleDef = ALL_ROLES.find((r) => r.value === selectedRole);
 
-  const set = (name: string, value: string) => {
-    setForm((p) => ({ ...p, [name]: value }));
-    if (errors[name]) setErrors((p) => ({ ...p, [name]: "" }));
-  };
+  async function onSubmit(data: FormData) {
+    setServerError(null);
+    const url =
+      mode === "create" ? "/api/employees" : `/api/employees/${employee?.id}`;
+    const method = mode === "create" ? "POST" : "PUT";
 
-  const validate = (): boolean => {
-    const e: Record<string, string> = {};
-    if (!form.firstName.trim()) e.firstName = "First name is required";
-    if (!form.lastName.trim()) e.lastName = "Last name is required";
-    if (!form.email.trim()) e.email = "Email is required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
-      e.email = "Invalid email format";
-    if (!form.employeeId.trim()) e.employeeId = "Employee ID is required";
-    if (!form.position.trim()) e.position = "Position is required";
-    if (!form.joinDate) e.joinDate = "Join date is required";
-    if (!form.baseSalary) e.baseSalary = "Base salary is required";
-    else if (isNaN(Number(form.baseSalary)) || Number(form.baseSalary) <= 0)
-      e.baseSalary = "Base salary must be a positive number";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...data,
+        departmentId: data.departmentId || null,
+      }),
+    });
+    const json = await res.json();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitError("");
-    if (!validate()) return;
-    setIsLoading(true);
-    try {
-      const res = await fetch(
-        mode === "create" ? "/api/employees" : `/api/employees/${employee.id}`,
-        {
-          method: mode === "create" ? "POST" : "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...form,
-            departmentId:
-              form.departmentId === "none" ? null : form.departmentId,
-            baseSalary: Number(form.baseSalary),
-            dateOfBirth: form.dateOfBirth || null,
-            phoneNumber: form.phoneNumber || null,
-            address: form.address || null,
-          }),
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Something went wrong");
-      setSubmitSuccess(true);
-      setTimeout(() => router.push("/employees"), 1200);
-      router.refresh();
-    } catch (err: any) {
-      setSubmitError(err.message || "Something went wrong");
-    } finally {
-      setIsLoading(false);
+    if (!res.ok) {
+      setServerError(json.error ?? "Something went wrong. Please try again.");
+      return;
     }
-  };
 
-  if (submitSuccess) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
-        <p className="text-lg font-semibold text-gray-900">
-          Employee successfully {mode === "create" ? "created" : "updated"}
-        </p>
-        <p className="text-sm text-gray-400 mt-1">
-          Redirecting to employee list...
-        </p>
-      </div>
-    );
+    router.push("/dashboard/employees");
+    router.refresh();
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      {submitError && (
-        <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
-          <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{submitError}</p>
-        </div>
-      )}
-
-      {/* Personal Information */}
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+      {/* ── Personal Info ── */}
       <section className="space-y-4">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide border-b pb-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
           Personal Information
-        </h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="First Name" required error={errors.firstName}>
-            <Input
-              name="firstName"
-              value={form.firstName}
-              onChange={(e) => set("firstName", e.target.value)}
-              disabled={isLoading}
-              className={errors.firstName ? "border-red-500" : ""}
-              placeholder="John"
-            />
+        </h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="First Name" error={errors.firstName?.message} required>
+            <Input placeholder="John" {...register("firstName")} />
           </Field>
-          <Field label="Last Name" required error={errors.lastName}>
-            <Input
-              name="lastName"
-              value={form.lastName}
-              onChange={(e) => set("lastName", e.target.value)}
-              disabled={isLoading}
-              className={errors.lastName ? "border-red-500" : ""}
-              placeholder="Doe"
-            />
+          <Field label="Last Name" error={errors.lastName?.message} required>
+            <Input placeholder="Doe" {...register("lastName")} />
           </Field>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label="Email"
-            required
-            error={errors.email}
-            hint={
-              mode === "edit"
-                ? "Email cannot be changed after creation."
-                : undefined
-            }
-          >
+          <Field label="Email Address" error={errors.email?.message} required>
             <Input
-              name="email"
               type="email"
-              value={form.email}
-              onChange={(e) => set("email", e.target.value)}
-              disabled={isLoading || mode === "edit"}
-              className={errors.email ? "border-red-500" : ""}
               placeholder="john@company.com"
+              {...register("email")}
+              disabled={mode === "edit"}
             />
           </Field>
-          <Field label="Phone Number">
-            <Input
-              name="phoneNumber"
-              value={form.phoneNumber}
-              onChange={(e) => set("phoneNumber", e.target.value)}
-              disabled={isLoading}
-              placeholder="+62 812 3456 7890"
-            />
-          </Field>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Date of Birth">
-            <Input
-              name="dateOfBirth"
-              type="date"
-              value={form.dateOfBirth}
-              onChange={(e) => set("dateOfBirth", e.target.value)}
-              disabled={isLoading}
-            />
-          </Field>
-          <Field label="Address">
-            <Input
-              name="address"
-              value={form.address}
-              onChange={(e) => set("address", e.target.value)}
-              disabled={isLoading}
-              placeholder="123 Main St, City"
-            />
+          <Field label="Phone Number" error={errors.phoneNumber?.message}>
+            <Input placeholder="+1 555 000 0000" {...register("phoneNumber")} />
           </Field>
         </div>
       </section>
 
-      {/* Employment Details */}
-      <section className="space-y-4">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide border-b pb-2">
+      {/* ── Employment Details ── */}
+      <section className="space-y-4 border-t border-gray-100 pt-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
           Employment Details
-        </h3>
-        <div className="grid gap-4 sm:grid-cols-2">
+        </h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
             label="Employee ID"
+            error={errors.employeeId?.message}
             required
-            error={errors.employeeId}
-            hint={
-              mode === "edit"
-                ? "Employee ID cannot be changed."
-                : "Example: EMP001, HRD002"
-            }
           >
-            <Input
-              name="employeeId"
-              value={form.employeeId}
-              onChange={(e) => set("employeeId", e.target.value)}
-              disabled={isLoading || mode === "edit"}
-              className={errors.employeeId ? "border-red-500" : ""}
-              placeholder="EMP001"
-            />
+            <Input placeholder="EMP001" {...register("employeeId")} />
           </Field>
-          <Field label="Position" required error={errors.position}>
-            <Input
-              name="position"
-              value={form.position}
-              onChange={(e) => set("position", e.target.value)}
-              disabled={isLoading}
-              className={errors.position ? "border-red-500" : ""}
-              placeholder="Software Engineer"
-            />
+          <Field
+            label="Job Title / Position"
+            error={errors.position?.message}
+            required
+          >
+            <Input placeholder="Software Engineer" {...register("position")} />
           </Field>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Department">
+          <Field label="Department" error={errors.departmentId?.message}>
             <Select
-              value={form.departmentId}
-              onValueChange={(v) => set("departmentId", v)}
-              disabled={isLoading}
+              value={watch("departmentId") ?? ""}
+              onValueChange={(v) =>
+                setValue("departmentId", v === "none" ? "" : v)
+              }
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select department" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">— No Department —</SelectItem>
+                <SelectItem value="none">No department</SelectItem>
                 {departments.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
                     {d.name}
@@ -351,119 +232,109 @@ export function EmployeeForm({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Role" required hint={ROLE_HINT[currentUserRole]}>
+          <Field
+            label="Employment Type"
+            error={errors.employmentType?.message}
+            required
+          >
             <Select
-              value={form.role}
-              onValueChange={(v) => set("role", v)}
-              disabled={isLoading}
+              value={watch("employmentType")}
+              onValueChange={(v) => setValue("employmentType", v)}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {assignableRoles.map((r) => (
-                  <SelectItem key={r.value} value={r.value}>
-                    <span className="font-medium">{r.label}</span>
-                    <span className="ml-2 text-xs text-gray-400">
-                      — {r.description}
-                    </span>
-                  </SelectItem>
-                ))}
+                <SelectItem value="full-time">Full-Time</SelectItem>
+                <SelectItem value="part-time">Part-Time</SelectItem>
+                <SelectItem value="contract">Contract</SelectItem>
+                <SelectItem value="intern">Intern</SelectItem>
+                <SelectItem value="freelance">Freelance</SelectItem>
               </SelectContent>
             </Select>
           </Field>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Join Date" required error={errors.joinDate}>
-            <Input
-              name="joinDate"
-              type="date"
-              value={form.joinDate}
-              onChange={(e) => set("joinDate", e.target.value)}
-              disabled={isLoading}
-              className={errors.joinDate ? "border-red-500" : ""}
-            />
+          <Field label="Join Date" error={errors.joinDate?.message} required>
+            <Input type="date" {...register("joinDate")} />
           </Field>
-          <Field label="Employment Type">
-            <Select
-              value={form.employmentType}
-              onValueChange={(v) => set("employmentType", v)}
-              disabled={isLoading}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {EMPLOYMENT_TYPES.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
-        <Field
-          label="Base Salary (IDR)"
-          required
-          error={errors.baseSalary}
-          hint="Enter numbers only without separators. Example: 10000000 = Rp 10,000,000"
-        >
-          <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 select-none">
-              Rp
-            </span>
+          <Field
+            label="Base Salary (IDR)"
+            error={errors.baseSalary?.message}
+            required
+          >
             <Input
-              name="baseSalary"
               type="number"
-              value={form.baseSalary}
-              onChange={(e) => set("baseSalary", e.target.value)}
-              disabled={isLoading}
-              className={`pl-9 ${errors.baseSalary ? "border-red-500" : ""}`}
               placeholder="10000000"
-              min={0}
+              {...register("baseSalary")}
             />
-          </div>
-        </Field>
+          </Field>
+        </div>
       </section>
 
-      {/* Employment Status (edit only) */}
-      {mode === "edit" && (
-        <section className="space-y-4">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide border-b pb-2">
-            Employment Status
-          </h3>
-          <Field label="Status">
-            <Select
-              value={form.status}
-              onValueChange={(v) => set("status", v)}
-              disabled={isLoading}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </section>
+      {/* ── Role ── */}
+      <section className="space-y-4 border-t border-gray-100 pt-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
+          System Role
+        </h2>
+        <Field label="Role" error={errors.role?.message} required>
+          <Select
+            value={selectedRole}
+            onValueChange={(v) => setValue("role", v)}
+          >
+            <SelectTrigger className="h-11">
+              <SelectValue placeholder="Select a role" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableRoles.map((r) => (
+                <SelectItem key={r.value} value={r.value}>
+                  <div className="flex flex-col py-0.5">
+                    <span className="font-medium">{r.label}</span>
+                    <span className="text-xs text-gray-400">
+                      {r.description}
+                    </span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        {selectedRoleDef && (
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            <span className="font-medium">{selectedRoleDef.label}:</span>{" "}
+            {selectedRoleDef.description}
+          </div>
+        )}
+
+        {currentUserRole === "owner" && (
+          <p className="text-xs text-gray-400">
+            As the owner, you can assign any role including Administrator and
+            Owner.
+          </p>
+        )}
+      </section>
+
+      {/* ── Error ── */}
+      {serverError && (
+        <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          {serverError}
+        </div>
       )}
 
-      {/* Actions */}
-      <div className="flex items-center gap-3 border-t pt-6">
-        <Button type="submit" disabled={isLoading} className="min-w-[160px]">
-          {isLoading ? (
+      {/* ── Actions ── */}
+      <div className="flex gap-3 border-t border-gray-100 pt-6">
+        <Button
+          type="submit"
+          disabled={isSubmitting}
+          className="flex-1 h-11 sm:flex-none sm:px-8"
+        >
+          {isSubmitting ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {mode === "create" ? "Saving..." : "Updating..."}
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
+              {mode === "create" ? "Creating…" : "Saving…"}
             </>
           ) : mode === "create" ? (
-            "Add Employee"
+            "Create Employee"
           ) : (
             "Save Changes"
           )}
@@ -471,12 +342,37 @@ export function EmployeeForm({
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push("/employees")}
-          disabled={isLoading}
+          className="h-11 px-6"
+          onClick={() => router.push("/dashboard/employees")}
+          disabled={isSubmitting}
         >
           Cancel
         </Button>
       </div>
     </form>
+  );
+}
+
+// ─── Field wrapper ────────────────────────────────────────────────────────────
+function Field({
+  label,
+  error,
+  required,
+  children,
+}: {
+  label: string;
+  error?: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label>
+        {label}
+        {required && <span className="ml-1 text-red-500">*</span>}
+      </Label>
+      {children}
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
   );
 }

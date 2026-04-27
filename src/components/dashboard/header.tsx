@@ -1,187 +1,138 @@
-'use client'
+"use client";
 
 // src/components/dashboard/header.tsx
+// Header dashboard dengan branding ARSADAYA
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/src/lib/supabase/client'
-import {
-  Bell, LogOut, User, Settings, ChevronDown, Menu,
-} from 'lucide-react'
-import { Button } from '@/src/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/src/components/ui/dropdown-menu'
-import Link from 'next/link'
-import { cn } from '@/src/lib/utils'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Bell, ChevronDown, Settings, UserCircle, LogOut } from "lucide-react";
+import { createClient } from "@/src/lib/supabase/client";
 
 interface HeaderProps {
-  userName?: string | null
-  userEmail?: string | null
-  userRole?: string | null
-  onMenuToggle?: () => void
+  userName?: string;
+  userRole?: string;
+  notificationCount?: number;
 }
 
-// ─── Safe initials helper ─────────────────────────────────────────────────────
-function getInitials(name?: string | null, email?: string | null): string {
-  // Try name first
-  if (name && name.trim()) {
-    const parts = name.trim().split(/\s+/)
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-    }
-    return parts[0].slice(0, 2).toUpperCase()
-  }
-  // Fall back to email
-  if (email && email.trim()) {
-    return email.slice(0, 2).toUpperCase()
-  }
-  return 'U'
-}
+const roleLabel: Record<string, string> = {
+  owner: "Pemilik",
+  admin: "Admin",
+  hr: "HR",
+  manager: "Manajer",
+  employee: "Karyawan",
+};
 
-function getRoleBadge(role?: string | null) {
-  const map: Record<string, { label: string; color: string }> = {
-    owner:   { label: 'Owner',   color: 'bg-red-100 text-red-700' },
-    admin:   { label: 'Admin',   color: 'bg-orange-100 text-orange-700' },
-    hr:      { label: 'HR',      color: 'bg-purple-100 text-purple-700' },
-    manager: { label: 'Manager', color: 'bg-blue-100 text-blue-700' },
-    employee:{ label: 'Employee',color: 'bg-gray-100 text-gray-600' },
-  }
-  return map[role || ''] ?? { label: 'User', color: 'bg-gray-100 text-gray-600' }
-}
+export function Header({
+  userName = "Pengguna",
+  userRole = "employee",
+  notificationCount = 0,
+}: HeaderProps) {
+  const router = useRouter();
+  const supabase = createClient();
+  const [open, setOpen] = useState(false);
 
-export function Header({ userName, userEmail, userRole, onMenuToggle }: HeaderProps) {
-  const router = useRouter()
-  const supabase = createClient()
-
-  const [notifCount] = useState(0)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
-
-  // Safely derive display values — never call .split() on undefined
-  const displayName = userName?.trim() || userEmail?.split('@')[0] || 'User'
-  const displayEmail = userEmail?.trim() || ''
-  const initials = getInitials(userName, userEmail)
-  const roleBadge = getRoleBadge(userRole)
+  const initials = userName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   const handleLogout = async () => {
-    setIsLoggingOut(true)
-    try {
-      await supabase.auth.signOut()
-      router.push('/login')
-      router.refresh()
-    } catch (err) {
-      console.error('Logout error:', err)
-    } finally {
-      setIsLoggingOut(false)
-    }
-  }
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b bg-white px-4 sm:px-6">
-      {/* Mobile menu toggle */}
-      {onMenuToggle && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="shrink-0 md:hidden"
-          onClick={onMenuToggle}
+    <header className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0">
+      {/* Kiri — kosong (breadcrumb bisa ditambah di sini) */}
+      <div />
+
+      {/* Kanan — notifikasi + profil */}
+      <div className="flex items-center gap-3">
+        {/* Notifikasi */}
+        <Link
+          href="/notifications"
+          className="relative h-8 w-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
         >
-          <Menu className="h-5 w-5" />
-        </Button>
-      )}
+          <Bell className="h-4 w-4 text-gray-500" />
+          {notificationCount > 0 && (
+            <span
+              className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full text-[9px] font-bold flex items-center justify-center text-white"
+              style={{ background: "#F5A623" }}
+            >
+              {notificationCount > 9 ? "9+" : notificationCount}
+            </span>
+          )}
+        </Link>
 
-      {/* Page title area — flexible spacer */}
-      <div className="flex-1" />
-
-      {/* Right side actions */}
-      <div className="flex items-center gap-2">
-        {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative" asChild>
-          <Link href="/notifications">
-            <Bell className="h-5 w-5 text-gray-500" />
-            {notifCount > 0 && (
-              <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                {notifCount > 9 ? '9+' : notifCount}
+        {/* Profil dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setOpen(!open)}
+            className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-gray-100 transition-colors"
+          >
+            <div
+              className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold"
+              style={{ background: "#0A5140", color: "white" }}
+            >
+              {initials}
+            </div>
+            <div className="hidden sm:flex flex-col items-start leading-none">
+              <span className="text-sm font-medium text-gray-800 truncate max-w-[120px]">
+                {userName}
               </span>
-            )}
-          </Link>
-        </Button>
+              <span className="text-[10px] text-gray-400">
+                {roleLabel[userRole] ?? userRole}
+              </span>
+            </div>
+            <ChevronDown className="h-3.5 w-3.5 text-gray-400 hidden sm:block" />
+          </button>
 
-        {/* User dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="flex items-center gap-2 px-2 py-1.5 h-auto rounded-lg hover:bg-gray-100"
-            >
-              {/* Avatar */}
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white shrink-0">
-                {initials}
-              </div>
-
-              {/* Name + role — hidden on small screens */}
-              <div className="hidden sm:block text-left">
-                <p className="text-sm font-medium text-gray-900 leading-tight max-w-[140px] truncate">
-                  {displayName}
-                </p>
-                <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full', roleBadge.color)}>
-                  {roleBadge.label}
-                </span>
-              </div>
-
-              <ChevronDown className="h-4 w-4 text-gray-400 hidden sm:block" />
-            </Button>
-          </DropdownMenuTrigger>
-
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col gap-1">
-                <p className="font-semibold text-gray-900 truncate">{displayName}</p>
-                {displayEmail && (
-                  <p className="text-xs text-gray-500 truncate">{displayEmail}</p>
-                )}
-                <span className={cn('mt-0.5 self-start text-[10px] font-medium px-1.5 py-0.5 rounded-full', roleBadge.color)}>
-                  {roleBadge.label}
-                </span>
-              </div>
-            </DropdownMenuLabel>
-
-            <DropdownMenuSeparator />
-
-            <DropdownMenuItem asChild>
-              <Link href="/profile" className="cursor-pointer">
-                <User className="mr-2 h-4 w-4" />
-                Profil Saya
-              </Link>
-            </DropdownMenuItem>
-
-            {['owner', 'admin'].includes(userRole || '') && (
-              <DropdownMenuItem asChild>
-                <Link href="/settings" className="cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Pengaturan
+          {/* Dropdown menu */}
+          {open && (
+            <>
+              {/* Overlay transparan untuk tutup saat klik luar */}
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setOpen(false)}
+              />
+              <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-gray-100 rounded-xl shadow-md z-20 py-1 overflow-hidden">
+                <Link
+                  href="/profile"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <UserCircle className="h-4 w-4 text-gray-400" />
+                  Profil Saya
                 </Link>
-              </DropdownMenuItem>
-            )}
-
-            <DropdownMenuSeparator />
-
-            <DropdownMenuItem
-              className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              {isLoggingOut ? 'Keluar...' : 'Keluar'}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                {["admin", "owner"].includes(userRole) && (
+                  <Link
+                    href="/settings"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <Settings className="h-4 w-4 text-gray-400" />
+                    Pengaturan
+                  </Link>
+                )}
+                <div className="my-1 border-t border-gray-100" />
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Keluar
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </header>
-  )
+  );
 }
+
+export default Header;

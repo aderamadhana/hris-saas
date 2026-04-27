@@ -1,437 +1,380 @@
-// src/components/leave/leave-approvals.tsx
-// Leave Approvals Component - For Managers/HR
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { format } from "date-fns";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
-import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
-import { Textarea } from "@/src/components/ui/textarea";
-import { Label } from "@/src/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
-import {
-  Loader2,
   CheckCircle,
   XCircle,
   Calendar,
   Clock,
   User,
   FileText,
+  AlertCircle,
+  MessageSquare,
+  Loader2,
+  ChevronDown,
 } from "lucide-react";
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
-import { getLeaveType } from "@/src/lib/leave-types";
-import { useToast } from "@/src/hooks/use-toast";
+import { Button } from "@/src/components/ui/button";
+import { Textarea } from "@/src/components/ui/textarea";
+import { Label } from "@/src/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/src/components/ui/dialog";
 
-interface Approval {
-  approvalId: string;
-  level: number;
-  sequence: number;
-  leave: {
-    id: string;
-    leaveType: string;
-    startDate: string;
-    endDate: string;
-    days: number;
-    reason: string;
-    isPaid: boolean;
-    category: string;
-    startTime?: string;
-    endTime?: string;
-    totalHours?: number;
-    delegateTo?: string;
-    delegateNotes?: string;
-    attachmentUrl?: string;
-    employee: {
-      id: string;
-      name: string;
-      email: string;
-      position?: string;
-      department?: string;
-    };
-    delegate?: {
-      id: string;
-      name: string;
-    } | null;
-    createdAt: string;
+interface PendingLeave {
+  id: string;
+  leaveTypeLabel: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  days: number;
+  totalHours?: number;
+  startTime?: string;
+  endTime?: string;
+  reason: string;
+  attachmentUrl?: string;
+  requiresApprovalLevels: number;
+  currentApprovalLevel: number;
+  delegate?: { name: string; position: string } | null;
+  delegateNotes?: string;
+  employee: {
+    name: string;
+    position: string;
+    department?: string;
+    email: string;
   };
 }
 
-export function LeaveApprovals() {
-  const { toast } = useToast();
-  const [approvals, setApprovals] = useState<Approval[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [processingId, setProcessingId] = useState<string | null>(null);
-
-  // Dialog states
-  const [showDialog, setShowDialog] = useState(false);
-  const [selectedApproval, setSelectedApproval] = useState<Approval | null>(
-    null,
-  );
-  const [dialogAction, setDialogAction] = useState<"approve" | "reject">(
-    "approve",
-  );
-  const [comments, setComments] = useState("");
+export function LeaveApprovals({ userRole }: { userRole: string }) {
+  const [leaves, setLeaves] = useState<PendingLeave[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLeave, setActionLeave] = useState<PendingLeave | null>(null);
+  const [action, setAction] = useState<"approve" | "reject" | null>(null);
+  const [comment, setComment] = useState("");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchApprovals();
+    fetch("/api/leave/pending-approvals")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) setLeaves(data.leaves ?? []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
-  const fetchApprovals = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch("/api/leave/pending-approvals");
-      const data = await response.json();
-
-      if (data.success) {
-        setApprovals(data.approvals);
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (error: any) {
-      console.error("Fetch approvals error:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to fetch approvals",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+  async function handleAction() {
+    if (!actionLeave || !action) return;
+    if (action === "reject" && rejectionReason.trim().length < 5) {
+      setError(
+        "Please provide a reason for rejecting this request (min 5 characters).",
+      );
+      return;
     }
-  };
-
-  const handleOpenDialog = (
-    approval: Approval,
-    action: "approve" | "reject",
-  ) => {
-    setSelectedApproval(approval);
-    setDialogAction(action);
-    setComments("");
-    setShowDialog(true);
-  };
-
-  const handleApprovalAction = async () => {
-    if (!selectedApproval) return;
-
-    setProcessingId(selectedApproval.approvalId);
-
+    setSubmitting(true);
+    setError(null);
     try {
-      const response = await fetch("/api/leave/approve", {
+      const res = await fetch("/api/leave/approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          leaveId: selectedApproval.leave.id,
-          action: dialogAction === "approve" ? "approved" : "rejected",
-          comments: comments || undefined,
+          leaveId: actionLeave.id,
+          action,
+          comments: action === "approve" ? comment : rejectionReason,
         }),
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to process approval");
-      }
-
-      toast({
-        title: "Success",
-        description: data.message || `Leave ${dialogAction}d successfully`,
-      });
-
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Action failed");
       // Remove from list
-      setApprovals((prev) =>
-        prev.filter((a) => a.approvalId !== selectedApproval.approvalId),
-      );
-
-      setShowDialog(false);
-    } catch (error: any) {
-      console.error("Approval action error:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to process approval",
-        variant: "destructive",
-      });
+      setLeaves((prev) => prev.filter((l) => l.id !== actionLeave.id));
+      setActionLeave(null);
+      setAction(null);
+      setComment("");
+      setRejectionReason("");
+    } catch (err: any) {
+      setError(err.message);
     } finally {
-      setProcessingId(null);
+      setSubmitting(false);
     }
-  };
-
-  const formatDate = (date: string) => {
-    return format(new Date(date), "dd MMM yyyy", { locale: idLocale });
-  };
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-        </CardContent>
-      </Card>
-    );
   }
 
-  if (approvals.length === 0) {
+  function openDialog(leave: PendingLeave, act: "approve" | "reject") {
+    setActionLeave(leave);
+    setAction(act);
+    setComment("");
+    setRejectionReason("");
+    setError(null);
+  }
+
+  if (loading) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
-          <p className="text-gray-600 text-center font-medium">
-            No pending approvals
-          </p>
-          <p className="text-sm text-gray-500 mt-2">
-            All leave requests have been processed
-          </p>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+      </div>
     );
   }
 
   return (
-    <>
-      <div className="space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Pending Approvals ({approvals.length})</span>
-              <Badge variant="secondary">{approvals.length} pending</Badge>
-            </CardTitle>
-          </CardHeader>
-        </Card>
-
-        {approvals.map((approval) => {
-          const leaveTypeConfig = getLeaveType(approval.leave.leaveType);
-          const isProcessing = processingId === approval.approvalId;
-
-          return (
-            <Card key={approval.approvalId}>
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  {/* Left side - Leave info */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="text-3xl">
-                        {leaveTypeConfig?.icon || "📝"}
-                      </span>
-                      <div>
-                        <h3 className="font-semibold text-lg">
-                          {leaveTypeConfig?.name || approval.leave.leaveType}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          {approval.leave.employee.name}
-                        </p>
-                        {approval.leave.employee.position && (
-                          <p className="text-xs text-gray-500">
-                            {approval.leave.employee.position}
-                            {approval.leave.employee.department &&
-                              ` • ${approval.leave.employee.department}`}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Approval level badge */}
-                    <Badge variant="outline" className="mb-3">
-                      Approval Level {approval.level}
-                    </Badge>
-
-                    {/* Dates */}
-                    <div className="flex items-center gap-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-gray-400" />
-                        <span>
-                          {formatDate(approval.leave.startDate)} -{" "}
-                          {formatDate(approval.leave.endDate)}
-                        </span>
-                      </div>
-                      <Badge variant="outline">
-                        {approval.leave.days}{" "}
-                        {approval.leave.days === 1 ? "day" : "days"}
-                      </Badge>
-                      {!approval.leave.isPaid && (
-                        <Badge variant="destructive">Unpaid</Badge>
-                      )}
-                    </div>
-
-                    {/* Time (for OOO) */}
-                    {approval.leave.startTime && approval.leave.endTime && (
-                      <div className="flex items-center gap-2 mt-2 text-sm">
-                        <Clock className="h-4 w-4 text-gray-400" />
-                        <span>
-                          {approval.leave.startTime} - {approval.leave.endTime}{" "}
-                          ({approval.leave.totalHours} hours)
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Delegation */}
-                    {approval.leave.delegate && (
-                      <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                        <div className="flex items-center gap-2 text-sm">
-                          <User className="h-4 w-4 text-blue-600" />
-                          <span className="font-medium text-blue-900">
-                            Delegated to: {approval.leave.delegate.name}
-                          </span>
-                        </div>
-                        {approval.leave.delegateNotes && (
-                          <p className="text-sm text-blue-700 mt-1 ml-6">
-                            {approval.leave.delegateNotes}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Reason */}
-                    <div className="mt-3">
-                      <p className="text-sm font-medium text-gray-700">
-                        Reason:
-                      </p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {approval.leave.reason}
-                      </p>
-                    </div>
-
-                    {/* Document */}
-                    {approval.leave.attachmentUrl && (
-                      <div className="mt-2">
-                        <a
-                          href={approval.leave.attachmentUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                        >
-                          <FileText className="h-4 w-4" />
-                          View Supporting Document
-                        </a>
-                      </div>
-                    )}
-
-                    {/* Submitted date */}
-                    <p className="text-xs text-gray-500 mt-3">
-                      Submitted: {formatDate(approval.leave.createdAt)}
-                    </p>
-                  </div>
-
-                  {/* Right side - Action buttons */}
-                  <div className="flex flex-col gap-2 ml-4">
-                    <Button
-                      onClick={() => handleOpenDialog(approval, "approve")}
-                      disabled={isProcessing}
-                      className="min-w-[120px]"
-                    >
-                      {isProcessing ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          Approve
-                        </>
-                      )}
-                    </Button>
-
-                    <Button
-                      variant="destructive"
-                      onClick={() => handleOpenDialog(approval, "reject")}
-                      disabled={isProcessing}
-                      className="min-w-[120px]"
-                    >
-                      {isProcessing ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Reject
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Leave Approvals</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Review and respond to pending leave requests
+        </p>
       </div>
 
-      {/* Approval Dialog */}
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
+      {/* Count badge */}
+      {leaves.length > 0 && (
+        <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-4 py-2 text-sm font-medium text-amber-700">
+          <AlertCircle className="h-4 w-4" />
+          {leaves.length} request{leaves.length !== 1 ? "s" : ""} awaiting your
+          approval
+        </div>
+      )}
+
+      {/* List */}
+      {leaves.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 py-20 text-center">
+          <CheckCircle className="mb-3 h-12 w-12 text-gray-200" />
+          <p className="font-semibold text-gray-400">No pending approvals</p>
+          <p className="mt-1 text-sm text-gray-300">You're all caught up!</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {leaves.map((leave) => (
+            <div
+              key={leave.id}
+              className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm"
+            >
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                {/* Info */}
+                <div className="flex-1 space-y-3">
+                  {/* Leave type + level */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-gray-900">
+                      {leave.leaveTypeLabel}
+                    </span>
+                    <span className="rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                      Approval level {leave.currentApprovalLevel} of{" "}
+                      {leave.requiresApprovalLevels}
+                    </span>
+                  </div>
+
+                  {/* Employee */}
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <User className="h-4 w-4 text-gray-400" />
+                    <span className="font-medium">{leave.employee.name}</span>
+                    <span className="text-gray-400">·</span>
+                    <span className="text-gray-500">
+                      {leave.employee.position}
+                    </span>
+                    {leave.employee.department && (
+                      <>
+                        <span className="text-gray-400">·</span>
+                        <span className="text-gray-500">
+                          {leave.employee.department}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Dates */}
+                  <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-blue-400" />
+                      {leave.leaveType === "out_of_office" ? (
+                        <span>
+                          {format(new Date(leave.startDate), "MMM d, yyyy")}
+                        </span>
+                      ) : (
+                        <span>
+                          {format(new Date(leave.startDate), "MMM d")} –{" "}
+                          {format(new Date(leave.endDate), "MMM d, yyyy")}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-purple-400" />
+                      {leave.leaveType === "out_of_office" &&
+                      leave.startTime ? (
+                        <span>
+                          {leave.startTime} – {leave.endTime} (
+                          {leave.totalHours?.toFixed(1)} hrs)
+                        </span>
+                      ) : (
+                        <span>
+                          {leave.days} {leave.days === 1 ? "day" : "days"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Reason */}
+                  <p className="text-sm text-gray-600 line-clamp-3">
+                    {leave.reason}
+                  </p>
+
+                  {/* Delegation */}
+                  {leave.delegate && (
+                    <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      <User className="mr-1 inline h-3.5 w-3.5" />
+                      <strong>Delegated to:</strong> {leave.delegate.name} —{" "}
+                      {leave.delegate.position}
+                      {leave.delegateNotes && (
+                        <span className="ml-2 text-amber-600">
+                          · {leave.delegateNotes}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Document */}
+                  {leave.attachmentUrl && (
+                    <a
+                      href={leave.attachmentUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      View supporting document
+                    </a>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 sm:flex-col">
+                  <Button
+                    size="sm"
+                    className="flex-1 gap-1.5 bg-green-600 hover:bg-green-700 sm:flex-none"
+                    onClick={() => openDialog(leave, "approve")}
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 gap-1.5 border-red-200 text-red-600 hover:bg-red-50 sm:flex-none"
+                    onClick={() => openDialog(leave, "reject")}
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Approve / Reject Dialog */}
+      <Dialog open={!!actionLeave} onOpenChange={() => setActionLeave(null)}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {dialogAction === "approve" ? "Approve" : "Reject"} Leave Request
+            <DialogTitle
+              className={
+                action === "approve" ? "text-green-700" : "text-red-700"
+              }
+            >
+              {action === "approve"
+                ? "Approve Leave Request"
+                : "Reject Leave Request"}
             </DialogTitle>
-            <DialogDescription>
-              {dialogAction === "approve"
-                ? "Approve this leave request for "
-                : "Reject this leave request from "}
-              {selectedApproval?.leave.employee.name}
-            </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {selectedApproval && (
-              <div className="text-sm">
-                <p className="font-medium">
-                  {getLeaveType(selectedApproval.leave.leaveType)?.name}
-                </p>
-                <p className="text-gray-600">
-                  {formatDate(selectedApproval.leave.startDate)} -{" "}
-                  {formatDate(selectedApproval.leave.endDate)} (
-                  {selectedApproval.leave.days} days)
-                </p>
-              </div>
-            )}
+          {actionLeave && (
+            <div className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600 space-y-1">
+              <p>
+                <span className="font-medium text-gray-800">
+                  {actionLeave.employee.name}
+                </span>
+              </p>
+              <p>
+                {actionLeave.leaveTypeLabel} · {actionLeave.days}{" "}
+                {actionLeave.days === 1 ? "day" : "days"}
+              </p>
+              <p>
+                {format(new Date(actionLeave.startDate), "MMM d")} –{" "}
+                {format(new Date(actionLeave.endDate), "MMM d, yyyy")}
+              </p>
+            </div>
+          )}
 
+          {action === "approve" ? (
             <div className="space-y-2">
-              <Label htmlFor="comments">
-                Comments{" "}
-                {dialogAction === "reject" && (
-                  <span className="text-red-500">*</span>
-                )}
-              </Label>
+              <Label htmlFor="comment">Comments (optional)</Label>
               <Textarea
-                id="comments"
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-                placeholder={
-                  dialogAction === "approve"
-                    ? "Add comments (optional)"
-                    : "Please provide a reason for rejection"
-                }
+                id="comment"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Add any notes or conditions for this approval…"
                 rows={3}
               />
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="rejection">
+                Reason for rejection <span className="text-red-500">*</span>
+              </Label>
+              <Textarea
+                id="rejection"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Please explain why this request cannot be approved…"
+                rows={3}
+              />
+            </div>
+          )}
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowDialog(false)}>
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setActionLeave(null)}
+              disabled={submitting}
+            >
               Cancel
             </Button>
             <Button
-              variant={dialogAction === "approve" ? "default" : "destructive"}
-              onClick={handleApprovalAction}
-              disabled={
-                processingId !== null ||
-                (dialogAction === "reject" && !comments.trim())
+              onClick={handleAction}
+              disabled={submitting}
+              className={
+                action === "approve"
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-red-600 hover:bg-red-700"
               }
             >
-              {processingId !== null && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing…
+                </>
+              ) : action === "approve" ? (
+                <>
+                  <CheckCircle className="mr-2 h-4 w-4" /> Confirm Approval
+                </>
+              ) : (
+                <>
+                  <XCircle className="mr-2 h-4 w-4" /> Confirm Rejection
+                </>
               )}
-              {dialogAction === "approve" ? "Approve" : "Reject"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
