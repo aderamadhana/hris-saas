@@ -1,110 +1,223 @@
 "use client";
 
+// src/app/(auth)/login/page.tsx
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { createClient } from "@/src/lib/supabase/client";
-import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 
+function ArsadayaIcon({ size = 28 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 200 200"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="200" height="200" rx="42" fill="#2D6A50" />
+      <line
+        x1="100"
+        y1="52"
+        x2="44"
+        y2="162"
+        stroke="white"
+        strokeWidth="22"
+        strokeLinecap="round"
+      />
+      <line
+        x1="100"
+        y1="52"
+        x2="156"
+        y2="162"
+        stroke="white"
+        strokeWidth="22"
+        strokeLinecap="round"
+      />
+      <line
+        x1="65"
+        y1="122"
+        x2="135"
+        y2="122"
+        stroke="white"
+        strokeWidth="19"
+        strokeLinecap="round"
+      />
+      <circle cx="100" cy="38" r="16" fill="#F5A623" />
+    </svg>
+  );
+}
+
 const schema = z.object({
-  email: z.string().email("Please enter a valid email address"),
+  email: z.string().email("Please enter a valid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
-
 type FormData = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
-  const [showPassword, setShowPassword] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [showPwd, setShowPwd] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<FormData>({ resolver: zodResolver(schema) });
+    formState: { errors },
+  } = useForm<FormData>({
+    resolver: zodResolver(schema),
+  });
 
-  async function onSubmit(data: FormData) {
-    setServerError(null);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password,
-    });
-    if (error) {
-      if (error.message.includes("Invalid login credentials")) {
-        setServerError("Incorrect email or password. Please try again.");
-      } else if (error.message.includes("Email not confirmed")) {
-        setServerError("Please verify your email address before signing in.");
-      } else {
-        setServerError(error.message);
-      }
-      return;
+  const onSubmit = async (data: FormData) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { error: e } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+      if (e) throw e;
+      router.push("/dashboard");
+      router.refresh();
+    } catch (err: any) {
+      setError(
+        err.message?.includes("Invalid login credentials")
+          ? "Invalid email or password."
+          : (err.message ?? "Something went wrong."),
+      );
+    } finally {
+      setIsLoading(false);
     }
-    router.push("/dashboard");
-    router.refresh();
-  }
+  };
 
-  async function signInWithGoogle() {
+  const handleGoogle = async () => {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
-  }
+  };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600">
-            <span className="text-xl font-bold text-white">H</span>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Sign in to your HRIS account
+    <div className="min-h-screen flex" style={{ background: "#F4F5F7" }}>
+      {/* Left panel — branding */}
+      <div
+        className="hidden lg:flex flex-col justify-between w-[420px] shrink-0 p-10"
+        style={{ background: "#111B15" }}
+      >
+        <div className="flex items-center gap-2.5">
+          <ArsadayaIcon size={32} />
+          <span
+            className="text-white font-bold tracking-widest text-base"
+            style={{ fontFamily: "Georgia, serif" }}
+          >
+            ARSADAYA
+          </span>
+        </div>
+
+        <div>
+          <p className="text-2xl font-semibold text-white leading-snug mb-3">
+            All your HR tools,
+            <br />
+            in one place.
+          </p>
+          <p className="text-sm" style={{ color: "#52A688" }}>
+            Attendance · Leave · Payroll · Reports
           </p>
         </div>
 
-        {/* Card */}
-        <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-sm">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {/* Error */}
-            {serverError && (
-              <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                {serverError}
-              </div>
-            )}
+        <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
+          © {new Date().getFullYear()} ARSADAYA. All rights reserved.
+        </p>
+      </div>
 
-            {/* Email */}
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email address</Label>
+      {/* Right panel — form */}
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm">
+          {/* Mobile brand */}
+          <div className="flex items-center gap-2 mb-8 lg:hidden">
+            <ArsadayaIcon size={28} />
+            <span
+              className="font-bold tracking-widest text-sm"
+              style={{ color: "#111B15", fontFamily: "Georgia, serif" }}
+            >
+              ARSADAYA
+            </span>
+          </div>
+
+          <h1
+            className="text-xl font-semibold mb-1"
+            style={{ color: "#111827" }}
+          >
+            Sign in
+          </h1>
+          <p className="text-sm mb-7" style={{ color: "#6B7280" }}>
+            Don't have an account?{" "}
+            <Link
+              href="/register"
+              style={{ color: "#2D6A50" }}
+              className="font-medium hover:underline"
+            >
+              Sign up
+            </Link>
+          </p>
+
+          {error && (
+            <div
+              className="mb-5 px-3 py-2.5 rounded-lg text-sm"
+              style={{
+                background: "#FEF2F2",
+                color: "#B91C1C",
+                border: "1px solid #FECACA",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div>
+              <Label
+                htmlFor="email"
+                className="text-xs font-medium mb-1.5 block"
+                style={{ color: "#374151" }}
+              >
+                Email address
+              </Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="you@company.com"
-                className="h-11"
                 {...register("email")}
+                className="h-9 text-sm"
+                style={{ borderColor: "#E5E7EB", background: "white" }}
               />
               {errors.email && (
-                <p className="text-xs text-red-500">{errors.email.message}</p>
+                <p className="text-xs mt-1" style={{ color: "#DC2626" }}>
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
-            {/* Password */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
+            <div>
+              <div className="flex justify-between mb-1.5">
+                <Label
+                  htmlFor="password"
+                  className="text-xs font-medium"
+                  style={{ color: "#374151" }}
+                >
+                  Password
+                </Label>
                 <Link
                   href="/forgot-password"
-                  className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                  className="text-xs hover:underline"
+                  style={{ color: "#2D6A50" }}
                 >
                   Forgot password?
                 </Link>
@@ -112,101 +225,106 @@ export default function LoginPage() {
               <div className="relative">
                 <Input
                   id="password"
-                  type={showPassword ? "text" : "password"}
+                  type={showPwd ? "text" : "password"}
                   placeholder="••••••••"
-                  className="h-11 pr-10"
                   {...register("password")}
+                  className="h-9 text-sm pr-9"
+                  style={{ borderColor: "#E5E7EB", background: "white" }}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  onClick={() => setShowPwd(!showPwd)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2"
+                  style={{ color: "#9CA3AF" }}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
+                  {showPwd ? (
+                    <EyeOff className="h-3.5 w-3.5" />
                   ) : (
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-3.5 w-3.5" />
                   )}
                 </button>
               </div>
               {errors.password && (
-                <p className="text-xs text-red-500">
+                <p className="text-xs mt-1" style={{ color: "#DC2626" }}>
                   {errors.password.message}
                 </p>
               )}
             </div>
 
-            {/* Submit */}
-            <Button
+            <button
               type="submit"
-              className="h-11 w-full"
-              disabled={isSubmitting}
+              disabled={isLoading}
+              className="w-full h-9 rounded-lg text-sm font-medium text-white flex items-center justify-center gap-2 transition-opacity disabled:opacity-60"
+              style={{ background: "#2D6A50" }}
             >
-              {isSubmitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Signing in…
+                </>
               ) : (
                 "Sign In"
               )}
-            </Button>
+            </button>
           </form>
 
-          {/* Divider */}
-          <div className="my-5 flex items-center gap-3">
-            <div className="h-px flex-1 bg-gray-100" />
-            <span className="text-xs text-gray-400">or continue with</span>
-            <div className="h-px flex-1 bg-gray-100" />
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px" style={{ background: "#E5E7EB" }} />
+            <span className="text-xs" style={{ color: "#9CA3AF" }}>
+              or
+            </span>
+            <div className="flex-1 h-px" style={{ background: "#E5E7EB" }} />
           </div>
 
-          {/* Google */}
-          <Button
-            variant="outline"
-            className="h-11 w-full gap-2"
-            onClick={signInWithGoogle}
+          <button
+            onClick={handleGoogle}
+            className="w-full h-9 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
+            style={{
+              border: "1px solid #E5E7EB",
+              background: "white",
+              color: "#374151",
+            }}
           >
-            <svg className="h-4 w-4" viewBox="0 0 24 24">
+            <svg className="h-3.5 w-3.5" viewBox="0 0 18 18">
               <path
                 fill="#4285F4"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"
               />
               <path
                 fill="#34A853"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.909-2.259c-.806.54-1.837.86-3.047.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"
               />
               <path
                 fill="#FBBC05"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
               />
               <path
                 fill="#EA4335"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"
               />
             </svg>
-            Sign in with Google
-          </Button>
+            Continue with Google
+          </button>
 
-          {/* Footer */}
-          <p className="mt-6 text-center text-xs text-gray-400">
+          <p className="text-center text-xs mt-6" style={{ color: "#9CA3AF" }}>
             By signing in, you agree to our{" "}
-            <Link href="/terms" className="underline hover:text-gray-600">
-              Terms of Service
+            <Link
+              href="/terms"
+              className="hover:underline"
+              style={{ color: "#6B7280" }}
+            >
+              Terms
             </Link>{" "}
             and{" "}
-            <Link href="/privacy" className="underline hover:text-gray-600">
+            <Link
+              href="/privacy"
+              className="hover:underline"
+              style={{ color: "#6B7280" }}
+            >
               Privacy Policy
             </Link>
+            .
           </p>
         </div>
-
-        {/* Register link */}
-        <p className="mt-6 text-center text-sm text-gray-500">
-          Don&apos;t have an account?{" "}
-          <Link
-            href="/register"
-            className="font-medium text-blue-600 hover:text-blue-700"
-          >
-            Create one
-          </Link>
-        </p>
       </div>
     </div>
   );

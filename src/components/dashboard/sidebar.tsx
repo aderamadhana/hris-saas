@@ -1,8 +1,10 @@
 "use client";
 
+// src/components/dashboard/sidebar.tsx
+
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/src/lib/utils";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/src/lib/supabase/client";
 import {
   LayoutDashboard,
   Users,
@@ -14,256 +16,305 @@ import {
   UserCircle,
   FileText,
   CreditCard,
-  ChevronRight,
+  Bell,
   LogOut,
-  Menu,
-  X,
 } from "lucide-react";
-import { useState } from "react";
-import { createClient } from "@/src/lib/supabase/client";
-import { useRouter } from "next/navigation";
 
-interface SidebarProps {
-  userRole: string;
-  userName: string;
-  userEmail: string;
-  organizationName?: string;
+function ArsadayaIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 200 200"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ flexShrink: 0 }}
+    >
+      <rect width="200" height="200" rx="42" fill="#2D6A50" />
+      <line
+        x1="100"
+        y1="52"
+        x2="44"
+        y2="162"
+        stroke="white"
+        strokeWidth="22"
+        strokeLinecap="round"
+      />
+      <line
+        x1="100"
+        y1="52"
+        x2="156"
+        y2="162"
+        stroke="white"
+        strokeWidth="22"
+        strokeLinecap="round"
+      />
+      <line
+        x1="65"
+        y1="122"
+        x2="135"
+        y2="122"
+        stroke="white"
+        strokeWidth="19"
+        strokeLinecap="round"
+      />
+      <circle cx="100" cy="38" r="16" fill="#F5A623" />
+    </svg>
+  );
 }
 
 interface NavItem {
-  label: string;
+  name: string;
   href: string;
-  icon: React.ElementType;
+  icon: React.ComponentType<{
+    className?: string;
+    style?: React.CSSProperties;
+  }>;
   roles: string[];
-  badge?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
   {
-    label: "Dashboard",
+    name: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
     roles: ["employee", "manager", "hr", "admin", "owner"],
   },
   {
-    label: "My Profile",
+    name: "My Profile",
     href: "/profile",
     icon: UserCircle,
     roles: ["employee", "manager", "hr", "admin", "owner"],
   },
   {
-    label: "Attendance",
+    name: "Attendance",
     href: "/attendance",
     icon: Clock,
     roles: ["employee", "manager", "hr", "admin", "owner"],
   },
   {
-    label: "Leave",
+    name: "Leave",
     href: "/leave",
     icon: CalendarDays,
     roles: ["employee", "manager", "hr", "admin", "owner"],
   },
   {
-    label: "Payslip",
+    name: "Payslip",
     href: "/payslip",
     icon: FileText,
     roles: ["employee", "manager", "hr", "admin", "owner"],
   },
   {
-    label: "Employees",
+    name: "Notifications",
+    href: "/notifications",
+    icon: Bell,
+    roles: ["employee", "manager", "hr", "admin", "owner"],
+  },
+  {
+    name: "Employees",
     href: "/employees",
     icon: Users,
     roles: ["manager", "hr", "admin", "owner"],
-    badge: "Management",
   },
   {
-    label: "Departments",
+    name: "Departments",
     href: "/departments",
     icon: Building2,
     roles: ["hr", "admin", "owner"],
   },
   {
-    label: "Payroll",
+    name: "Payroll",
     href: "/payroll",
     icon: Wallet,
     roles: ["hr", "admin", "owner"],
   },
   {
-    label: "Settings",
+    name: "Settings",
     href: "/settings",
     icon: Settings,
     roles: ["admin", "owner"],
   },
   {
-    label: "Billing",
+    name: "Billing",
     href: "/billing",
     icon: CreditCard,
     roles: ["owner"],
   },
 ];
 
-const ROLE_LABELS: Record<string, string> = {
-  owner: "Owner",
-  admin: "Administrator",
-  hr: "HR Manager",
-  manager: "Manager",
-  employee: "Employee",
+// Group labels
+const GROUP_LABELS: Record<string, string> = {
+  "/employees": "Management",
+  "/settings": "System",
+  "/billing": "System",
 };
 
-const ROLE_COLORS: Record<string, string> = {
-  owner: "bg-red-100 text-red-700",
-  admin: "bg-orange-100 text-orange-700",
-  hr: "bg-purple-100 text-purple-700",
-  manager: "bg-blue-100 text-blue-700",
-  employee: "bg-gray-100 text-gray-700",
-};
+const ROLE_BADGE: Record<string, { label: string; bg: string; color: string }> =
+  {
+    owner: { label: "Owner", bg: "#FEF9C3", color: "#713F12" },
+    admin: { label: "Admin", bg: "#FEE2E2", color: "#7F1D1D" },
+    hr: { label: "HR", bg: "#EDE9FE", color: "#3B0764" },
+    manager: { label: "Manager", bg: "#DBEAFE", color: "#1E3A5F" },
+    employee: { label: "Employee", bg: "#F0FDF4", color: "#14532D" },
+  };
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+interface SidebarProps {
+  userRole?: string;
+  userName?: string;
+  userEmail?: string;
 }
 
 export function Sidebar({
-  userRole,
-  userName,
-  userEmail,
-  organizationName,
+  userRole = "employee",
+  userName = "User",
+  userEmail = "",
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const items = NAV_ITEMS.filter((i) => i.roles.includes(userRole));
+  const badge = ROLE_BADGE[userRole] ?? ROLE_BADGE.employee;
 
-  const visibleItems = NAV_ITEMS.filter((item) =>
-    item.roles.includes(userRole),
-  );
+  const initials = userName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
-  async function handleSignOut() {
+  const isActive = (href: string) =>
+    href === "/dashboard"
+      ? pathname === "/dashboard"
+      : pathname === href || pathname.startsWith(href + "/");
+
+  const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push("/login");
-  }
+    router.refresh();
+  };
 
-  const NavContent = (
-    <div className="flex h-full flex-col">
-      {/* ── Header ── */}
-      <div className="border-b border-gray-100 p-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
-            H
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-gray-900">
-              {organizationName ?? "HRIS Platform"}
-            </p>
-            <p className="truncate text-xs text-gray-400">
-              HR Information System
-            </p>
-          </div>
-        </div>
+  // Build grouped nav
+  let managementLabelShown = false;
+  let systemLabelShown = false;
+
+  return (
+    <aside
+      className="flex flex-col h-full w-[220px] shrink-0"
+      style={{ background: "white", borderRight: "1px solid #E5E7EB" }}
+    >
+      {/* Brand */}
+      <div
+        className="flex items-center gap-2.5 px-5 h-14 shrink-0"
+        style={{ borderBottom: "1px solid #E5E7EB" }}
+      >
+        <ArsadayaIcon size={26} />
+        <span
+          className="font-bold tracking-widest text-sm"
+          style={{ color: "#111B15", fontFamily: "Georgia, serif" }}
+        >
+          ARSADAYA
+        </span>
       </div>
 
-      {/* ── Navigation ── */}
+      {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <ul className="space-y-1">
-          {visibleItems.map((item) => {
-            const isActive =
-              item.href === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname.startsWith(item.href);
-            const Icon = item.icon;
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={cn(
-                    "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-blue-50 text-blue-700"
-                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
-                  )}
+        {items.map((item, idx) => {
+          const active = isActive(item.href);
+          const Icon = item.icon;
+
+          // Group headers
+          let groupLabel: string | null = null;
+          if (item.href === "/employees" && !managementLabelShown) {
+            managementLabelShown = true;
+            groupLabel = "Management";
+          }
+          if (
+            (item.href === "/settings" || item.href === "/billing") &&
+            !systemLabelShown
+          ) {
+            systemLabelShown = true;
+            groupLabel = "System";
+          }
+
+          return (
+            <div key={item.href}>
+              {groupLabel && (
+                <p
+                  className="text-[10px] font-semibold tracking-widest uppercase px-3 pt-4 pb-1"
+                  style={{ color: "#9CA3AF" }}
                 >
-                  <Icon
-                    className={cn(
-                      "h-4 w-4 flex-shrink-0",
-                      isActive
-                        ? "text-blue-600"
-                        : "text-gray-400 group-hover:text-gray-600",
-                    )}
+                  {groupLabel}
+                </p>
+              )}
+              <Link
+                href={item.href}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors mb-0.5"
+                style={{
+                  background: active ? "#F0FDF4" : "transparent",
+                  color: active ? "#2D6A50" : "#6B7280",
+                  fontWeight: active ? 500 : 400,
+                }}
+              >
+                <Icon
+                  className="h-4 w-4 shrink-0"
+                  style={{ color: active ? "#2D6A50" : "#9CA3AF" }}
+                />
+                <span className="truncate">{item.name}</span>
+                {active && (
+                  <div
+                    className="ml-auto w-1.5 h-1.5 rounded-full"
+                    style={{ background: "#2D6A50" }}
                   />
-                  <span className="flex-1">{item.label}</span>
-                  {isActive && (
-                    <ChevronRight className="h-3.5 w-3.5 text-blue-400" />
-                  )}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+                )}
+              </Link>
+            </div>
+          );
+        })}
       </nav>
 
-      {/* ── User footer ── */}
-      <div className="border-t border-gray-100 p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-sm font-semibold text-white">
-            {getInitials(userName)}
+      {/* User footer */}
+      <div className="px-3 py-4" style={{ borderTop: "1px solid #E5E7EB" }}>
+        <div className="flex items-center gap-2.5 px-3 py-2 mb-1">
+          <div
+            className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0"
+            style={{ background: "#F0FDF4", color: "#2D6A50" }}
+          >
+            {initials}
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-gray-900">
+          <div className="flex-1 min-w-0">
+            <p
+              className="text-xs font-medium truncate leading-tight"
+              style={{ color: "#111827" }}
+            >
               {userName}
             </p>
             <span
-              className={cn(
-                "inline-block rounded-full px-2 py-0.5 text-xs font-medium",
-                ROLE_COLORS[userRole] ?? ROLE_COLORS.employee,
-              )}
+              className="text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-block mt-0.5"
+              style={{ background: badge.bg, color: badge.color }}
             >
-              {ROLE_LABELS[userRole] ?? userRole}
+              {badge.label}
             </span>
           </div>
-          <button
-            onClick={handleSignOut}
-            title="Sign out"
-            className="rounded-md p-1.5 text-gray-400 transition hover:bg-red-50 hover:text-red-500"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
         </div>
+
+        <button
+          onClick={handleSignOut}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors"
+          style={{ color: "#9CA3AF" }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "#DC2626";
+            e.currentTarget.style.background = "#FEF2F2";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "#9CA3AF";
+            e.currentTarget.style.background = "transparent";
+          }}
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          <span>Sign Out</span>
+        </button>
       </div>
-    </div>
-  );
-
-  return (
-    <>
-      {/* ── Desktop ── */}
-      <aside className="hidden w-64 flex-shrink-0 border-r border-gray-100 bg-white lg:flex lg:flex-col">
-        {NavContent}
-      </aside>
-
-      {/* ── Mobile toggle ── */}
-      <button
-        className="fixed right-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-md lg:hidden"
-        onClick={() => setMobileOpen(!mobileOpen)}
-      >
-        {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-      </button>
-
-      {/* ── Mobile drawer ── */}
-      {mobileOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
-            onClick={() => setMobileOpen(false)}
-          />
-          <aside className="fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-xl lg:hidden">
-            {NavContent}
-          </aside>
-        </>
-      )}
-    </>
+    </aside>
   );
 }
+
+export default Sidebar;

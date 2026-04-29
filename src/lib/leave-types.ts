@@ -398,3 +398,80 @@ export function getDurationLabel(leaveTypeId: string, startDate: string, endDate
   const days = calculateWorkingDays(start, end)
   return `${days} working day${days !== 1 ? 's' : ''}`
 }
+
+export function formatLeaveDate(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date
+  
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(d)
+}
+ 
+/**
+ * Format range tanggal leave
+ * Contoh output: "10 - 15 Januari 2025" atau "30 Januari - 3 Februari 2025"
+ */
+export function formatLeaveDateRange(startDate: Date | string, endDate: Date | string): string {
+  const start = typeof startDate === 'string' ? new Date(startDate) : startDate
+  const end = typeof endDate === 'string' ? new Date(endDate) : endDate
+ 
+  const startDay = start.getDate()
+  const endDay = end.getDate()
+  const startMonth = start.toLocaleString('id-ID', { month: 'long' })
+  const endMonth = end.toLocaleString('id-ID', { month: 'long' })
+  const startYear = start.getFullYear()
+  const endYear = end.getFullYear()
+ 
+  // Same month and year
+  if (startMonth === endMonth && startYear === endYear) {
+    return `${startDay} - ${endDay} ${startMonth} ${startYear}`
+  }
+ 
+  // Different months, same year
+  if (startYear === endYear) {
+    return `${startDay} ${startMonth} - ${endDay} ${endMonth} ${startYear}`
+  }
+ 
+  // Different years
+  return `${formatLeaveDate(start)} - ${formatLeaveDate(end)}`
+}
+ 
+/**
+ * Format durasi leave
+ * Contoh output: "3 hari kerja" atau "6.5 jam"
+ */
+export function formatLeaveDuration(days: number, hours?: number | null): string {
+  if (hours && hours > 0) {
+    return `${hours} jam`
+  }
+  if (days === 1) return '1 hari'
+  return `${days} hari`
+}
+ 
+/**
+ * Format status leave ke Bahasa Indonesia
+ */
+export function formatLeaveStatus(status: string): string {
+  const statusMap: Record<string, string> = {
+    pending: 'Menunggu Persetujuan',
+    approved: 'Disetujui',
+    rejected: 'Ditolak',
+    cancelled: 'Dibatalkan',
+  }
+  return statusMap[status] || status
+}
+ 
+/**
+ * Get badge color based on status
+ */
+export function getLeaveStatusColor(status: string): string {
+  const colorMap: Record<string, string> = {
+    pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    approved: 'bg-green-100 text-green-800 border-green-200',
+    rejected: 'bg-red-100 text-red-800 border-red-200',
+    cancelled: 'bg-gray-100 text-gray-600 border-gray-200',
+  }
+  return colorMap[status] || 'bg-gray-100 text-gray-600'
+}

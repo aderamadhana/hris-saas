@@ -1,7 +1,6 @@
 "use client";
 
-// src/components/dashboard/header.tsx
-// Header dashboard dengan branding ARSADAYA
+// src/components/header.tsx
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -16,15 +15,15 @@ interface HeaderProps {
 }
 
 const roleLabel: Record<string, string> = {
-  owner: "Pemilik",
+  owner: "Owner",
   admin: "Admin",
   hr: "HR",
-  manager: "Manajer",
-  employee: "Karyawan",
+  manager: "Manager",
+  employee: "Employee",
 };
 
 export function Header({
-  userName = "Pengguna",
+  userName = "User",
   userRole = "employee",
   notificationCount = 0,
 }: HeaderProps) {
@@ -39,92 +38,161 @@ export function Header({
     .slice(0, 2)
     .toUpperCase();
 
-  const handleLogout = async () => {
+  const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();
   };
 
   return (
-    <header className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0">
-      {/* Kiri — kosong (breadcrumb bisa ditambah di sini) */}
+    <header
+      className="h-14 flex items-center justify-between px-6 shrink-0"
+      style={{ background: "white", borderBottom: "1px solid #E5E7EB" }}
+    >
+      {/* Left slot */}
       <div />
 
-      {/* Kanan — notifikasi + profil */}
-      <div className="flex items-center gap-3">
-        {/* Notifikasi */}
+      {/* Right */}
+      <div className="flex items-center gap-2">
+        {/* Bell */}
         <Link
           href="/notifications"
-          className="relative h-8 w-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+          className="relative h-8 w-8 flex items-center justify-center rounded-lg transition-colors"
+          style={{ color: "#9CA3AF" }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#F9FAFB";
+            e.currentTarget.style.color = "#6B7280";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = "#9CA3AF";
+          }}
         >
-          <Bell className="h-4 w-4 text-gray-500" />
+          <Bell className="h-4 w-4" />
           {notificationCount > 0 && (
             <span
-              className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full text-[9px] font-bold flex items-center justify-center text-white"
-              style={{ background: "#F5A623" }}
+              className="absolute top-1 right-1 h-3.5 w-3.5 rounded-full text-[8px] font-bold flex items-center justify-center text-white"
+              style={{ background: "#2D6A50" }}
             >
               {notificationCount > 9 ? "9+" : notificationCount}
             </span>
           )}
         </Link>
 
-        {/* Profil dropdown */}
+        {/* User */}
         <div className="relative">
           <button
             onClick={() => setOpen(!open)}
-            className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-gray-100 transition-colors"
+            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-colors"
+            style={{ color: "#374151" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
           >
             <div
-              className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold"
-              style={{ background: "#0A5140", color: "white" }}
+              className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0"
+              style={{ background: "#F0FDF4", color: "#2D6A50" }}
             >
               {initials}
             </div>
             <div className="hidden sm:flex flex-col items-start leading-none">
-              <span className="text-sm font-medium text-gray-800 truncate max-w-[120px]">
+              <span
+                className="text-sm font-medium truncate max-w-[130px]"
+                style={{ color: "#111827" }}
+              >
                 {userName}
               </span>
-              <span className="text-[10px] text-gray-400">
-                {roleLabel[userRole] ?? userRole}
-              </span>
             </div>
-            <ChevronDown className="h-3.5 w-3.5 text-gray-400 hidden sm:block" />
+            <ChevronDown
+              className="h-3 w-3 hidden sm:block"
+              style={{ color: "#9CA3AF" }}
+            />
           </button>
 
-          {/* Dropdown menu */}
           {open && (
             <>
-              {/* Overlay transparan untuk tutup saat klik luar */}
               <div
                 className="fixed inset-0 z-10"
                 onClick={() => setOpen(false)}
               />
-              <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-gray-100 rounded-xl shadow-md z-20 py-1 overflow-hidden">
+              <div
+                className="absolute right-0 top-full mt-1.5 w-44 rounded-lg shadow-lg z-20 py-1 overflow-hidden"
+                style={{ background: "white", border: "1px solid #E5E7EB" }}
+              >
+                {/* User info header */}
+                <div
+                  className="px-3 py-2.5"
+                  style={{ borderBottom: "1px solid #F3F4F6" }}
+                >
+                  <p
+                    className="text-xs font-medium truncate"
+                    style={{ color: "#111827" }}
+                  >
+                    {userName}
+                  </p>
+                  <p className="text-[10px]" style={{ color: "#9CA3AF" }}>
+                    {roleLabel[userRole] ?? userRole}
+                  </p>
+                </div>
+
                 <Link
                   href="/profile"
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 text-sm transition-colors"
+                  style={{ color: "#374151" }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "#F9FAFB")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
                 >
-                  <UserCircle className="h-4 w-4 text-gray-400" />
-                  Profil Saya
+                  <UserCircle
+                    className="h-3.5 w-3.5"
+                    style={{ color: "#9CA3AF" }}
+                  />
+                  My Profile
                 </Link>
+
                 {["admin", "owner"].includes(userRole) && (
                   <Link
                     href="/settings"
                     onClick={() => setOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 text-sm transition-colors"
+                    style={{ color: "#374151" }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "#F9FAFB")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
                   >
-                    <Settings className="h-4 w-4 text-gray-400" />
-                    Pengaturan
+                    <Settings
+                      className="h-3.5 w-3.5"
+                      style={{ color: "#9CA3AF" }}
+                    />
+                    Settings
                   </Link>
                 )}
-                <div className="my-1 border-t border-gray-100" />
+
+                <div
+                  style={{ borderTop: "1px solid #F3F4F6", margin: "4px 0" }}
+                />
+
                 <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  onClick={handleSignOut}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors"
+                  style={{ color: "#DC2626" }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "#FEF2F2")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
                 >
-                  <LogOut className="h-4 w-4" />
-                  Keluar
+                  <LogOut className="h-3.5 w-3.5" />
+                  Sign Out
                 </button>
               </div>
             </>
