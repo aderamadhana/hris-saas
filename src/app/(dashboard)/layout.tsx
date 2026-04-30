@@ -1,10 +1,11 @@
-// src/app/(dashboard)/layout.tsx
-
 import { redirect } from "next/navigation";
-import { createClient } from "@/src/lib/supabase/server";
+
 import prisma from "@/src/lib/prisma";
-import { Sidebar } from "@/src/components/dashboard/sidebar";
+import { createClient } from "@/src/lib/supabase/server";
 import { Header } from "@/src/components/dashboard/header";
+import { Sidebar } from "@/src/components/dashboard/sidebar";
+
+export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({
   children,
@@ -12,16 +13,18 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
 
-  // Find employee — authId first, fallback email + auto-link
-  let employee = await prisma.employee.findFirst({
+  if (!user) {
+    redirect("/login");
+  }
+
+  const employee = await prisma.employee.findUnique({
     where: { authId: user.id },
     select: {
-      id: true,
       firstName: true,
       lastName: true,
       email: true,
@@ -29,63 +32,57 @@ export default async function DashboardLayout({
       organizationId: true,
     },
   });
-  if (!employee && user.email) {
-    employee = await prisma.employee.findFirst({
-      where: { email: user.email },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        role: true,
-        organizationId: true,
-      },
-    });
-    if (employee) {
-      await prisma.employee
-        .update({ where: { id: employee.id }, data: { authId: user.id } })
-        .catch(() => null);
-    }
+
+  if (!employee) {
+    redirect("/login");
   }
 
-  const userName = employee
-    ? `${employee.firstName} ${employee.lastName}`.trim()
-    : (user.email ?? "User");
-  const userRole = employee?.role ?? "employee";
-  const userEmail = employee?.email ?? user.email ?? "";
+  const userName = `${employee.firstName} ${employee.lastName}`.trim();
+  const userEmail = employee.email;
+  const userRole = employee.role;
 
   let notificationCount = 0;
+
   try {
-    if (employee && ["hr", "admin", "owner", "manager"].includes(userRole)) {
-      notificationCount = await prisma.leave.count({
-        where: { organizationId: employee.organizationId, status: "pending" },
+    const notificationModel = (prisma as any).notification;
+
+    if (notificationModel?.count) {
+      notificationCount = await notificationModel.count({
+        where: {
+          organizationId: employee.organizationId,
+          isRead: false,
+        },
       });
     }
   } catch {
-    /* ignore */
+    notificationCount = 0;
   }
 
   return (
-    <div
-      className="flex h-screen overflow-hidden"
-      style={{ background: "#F4F5F7" }}
-    >
-      <Sidebar userRole={userRole} userName={userName} userEmail={userEmail} />
+    <div className="h-dvh overflow-hidden bg-[#F4F5F7]">
+      <div className="flex h-full overflow-hidden">
+        {/* Desktop sidebar: hidden on mobile/tablet, visible on large screens */}
+        <div className="hidden h-full shrink-0 lg:flex">
+          <Sidebar
+            userRole={userRole}
+            userName={userName}
+            userEmail={userEmail}
+          />
+        </div>
 
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <Header
-          userName={userName}
-          userRole={userRole}
-          notificationCount={notificationCount}
-        />
+        {/* Main layout: fullscreen on mobile */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <Header
+            userName={userName}
+            userEmail={userEmail}
+            userRole={userRole}
+            notificationCount={notificationCount}
+          />
 
-        {/* Gray content area — matches reference screenshot */}
-        <main
-          className="flex-1 overflow-y-auto p-6"
-          style={{ background: "#F4F5F7" }}
-        >
-          {children}
-        </main>
+          <main className="min-h-0 flex-1 overflow-y-auto bg-[#F4F5F7] px-4 py-4 sm:px-5 lg:px-6 lg:py-5">
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   );

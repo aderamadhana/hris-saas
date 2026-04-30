@@ -4,21 +4,27 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createClient } from "@/src/lib/supabase/client";
+import type { LucideIcon } from "lucide-react";
 import {
-  LayoutDashboard,
-  Users,
-  Clock,
-  CalendarDays,
+  Award,
+  Bell,
   Building2,
-  Wallet,
+  CalendarDays,
+  Clock,
+  CreditCard,
+  FileText,
+  FolderOpen,
+  LayoutDashboard,
+  LogOut,
+  Megaphone,
   Settings,
   UserCircle,
-  FileText,
-  CreditCard,
-  Bell,
-  LogOut,
+  Users,
+  Wallet,
+  BarChart3,
 } from "lucide-react";
+
+import { createClient } from "@/src/lib/supabase/client";
 
 function ArsadayaIcon({ size = 24 }: { size?: number }) {
   return (
@@ -27,7 +33,7 @@ function ArsadayaIcon({ size = 24 }: { size?: number }) {
       height={size}
       viewBox="0 0 200 200"
       xmlns="http://www.w3.org/2000/svg"
-      style={{ flexShrink: 0 }}
+      className="shrink-0"
     >
       <rect width="200" height="200" rx="42" fill="#2D6A50" />
       <line
@@ -62,105 +68,178 @@ function ArsadayaIcon({ size = 24 }: { size?: number }) {
   );
 }
 
+type UserRole = "employee" | "manager" | "hr" | "admin" | "owner";
+
 interface NavItem {
   name: string;
   href: string;
-  icon: React.ComponentType<{
-    className?: string;
-    style?: React.CSSProperties;
-  }>;
-  roles: string[];
+  icon: LucideIcon;
+  roles: UserRole[];
 }
 
-const NAV_ITEMS: NavItem[] = [
-  {
-    name: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-    roles: ["employee", "manager", "hr", "admin", "owner"],
-  },
-  {
-    name: "My Profile",
-    href: "/profile",
-    icon: UserCircle,
-    roles: ["employee", "manager", "hr", "admin", "owner"],
-  },
-  {
-    name: "Attendance",
-    href: "/attendance",
-    icon: Clock,
-    roles: ["employee", "manager", "hr", "admin", "owner"],
-  },
-  {
-    name: "Leave",
-    href: "/leave",
-    icon: CalendarDays,
-    roles: ["employee", "manager", "hr", "admin", "owner"],
-  },
-  {
-    name: "Payslip",
-    href: "/payslip",
-    icon: FileText,
-    roles: ["employee", "manager", "hr", "admin", "owner"],
-  },
-  {
-    name: "Notifications",
-    href: "/notifications",
-    icon: Bell,
-    roles: ["employee", "manager", "hr", "admin", "owner"],
-  },
-  {
-    name: "Employees",
-    href: "/employees",
-    icon: Users,
-    roles: ["manager", "hr", "admin", "owner"],
-  },
-  {
-    name: "Departments",
-    href: "/departments",
-    icon: Building2,
-    roles: ["hr", "admin", "owner"],
-  },
-  {
-    name: "Payroll",
-    href: "/payroll",
-    icon: Wallet,
-    roles: ["hr", "admin", "owner"],
-  },
-  {
-    name: "Settings",
-    href: "/settings",
-    icon: Settings,
-    roles: ["admin", "owner"],
-  },
-  {
-    name: "Billing",
-    href: "/billing",
-    icon: CreditCard,
-    roles: ["owner"],
-  },
-];
-
-// Group labels
-const GROUP_LABELS: Record<string, string> = {
-  "/employees": "Management",
-  "/settings": "System",
-  "/billing": "System",
-};
-
-const ROLE_BADGE: Record<string, { label: string; bg: string; color: string }> =
-  {
-    owner: { label: "Owner", bg: "#FEF9C3", color: "#713F12" },
-    admin: { label: "Admin", bg: "#FEE2E2", color: "#7F1D1D" },
-    hr: { label: "HR", bg: "#EDE9FE", color: "#3B0764" },
-    manager: { label: "Manager", bg: "#DBEAFE", color: "#1E3A5F" },
-    employee: { label: "Employee", bg: "#F0FDF4", color: "#14532D" },
-  };
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
 
 interface SidebarProps {
   userRole?: string;
   userName?: string;
   userEmail?: string;
+}
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    title: "Main",
+    items: [
+      {
+        name: "Dashboard",
+        href: "/dashboard",
+        icon: LayoutDashboard,
+        roles: ["employee", "manager", "hr", "admin", "owner"],
+      },
+      {
+        name: "My Profile",
+        href: "/profile",
+        icon: UserCircle,
+        roles: ["employee", "manager", "hr", "admin", "owner"],
+      },
+      {
+        name: "Attendance",
+        href: "/attendance",
+        icon: Clock,
+        roles: ["employee", "manager", "hr", "admin", "owner"],
+      },
+      {
+        name: "Leave",
+        href: "/leave",
+        icon: CalendarDays,
+        roles: ["employee", "manager", "hr", "admin", "owner"],
+      },
+      {
+        name: "Payslip",
+        href: "/payslip",
+        icon: FileText,
+        roles: ["employee", "manager", "hr", "admin", "owner"],
+      },
+      {
+        name: "Notifications",
+        href: "/notifications",
+        icon: Bell,
+        roles: ["employee", "manager", "hr", "admin", "owner"],
+      },
+    ],
+  },
+  {
+    title: "People",
+    items: [
+      {
+        name: "Employees",
+        href: "/employees",
+        icon: Users,
+        roles: ["manager", "hr", "admin", "owner"],
+      },
+      {
+        name: "Departments",
+        href: "/departments",
+        icon: Building2,
+        roles: ["hr", "admin", "owner"],
+      },
+      {
+        name: "Performance",
+        href: "/performance",
+        icon: Award,
+        roles: ["manager", "hr", "admin", "owner"],
+      },
+    ],
+  },
+  {
+    title: "Company",
+    items: [
+      {
+        name: "Announcements",
+        href: "/announcements",
+        icon: Megaphone,
+        roles: ["employee", "manager", "hr", "admin", "owner"],
+      },
+      {
+        name: "Calendar",
+        href: "/calendar",
+        icon: CalendarDays,
+        roles: ["employee", "manager", "hr", "admin", "owner"],
+      },
+      {
+        name: "Documents",
+        href: "/documents",
+        icon: FolderOpen,
+        roles: ["hr", "admin", "owner"],
+      },
+    ],
+  },
+  {
+    title: "Administration",
+    items: [
+      {
+        name: "Payroll",
+        href: "/payroll",
+        icon: Wallet,
+        roles: ["hr", "admin", "owner"],
+      },
+      {
+        name: "Reports",
+        href: "/reports",
+        icon: BarChart3,
+        roles: ["hr", "admin", "owner"],
+      },
+      {
+        name: "Settings",
+        href: "/settings",
+        icon: Settings,
+        roles: ["admin", "owner"],
+      },
+      {
+        name: "Billing",
+        href: "/billing",
+        icon: CreditCard,
+        roles: ["owner"],
+      },
+    ],
+  },
+];
+
+const ROLE_LABEL: Record<UserRole, string> = {
+  owner: "Owner",
+  admin: "Admin",
+  hr: "HR",
+  manager: "Manager",
+  employee: "Employee",
+};
+
+function normalizeRole(role?: string): UserRole {
+  if (
+    role === "owner" ||
+    role === "admin" ||
+    role === "hr" ||
+    role === "manager" ||
+    role === "employee"
+  ) {
+    return role;
+  }
+
+  return "employee";
+}
+
+function getInitials(name?: string) {
+  const cleanedName = name?.trim();
+
+  if (!cleanedName) return "U";
+
+  return cleanedName
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 export function Sidebar({
@@ -171,20 +250,22 @@ export function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
-  const items = NAV_ITEMS.filter((i) => i.roles.includes(userRole));
-  const badge = ROLE_BADGE[userRole] ?? ROLE_BADGE.employee;
 
-  const initials = userName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const role = normalizeRole(userRole);
+  const initials = getInitials(userName);
 
-  const isActive = (href: string) =>
-    href === "/dashboard"
-      ? pathname === "/dashboard"
-      : pathname === href || pathname.startsWith(href + "/");
+  const visibleSections = NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => item.roles.includes(role)),
+  })).filter((section) => section.items.length > 0);
+
+  const isActive = (href: string) => {
+    if (href === "/dashboard") {
+      return pathname === "/dashboard";
+    }
+
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -192,125 +273,94 @@ export function Sidebar({
     router.refresh();
   };
 
-  // Build grouped nav
-  let managementLabelShown = false;
-  let systemLabelShown = false;
-
   return (
-    <aside
-      className="flex flex-col h-full w-[220px] shrink-0"
-      style={{ background: "white", borderRight: "1px solid #E5E7EB" }}
-    >
-      {/* Brand */}
-      <div
-        className="flex items-center gap-2.5 px-5 h-14 shrink-0"
-        style={{ borderBottom: "1px solid #E5E7EB" }}
-      >
-        <ArsadayaIcon size={26} />
-        <span
-          className="font-bold tracking-widest text-sm"
-          style={{ color: "#111B15", fontFamily: "Georgia, serif" }}
-        >
-          ARSADAYA
-        </span>
+    <aside className="flex h-full w-[240px] shrink-0 flex-col border-r border-gray-200 bg-white">
+      <div className="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 px-5">
+        <ArsadayaIcon size={30} />
+
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold tracking-[0.2em] text-gray-950">
+            ARSADAYA
+          </p>
+          <p className="truncate text-[11px] text-gray-500">HR Management</p>
+        </div>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {items.map((item, idx) => {
-          const active = isActive(item.href);
-          const Icon = item.icon;
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        <div className="space-y-5">
+          {visibleSections.map((section) => (
+            <div key={section.title}>
+              <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                {section.title}
+              </p>
 
-          // Group headers
-          let groupLabel: string | null = null;
-          if (item.href === "/employees" && !managementLabelShown) {
-            managementLabelShown = true;
-            groupLabel = "Management";
-          }
-          if (
-            (item.href === "/settings" || item.href === "/billing") &&
-            !systemLabelShown
-          ) {
-            systemLabelShown = true;
-            groupLabel = "System";
-          }
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const active = isActive(item.href);
+                  const Icon = item.icon;
 
-          return (
-            <div key={item.href}>
-              {groupLabel && (
-                <p
-                  className="text-[10px] font-semibold tracking-widest uppercase px-3 pt-4 pb-1"
-                  style={{ color: "#9CA3AF" }}
-                >
-                  {groupLabel}
-                </p>
-              )}
-              <Link
-                href={item.href}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors mb-0.5"
-                style={{
-                  background: active ? "#F0FDF4" : "transparent",
-                  color: active ? "#2D6A50" : "#6B7280",
-                  fontWeight: active ? 500 : 400,
-                }}
-              >
-                <Icon
-                  className="h-4 w-4 shrink-0"
-                  style={{ color: active ? "#2D6A50" : "#9CA3AF" }}
-                />
-                <span className="truncate">{item.name}</span>
-                {active && (
-                  <div
-                    className="ml-auto w-1.5 h-1.5 rounded-full"
-                    style={{ background: "#2D6A50" }}
-                  />
-                )}
-              </Link>
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={[
+                        "group flex h-10 items-center gap-3 border-l-4 px-3 text-sm font-medium transition-colors",
+                        active
+                          ? "border-[#F5A623] bg-[#EAF5F0] pl-2 text-[#2D6A50]"
+                          : "border-transparent text-gray-600 hover:bg-gray-50 hover:text-[#2D6A50]",
+                      ].join(" ")}
+                    >
+                      <Icon
+                        className={[
+                          "h-4 w-4 shrink-0",
+                          active
+                            ? "text-[#2D6A50]"
+                            : "text-gray-400 group-hover:text-[#2D6A50]",
+                        ].join(" ")}
+                      />
+
+                      <span className="truncate">{item.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          );
-        })}
+          ))}
+        </div>
       </nav>
 
-      {/* User footer */}
-      <div className="px-3 py-4" style={{ borderTop: "1px solid #E5E7EB" }}>
-        <div className="flex items-center gap-2.5 px-3 py-2 mb-1">
-          <div
-            className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0"
-            style={{ background: "#F0FDF4", color: "#2D6A50" }}
-          >
+      <div className="shrink-0 border-t border-gray-200 px-3 py-2.5">
+        <div className="flex items-center gap-2 px-1">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center bg-[#EAF5F0] text-[11px] font-semibold text-[#2D6A50]">
             {initials}
           </div>
-          <div className="flex-1 min-w-0">
-            <p
-              className="text-xs font-medium truncate leading-tight"
-              style={{ color: "#111827" }}
-            >
-              {userName}
-            </p>
-            <span
-              className="text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-block mt-0.5"
-              style={{ background: badge.bg, color: badge.color }}
-            >
-              {badge.label}
-            </span>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <p className="truncate text-sm font-semibold leading-5 text-gray-950">
+                {userName || "User"}
+              </p>
+
+              <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-[#2D6A50]">
+                {ROLE_LABEL[role]}
+              </span>
+            </div>
+
+            {userEmail && (
+              <p className="truncate text-[11px] leading-4 text-gray-500">
+                {userEmail}
+              </p>
+            )}
           </div>
         </div>
 
         <button
+          type="button"
           onClick={handleSignOut}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors"
-          style={{ color: "#9CA3AF" }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = "#DC2626";
-            e.currentTarget.style.background = "#FEF2F2";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = "#9CA3AF";
-            e.currentTarget.style.background = "transparent";
-          }}
+          className="mt-2 flex h-8 w-full items-center gap-2 px-1 text-xs font-medium text-gray-500 transition-colors hover:text-red-700"
         >
-          <LogOut className="h-4 w-4 shrink-0" />
-          <span>Sign Out</span>
+          <LogOut className="h-3.5 w-3.5 shrink-0" />
+          <span>Sign out</span>
         </button>
       </div>
     </aside>

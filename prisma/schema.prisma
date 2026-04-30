@@ -52,6 +52,8 @@ model Organization {
   employeeDocuments  EmployeeDocument[]
   announcements      Announcement[]
   companyEvents      CompanyEvent[]
+  payrollConfig    PayrollConfig?
+  leavePolicies    LeavePolicyConfig[]
 
   @@index([slug])
   @@index([stripeCustomerId])
@@ -557,4 +559,86 @@ model CompanyEvent {
   @@index([organizationId])
   @@index([startDate])
   @@index([type])
+}
+
+model PayrollConfig {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  bpjsKesEnabled      Boolean  @default(false)
+  bpjsKesEmployee     Float    @default(1.0)
+  bpjsKesEmployer     Float    @default(4.0)
+  bpjsKesMaxSalary    Float?
+
+  bpjsTkEnabled       Boolean  @default(false)
+  bpjsTkJHT           Float    @default(2.0)
+  bpjsTkJHTEmployer   Float    @default(3.7)
+  bpjsTkJP            Float    @default(1.0)
+  bpjsTkJPEmployer    Float    @default(2.0)
+  bpjsTkJKK           Float    @default(0.24)
+  bpjsTkJKM           Float    @default(0.3)
+  bpjsTkMaxSalary     Float?
+
+  pph21Enabled        Boolean  @default(false)
+  pph21Method         String   @default("gross")
+  pph21PTKP           Float    @default(54000000)
+  ptkpStatus          String   @default("TK/0")
+
+  lateDeductEnabled   Boolean  @default(false)
+  lateGraceMinutes    Int      @default(15)
+  lateDeductMethod    String   @default("minute_salary")
+  lateDeductAmount    Float    @default(0)
+  lateDeductPercent   Float    @default(0)
+
+  earlyLeaveDeductEnabled Boolean @default(false)
+  earlyLeaveDeductMethod  String  @default("minute_salary")
+  earlyLeaveDeductAmount  Float   @default(0)
+  earlyLeaveDeductPercent Float   @default(0)
+
+  absentDeductEnabled Boolean @default(false)
+  absentDeductMethod  String  @default("daily_salary")
+  absentDeductAmount  Float   @default(0)
+
+  overtimeEnabled     Boolean @default(true)
+  overtimeRate1       Float   @default(1.5)
+  overtimeRate2       Float   @default(2.0)
+  overtimeRateHoliday Float   @default(2.0)
+  overtimeHourlyBasis Int     @default(173)
+
+  customAllowances    String  @default("[]")
+  customDeductions    String  @default("[]")
+
+  payrollDate         Int     @default(25)
+  cutoffDate          Int     @default(20)
+  salaryType          String  @default("monthly")
+  workingDaysPerMonth Int     @default(22)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LeavePolicyConfig {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  leaveTypeId       String
+  isEnabled         Boolean  @default(false)
+  customName        String?
+  maxDaysOverride   Int?
+  isPaidOverride    Boolean?
+  requiresApproval  Boolean  @default(true)
+  requiresDocument  Boolean  @default(false)
+  canCarryForward   Boolean  @default(false)
+  maxCarryForward   Int?
+  countWeekend      Boolean  @default(false)
+  requiresDelegation Boolean @default(false)
+  notes             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, leaveTypeId])
+  @@index([organizationId])
 }

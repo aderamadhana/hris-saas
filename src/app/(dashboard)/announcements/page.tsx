@@ -1,276 +1,711 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
+// src/app/(dashboard)/dashboard/announcements/page.tsx
+
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import type { ElementType, ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
-  Megaphone, Plus, Pin, Bell, Info, AlertTriangle,
-  CheckCircle, Calendar, Eye, Trash2, Edit, Search,
-  ChevronDown, ChevronRight, BookOpen, Users, Globe
-} from 'lucide-react'
-import { Button } from '@/src/components/ui/button'
-import { Card, CardContent } from '@/src/components/ui/card'
+  AlertCircle,
+  Bell,
+  BookOpen,
+  Calendar,
+  CheckCircle,
+  ChevronRight,
+  Eye,
+  Info,
+  Loader2,
+  Megaphone,
+  Pin,
+  Plus,
+  Search,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 
-// ─── Types ────────────────────────────────────────────────
+import { Button } from "@/src/components/ui/button";
+
 interface Announcement {
-  id: string
-  title: string
-  content: string
-  type: string
-  isPinned: boolean
-  isPublished: boolean
-  publishedAt?: string
-  expiresAt?: string
-  targetRoles: string
-  attachmentUrl?: string
-  attachmentName?: string
-  isRead: boolean
-  readAt?: string
-  _count: { reads: number }
-  author: { firstName: string; lastName: string; position: string }
-  targetDepartment?: { name: string }
-  createdAt: string
+  id: string;
+  title: string;
+  content: string;
+  type: string;
+  isPinned: boolean;
+  isPublished: boolean;
+  publishedAt?: string | null;
+  expiresAt?: string | null;
+  targetRoles: string;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  isRead: boolean;
+  readAt?: string | null;
+  _count?: {
+    reads?: number;
+  };
+  author?: {
+    firstName: string;
+    lastName: string;
+    position?: string | null;
+  } | null;
+  targetDepartment?: {
+    name: string;
+  } | null;
+  createdAt: string;
 }
 
-// ─── Config ───────────────────────────────────────────────
-const TYPE_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
-  info:    { label: 'Informasi', icon: Info,          color: 'text-blue-600',  bg: 'bg-blue-50 border-blue-100' },
-  warning: { label: 'Perhatian', icon: AlertTriangle,  color: 'text-yellow-600', bg: 'bg-yellow-50 border-yellow-100' },
-  urgent:  { label: 'Penting',   icon: Bell,           color: 'text-red-600',   bg: 'bg-red-50 border-red-100' },
-  event:   { label: 'Event',     icon: Calendar,       color: 'text-purple-600', bg: 'bg-purple-50 border-purple-100' },
+type AnnouncementPayload =
+  | Announcement[]
+  | {
+      success?: boolean;
+      data?: Announcement[];
+      announcements?: Announcement[];
+      error?: string;
+    };
+
+const BRAND_GREEN = "#0B5A43";
+const BRAND_ORANGE = "#F7A81B";
+
+const TYPE_CONFIG: Record<
+  string,
+  {
+    label: string;
+    icon: ElementType;
+    badgeClass: string;
+    iconClass: string;
+    activeClass: string;
+  }
+> = {
+  info: {
+    label: "Info",
+    icon: Info,
+    badgeClass: "bg-blue-50 text-blue-700",
+    iconClass: "bg-blue-50 text-blue-700",
+    activeClass: "bg-blue-600 text-white",
+  },
+  warning: {
+    label: "Warning",
+    icon: AlertCircle,
+    badgeClass: "bg-yellow-50 text-yellow-700",
+    iconClass: "bg-yellow-50 text-yellow-700",
+    activeClass: "bg-yellow-600 text-white",
+  },
+  urgent: {
+    label: "Urgent",
+    icon: Bell,
+    badgeClass: "bg-red-50 text-red-700",
+    iconClass: "bg-red-50 text-red-700",
+    activeClass: "bg-red-600 text-white",
+  },
+  event: {
+    label: "Event",
+    icon: Calendar,
+    badgeClass: "bg-[#EAF5F0] text-[#0B5A43]",
+    iconClass: "bg-[#EAF5F0] text-[#0B5A43]",
+    activeClass: "bg-[#0B5A43] text-white",
+  },
+};
+
+const TARGET_ROLE_LABEL: Record<string, string> = {
+  all: "All employees",
+  employee: "Employees only",
+  manager: "Managers and above",
+  hr: "HR and admins",
+  admin: "Admins",
+  owner: "Owners",
+};
+
+function extractAnnouncements(payload: AnnouncementPayload | null) {
+  if (!payload) return [];
+
+  if (Array.isArray(payload)) return payload;
+
+  if (Array.isArray(payload.data)) return payload.data;
+
+  if (Array.isArray(payload.announcements)) return payload.announcements;
+
+  return [];
 }
 
-function timeAgo(date: string) {
-  const diff = Date.now() - new Date(date).getTime()
-  const mins = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-  if (mins < 1) return 'Baru saja'
-  if (mins < 60) return `${mins} menit lalu`
-  if (hours < 24) return `${hours} jam lalu`
-  if (days < 7) return `${days} hari lalu`
-  return new Date(date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
-// ─── Create Announcement Modal ─────────────────────────────
-function CreateAnnouncementModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({
-    title: '',
-    content: '',
-    type: 'info',
-    isPinned: false,
-    isPublished: true,
-    targetRoles: 'all',
-    expiresAt: '',
-    attachmentUrl: '',
-    attachmentName: '',
-  })
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!form.title || !form.content) {
-      setError('Judul dan isi pengumuman wajib diisi')
-      return
-    }
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetch('/api/announcements', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
-      const data = await res.json()
-      if (!data.success) throw new Error(data.error)
-      onCreated()
-      onClose()
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
+function getPayloadError(payload: unknown, fallback: string) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "error" in payload &&
+    typeof payload.error === "string"
+  ) {
+    return payload.error;
   }
 
+  return fallback;
+}
+
+async function readJson<T>(response: Response): Promise<T | null> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+function getAuthorName(announcement: Announcement) {
+  const firstName = announcement.author?.firstName ?? "";
+  const lastName = announcement.author?.lastName ?? "";
+  return `${firstName} ${lastName}`.trim() || "System";
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
+
+function timeAgo(value?: string | null) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  const timestamp = date.getTime();
+
+  if (Number.isNaN(timestamp)) return "-";
+
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / 60_000);
+  const hours = Math.floor(diff / 3_600_000);
+  const days = Math.floor(diff / 86_400_000);
+
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+
+  return formatDate(value);
+}
+
+function ModalShell({ children }: { children: ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[2147483647] flex min-h-[100dvh] w-screen items-start justify-center overflow-y-auto bg-black/45 px-4 py-10">
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+function SummaryItem({
+  label,
+  value,
+  description,
+  icon,
+  tone = "default",
+}: {
+  label: string;
+  value: number;
+  description: string;
+  icon: ReactNode;
+  tone?: "default" | "green" | "orange" | "red";
+}) {
+  const iconClass = {
+    default: "border-gray-200 bg-gray-50 text-gray-600",
+    green: "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
+    orange: "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]",
+    red: "border-red-200 bg-red-50 text-red-700",
+  }[tone];
+
+  const valueClass = {
+    default: "text-gray-950",
+    green: "text-[#0B5A43]",
+    orange: "text-[#7A5A00]",
+    red: "text-red-700",
+  }[tone];
+
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl my-8">
-        <div className="p-6 border-b flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center">
-            <Megaphone className="h-5 w-5 text-blue-600" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-gray-900">Buat Pengumuman</h2>
-            <p className="text-xs text-gray-500">Kirim pengumuman ke karyawan</p>
-          </div>
+    <div className="border-b border-gray-200 p-4 md:border-b-0 md:border-r last:border-r-0">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            {label}
+          </p>
+          <p
+            className={`mt-2 text-3xl font-semibold tracking-tight ${valueClass}`}
+          >
+            {value}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">{description}</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">{error}</div>}
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center border ${iconClass}`}
+        >
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <section className="border border-gray-200 bg-white px-4 py-16 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center bg-gray-100 text-gray-400">
+        <Megaphone className="h-6 w-6" />
+      </div>
+
+      <p className="mt-4 font-semibold text-gray-800">{title}</p>
+      <p className="mt-1 text-sm text-gray-500">{description}</p>
+
+      {action && <div className="mt-5">{action}</div>}
+    </section>
+  );
+}
+
+function CreateAnnouncementModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [form, setForm] = useState({
+    title: "",
+    content: "",
+    type: "info",
+    isPinned: false,
+    isPublished: true,
+    targetRoles: "all",
+    expiresAt: "",
+    attachmentUrl: "",
+    attachmentName: "",
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!form.title.trim() || !form.content.trim()) {
+      setError("Title and message are required.");
+      return;
+    }
+
+    if (loading) return;
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/announcements", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...form,
+          title: form.title.trim(),
+          content: form.content.trim(),
+          expiresAt: form.expiresAt || null,
+          attachmentUrl: form.attachmentUrl.trim() || null,
+          attachmentName: form.attachmentName.trim() || null,
+        }),
+      });
+
+      const payload = await readJson<{ success?: boolean; error?: string }>(
+        response,
+      );
+
+      if (!response.ok || payload?.success === false) {
+        throw new Error(
+          getPayloadError(payload, "Failed to create announcement."),
+        );
+      }
+
+      onCreated();
+      onClose();
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Failed to create announcement.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <ModalShell>
+      <div className="w-full max-w-2xl border border-gray-200 bg-white shadow-xl">
+        <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-950">
+              New Announcement
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Share important updates with the right audience.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 px-5 py-5">
+          {error && (
+            <div className="flex items-start gap-2 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>{error}</p>
+            </div>
+          )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Judul *</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Title
+            </label>
             <input
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Judul pengumuman..."
-              value={form.title}
-              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
               required
+              value={form.title}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  title: event.target.value,
+                }))
+              }
+              placeholder="Example: Office closure for public holiday"
+              className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Isi Pengumuman *</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Message
+            </label>
             <textarea
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={6}
-              placeholder="Tulis isi pengumuman di sini..."
-              value={form.content}
-              onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
               required
+              rows={6}
+              value={form.content}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  content: event.target.value,
+                }))
+              }
+              placeholder="Write the announcement clearly. Include dates, actions needed, and who it applies to."
+              className="w-full border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0B5A43]"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tipe</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Type
+              </label>
               <select
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={form.type}
-                onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    type: event.target.value,
+                  }))
+                }
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
               >
-                {Object.entries(TYPE_CONFIG).map(([val, { label }]) => (
-                  <option key={val} value={val}>{label}</option>
+                {Object.entries(TYPE_CONFIG).map(([value, config]) => (
+                  <option key={value} value={value}>
+                    {config.label}
+                  </option>
                 ))}
               </select>
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Target Penerima</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Audience
+              </label>
               <select
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={form.targetRoles}
-                onChange={e => setForm(f => ({ ...f, targetRoles: e.target.value }))}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    targetRoles: event.target.value,
+                  }))
+                }
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
               >
-                <option value="all">Semua Karyawan</option>
-                <option value="employee">Karyawan Saja</option>
-                <option value="manager">Manager & Atas</option>
-                <option value="hr">HR & Admin</option>
+                <option value="all">All employees</option>
+                <option value="employee">Employees only</option>
+                <option value="manager">Managers and above</option>
+                <option value="hr">HR and admins</option>
               </select>
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Berlaku Hingga (opsional)</label>
-            <input
-              type="date"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.expiresAt}
-              onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))}
-            />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Expiry Date
+              </label>
+              <input
+                type="date"
+                value={form.expiresAt}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    expiresAt: event.target.value,
+                  }))
+                }
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
+              />
+            </div>
+
+            <div className="flex items-end gap-4 pb-2">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.isPinned}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      isPinned: event.target.checked,
+                    }))
+                  }
+                />
+                Pin to top
+              </label>
+
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.isPublished}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      isPublished: event.target.checked,
+                    }))
+                  }
+                />
+                Publish now
+              </label>
+            </div>
           </div>
 
-          <div className="flex items-center gap-6 pt-1">
-            <label className="flex items-center gap-2 cursor-pointer">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Attachment URL
+              </label>
               <input
-                type="checkbox"
-                className="rounded"
-                checked={form.isPinned}
-                onChange={e => setForm(f => ({ ...f, isPinned: e.target.checked }))}
+                value={form.attachmentUrl}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    attachmentUrl: event.target.value,
+                  }))
+                }
+                placeholder="https://..."
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
               />
-              <span className="text-sm text-gray-700">Sematkan (Pin) di atas</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Attachment Name
+              </label>
               <input
-                type="checkbox"
-                className="rounded"
-                checked={form.isPublished}
-                onChange={e => setForm(f => ({ ...f, isPublished: e.target.checked }))}
+                value={form.attachmentName}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    attachmentName: event.target.value,
+                  }))
+                }
+                placeholder="Policy document"
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
               />
-              <span className="text-sm text-gray-700">Publikasikan sekarang</span>
-            </label>
+            </div>
           </div>
 
-          <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Batal</Button>
-            <Button type="submit" className="flex-1" disabled={loading}>
-              {loading ? 'Menyimpan...' : form.isPublished ? 'Publikasikan' : 'Simpan Draft'}
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+
+            <Button
+              type="submit"
+              disabled={loading}
+              className="bg-[#0B5A43] text-white hover:bg-[#084735]"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : form.isPublished ? (
+                "Publish"
+              ) : (
+                "Save Draft"
+              )}
             </Button>
           </div>
         </form>
       </div>
-    </div>
-  )
+    </ModalShell>
+  );
 }
 
-// ─── Announcement Card ─────────────────────────────────────
-function AnnouncementCard({
+function AnnouncementItem({
   announcement,
-  onRead,
   isHRAdmin,
+  onRead,
   onDelete,
 }: {
-  announcement: Announcement
-  onRead: (id: string) => void
-  isHRAdmin: boolean
-  onDelete: (id: string) => void
+  announcement: Announcement;
+  isHRAdmin: boolean;
+  onRead: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const cfg = TYPE_CONFIG[announcement.type] || TYPE_CONFIG.info
-  const Icon = cfg.icon
+  const [expanded, setExpanded] = useState(false);
 
-  const handleExpand = () => {
-    setExpanded(v => !v)
-    if (!announcement.isRead) onRead(announcement.id)
-  }
+  const config = TYPE_CONFIG[announcement.type] ?? TYPE_CONFIG.info;
+  const Icon = config.icon;
+
+  const authorName = getAuthorName(announcement);
+  const readCount = announcement._count?.reads ?? 0;
+  const targetLabel =
+    TARGET_ROLE_LABEL[announcement.targetRoles] ?? announcement.targetRoles;
+
+  const handleToggle = () => {
+    const nextExpanded = !expanded;
+    setExpanded(nextExpanded);
+
+    if (nextExpanded && !announcement.isRead) {
+      onRead(announcement.id);
+    }
+  };
 
   return (
-    <Card className={`transition-all border ${cfg.bg} ${!announcement.isRead ? 'shadow-md' : ''}`}>
-      <CardContent className="p-0">
-        {/* Header */}
-        <button
-          className="w-full text-left p-4 flex items-start gap-3"
-          onClick={handleExpand}
+    <article
+      className={[
+        "border border-gray-200 bg-white transition-colors",
+        !announcement.isRead ? "border-l-4 border-l-[#F7A81B]" : "",
+      ].join(" ")}
+    >
+      <button
+        type="button"
+        onClick={handleToggle}
+        className="flex w-full items-start gap-4 px-5 py-4 text-left hover:bg-gray-50"
+      >
+        <div
+          className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center ${config.iconClass}`}
         >
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/80 ${cfg.color}`}>
-            <Icon className="h-4 w-4" />
-          </div>
+          <Icon className="h-5 w-5" />
+        </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 {announcement.isPinned && (
-                  <Pin className="h-3.5 w-3.5 text-gray-400" />
+                  <Pin className="h-3.5 w-3.5 text-[#7A5A00]" />
                 )}
-                <span className={`font-semibold text-sm ${!announcement.isRead ? 'text-gray-900' : 'text-gray-700'}`}>
+
+                <h3
+                  className={[
+                    "truncate text-sm font-semibold",
+                    announcement.isRead ? "text-gray-800" : "text-gray-950",
+                  ].join(" ")}
+                >
                   {announcement.title}
-                </span>
+                </h3>
+
                 {!announcement.isRead && (
-                  <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+                  <span className="h-2 w-2 bg-[#F7A81B]" />
                 )}
               </div>
-              <ChevronRight className={`h-4 w-4 text-gray-400 flex-shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
-            </div>
 
-            <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
-              <span className={`px-2 py-0.5 rounded-full font-medium bg-white/70 ${cfg.color}`}>{cfg.label}</span>
-              <span>{announcement.author.firstName} {announcement.author.lastName}</span>
-              <span>{timeAgo(announcement.publishedAt || announcement.createdAt)}</span>
-              {announcement.targetRoles !== 'all' && (
-                <span className="flex items-center gap-1">
-                  <Users className="h-3 w-3" /> {announcement.targetRoles}
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                <span
+                  className={`inline-flex px-2 py-1 font-semibold ${config.badgeClass}`}
+                >
+                  {config.label}
                 </span>
-              )}
-              <span className="flex items-center gap-1">
-                <Eye className="h-3 w-3" /> {announcement._count.reads} dibaca
-              </span>
+                <span>{authorName}</span>
+                <span>
+                  {timeAgo(announcement.publishedAt ?? announcement.createdAt)}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Users className="h-3 w-3" />
+                  {targetLabel}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Eye className="h-3 w-3" />
+                  {readCount} read
+                </span>
+              </div>
             </div>
-          </div>
-        </button>
 
-        {/* Expanded content */}
-        {expanded && (
-          <div className="px-4 pb-4 space-y-3">
-            <div className="bg-white/70 rounded-lg p-4">
-              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{announcement.content}</p>
+            <ChevronRight
+              className={[
+                "h-4 w-4 shrink-0 text-gray-400 transition-transform",
+                expanded ? "rotate-90" : "",
+              ].join(" ")}
+            />
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-gray-100 px-5 py-4">
+          <div className="max-w-4xl">
+            <p className="whitespace-pre-wrap text-sm leading-6 text-gray-700">
+              {announcement.content}
+            </p>
+
+            <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+              {announcement.expiresAt && (
+                <span>Expires on {formatDate(announcement.expiresAt)}</span>
+              )}
+
+              {announcement.targetDepartment?.name && (
+                <span>Department: {announcement.targetDepartment.name}</span>
+              )}
+
+              {announcement.author?.position && (
+                <span>Author role: {announcement.author.position}</span>
+              )}
             </div>
 
             {announcement.attachmentUrl && (
@@ -278,197 +713,361 @@ function AnnouncementCard({
                 href={announcement.attachmentUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#0B5A43] hover:underline"
               >
                 <BookOpen className="h-4 w-4" />
-                {announcement.attachmentName || 'Lihat Lampiran'}
+                {announcement.attachmentName || "Open attachment"}
               </a>
             )}
 
-            {announcement.expiresAt && (
-              <p className="text-xs text-gray-400">
-                Berlaku hingga: {new Date(announcement.expiresAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </p>
-            )}
-
             {isHRAdmin && (
-              <div className="flex gap-2 pt-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50 h-7 px-2 text-xs gap-1"
-                  onClick={() => { if (confirm('Hapus pengumuman ini?')) onDelete(announcement.id) }}
+              <div className="mt-4 border-t border-gray-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Delete this announcement? This action cannot be undone.",
+                      )
+                    ) {
+                      onDelete(announcement.id);
+                    }
+                  }}
+                  className="inline-flex h-8 items-center gap-2 px-2 text-xs font-medium text-red-600 hover:bg-red-50"
                 >
-                  <Trash2 className="h-3 w-3" /> Hapus
-                </Button>
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </button>
               </div>
             )}
           </div>
-        )}
-      </CardContent>
-    </Card>
-  )
+        </div>
+      )}
+    </article>
+  );
 }
 
-// ─── Main Page ─────────────────────────────────────────────
 export default function AnnouncementsPage() {
-  const [announcements, setAnnouncements] = useState<Announcement[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showCreate, setShowCreate] = useState(false)
-  const [search, setSearch] = useState('')
-  const [filterType, setFilterType] = useState('all')
-  const [isHRAdmin, setIsHRAdmin] = useState(false)
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState("all");
+  const [isHRAdmin, setIsHRAdmin] = useState(false);
 
   const fetchAnnouncements = async () => {
-    setLoading(true)
+    setLoading(true);
+    setError("");
+
     try {
-      const res = await fetch('/api/announcements')
-      const data = await res.json()
-      if (data.success) setAnnouncements(data.data)
+      const response = await fetch("/api/announcements", {
+        cache: "no-store",
+      });
+
+      const payload = await readJson<AnnouncementPayload>(response);
+
+      if (!response.ok) {
+        throw new Error(
+          getPayloadError(payload, "Failed to load announcements."),
+        );
+      }
+
+      setAnnouncements(extractAnnouncements(payload));
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load announcements.",
+      );
+      setAnnouncements([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+
+  const fetchProfile = async () => {
+    try {
+      const response = await fetch("/api/profile", {
+        cache: "no-store",
+      });
+
+      const payload = await readJson<{
+        success?: boolean;
+        data?: {
+          role?: string;
+        };
+      }>(response);
+
+      const role = payload?.data?.role ?? "";
+
+      setIsHRAdmin(["admin", "hr", "owner", "manager"].includes(role));
+    } catch {
+      setIsHRAdmin(false);
+    }
+  };
 
   useEffect(() => {
-    fetchAnnouncements()
-    fetch('/api/profile').then(r => r.json()).then(d => {
-      if (d.success && d.data) {
-        setIsHRAdmin(['admin', 'hr', 'owner', 'manager'].includes(d.data.role))
-      }
-    }).catch(() => {})
-  }, [])
+    void fetchAnnouncements();
+    void fetchProfile();
+  }, []);
 
   const handleRead = async (announcementId: string) => {
+    setAnnouncements((current) =>
+      current.map((announcement) =>
+        announcement.id === announcementId
+          ? {
+              ...announcement,
+              isRead: true,
+            }
+          : announcement,
+      ),
+    );
+
     try {
-      await fetch('/api/announcements/read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/announcements/read", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ announcementId }),
-      })
-      setAnnouncements(prev =>
-        prev.map(a => a.id === announcementId ? { ...a, isRead: true } : a)
-      )
-    } catch {}
-  }
+      });
+    } catch {
+      // Optimistic UI is enough here.
+    }
+  };
 
   const handleDelete = async (id: string) => {
-    // Call DELETE API (implement in announcements/[id]/route.ts)
-    setAnnouncements(prev => prev.filter(a => a.id !== id))
-  }
+    const previous = announcements;
 
-  const unreadCount = announcements.filter(a => !a.isRead).length
-  const pinnedCount = announcements.filter(a => a.isPinned).length
+    setAnnouncements((current) =>
+      current.filter((announcement) => announcement.id !== id),
+    );
 
-  const filtered = announcements.filter(a => {
-    const matchSearch = !search || a.title.toLowerCase().includes(search.toLowerCase()) ||
-      a.content.toLowerCase().includes(search.toLowerCase())
-    const matchType = filterType === 'all' || a.type === filterType
-    return matchSearch && matchType
-  })
+    try {
+      const response = await fetch(`/api/announcements/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete announcement.");
+      }
+    } catch {
+      setAnnouncements(previous);
+      setError("Failed to delete announcement.");
+    }
+  };
+
+  const unreadCount = announcements.filter(
+    (announcement) => !announcement.isRead,
+  ).length;
+
+  const pinnedCount = announcements.filter(
+    (announcement) => announcement.isPinned,
+  ).length;
+
+  const readCount = announcements.filter(
+    (announcement) => announcement.isRead,
+  ).length;
+
+  const filteredAnnouncements = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+
+    return announcements.filter((announcement) => {
+      const matchesSearch =
+        !keyword ||
+        announcement.title.toLowerCase().includes(keyword) ||
+        announcement.content.toLowerCase().includes(keyword) ||
+        getAuthorName(announcement).toLowerCase().includes(keyword);
+
+      const matchesType =
+        filterType === "all" || announcement.type === filterType;
+
+      return matchesSearch && matchesType;
+    });
+  }, [announcements, search, filterType]);
+
+  const sortedAnnouncements = useMemo(() => {
+    return [...filteredAnnouncements].sort((a, b) => {
+      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+
+      const aDate = new Date(a.publishedAt ?? a.createdAt).getTime();
+      const bDate = new Date(b.publishedAt ?? b.createdAt).getTime();
+
+      return bDate - aDate;
+    });
+  }, [filteredAnnouncements]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            Pengumuman
-            {unreadCount > 0 && (
-              <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                {unreadCount}
-              </span>
-            )}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">Informasi dan pengumuman perusahaan</p>
-        </div>
-        {isHRAdmin && (
-          <Button onClick={() => setShowCreate(true)} className="gap-2">
-            <Plus className="h-4 w-4" /> Buat Pengumuman
-          </Button>
-        )}
-      </div>
+    <div className="mx-auto w-full space-y-5 pb-8">
+      <header className="border border-gray-200 bg-white p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight text-gray-950">
+                Announcements
+              </h1>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total', value: announcements.length, icon: Megaphone, color: 'text-blue-600 bg-blue-50' },
-          { label: 'Belum Dibaca', value: unreadCount, icon: Bell, color: 'text-red-600 bg-red-50' },
-          { label: 'Disematkan', value: pinnedCount, icon: Pin, color: 'text-yellow-600 bg-yellow-50' },
-          { label: 'Sudah Dibaca', value: announcements.filter(a => a.isRead).length, icon: CheckCircle, color: 'text-green-600 bg-green-50' },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <Card key={label}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${color}`}>
-                <Icon className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-xl font-bold text-gray-900">{value}</div>
-                <div className="text-xs text-gray-500">{label}</div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              {unreadCount > 0 && (
+                <span className="inline-flex bg-red-600 px-2 py-1 text-xs font-semibold text-white">
+                  {unreadCount} unread
+                </span>
+              )}
+            </div>
 
-      {/* Filters */}
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Cari pengumuman..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
-        <div className="flex gap-1">
-          {[{ val: 'all', label: 'Semua' }, ...Object.entries(TYPE_CONFIG).map(([val, { label }]) => ({ val, label }))].map(
-            ({ val, label }) => (
-              <button
-                key={val}
-                onClick={() => setFilterType(val)}
-                className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                  filterType === val
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {label}
-              </button>
-            )
+            <p className="mt-1 text-sm text-gray-500">
+              Company updates, policy notices, and important employee
+              information.
+            </p>
+          </div>
+
+          {isHRAdmin && (
+            <Button
+              onClick={() => setShowCreate(true)}
+              className="w-full bg-[#0B5A43] text-white hover:bg-[#084735] sm:w-auto"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              New Announcement
+            </Button>
           )}
         </div>
-      </div>
+      </header>
 
-      {/* List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <Megaphone className="h-12 w-12 mx-auto mb-3 opacity-40" />
-          <p className="font-medium">{announcements.length === 0 ? 'Belum ada pengumuman' : 'Tidak ada hasil'}</p>
-          <p className="text-sm">{announcements.length === 0 ? 'Pengumuman baru akan muncul di sini' : 'Coba ubah filter'}</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map(a => (
-            <AnnouncementCard
-              key={a.id}
-              announcement={a}
-              onRead={handleRead}
-              isHRAdmin={isHRAdmin}
-              onDelete={handleDelete}
-            />
-          ))}
+      {error && (
+        <div className="flex items-start gap-2 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">Something went wrong</p>
+            <p>{error}</p>
+          </div>
         </div>
       )}
+
+      <section className="grid border border-gray-200 bg-white md:grid-cols-4">
+        <SummaryItem
+          label="Total"
+          value={announcements.length}
+          description="All announcements"
+          icon={<Megaphone className="h-5 w-5" />}
+        />
+
+        <SummaryItem
+          label="Unread"
+          value={unreadCount}
+          description="Need your attention"
+          icon={<Bell className="h-5 w-5" />}
+          tone={unreadCount > 0 ? "red" : "default"}
+        />
+
+        <SummaryItem
+          label="Pinned"
+          value={pinnedCount}
+          description="Pinned to top"
+          icon={<Pin className="h-5 w-5" />}
+          tone="orange"
+        />
+
+        <SummaryItem
+          label="Read"
+          value={readCount}
+          description="Already opened"
+          icon={<CheckCircle className="h-5 w-5" />}
+          tone="green"
+        />
+      </section>
+
+      <section className="border border-gray-200 bg-white">
+        <div className="flex flex-col gap-3 border-b border-gray-200 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search announcements..."
+              className="h-10 w-full border border-gray-300 pl-9 pr-3 text-sm outline-none focus:border-[#0B5A43]"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {[
+              { value: "all", label: "All" },
+              ...Object.entries(TYPE_CONFIG).map(([value, config]) => ({
+                value,
+                label: config.label,
+              })),
+            ].map((item) => {
+              const active = filterType === item.value;
+
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setFilterType(item.value)}
+                  className={[
+                    "h-9 px-3 text-xs font-semibold transition-colors",
+                    active
+                      ? "bg-[#0B5A43] text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200",
+                  ].join(" ")}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center px-4 py-16 text-sm text-gray-500">
+            <Loader2 className="mr-2 h-5 w-5 animate-spin text-[#0B5A43]" />
+            Loading announcements...
+          </div>
+        ) : sortedAnnouncements.length === 0 ? (
+          <div className="px-4 py-16">
+            <EmptyState
+              title={
+                announcements.length === 0
+                  ? "No announcements yet"
+                  : "No matching announcements"
+              }
+              description={
+                announcements.length === 0
+                  ? "New company announcements will appear here."
+                  : "Try changing the search keyword or filter."
+              }
+              action={
+                isHRAdmin && announcements.length === 0 ? (
+                  <Button
+                    onClick={() => setShowCreate(true)}
+                    className="bg-[#0B5A43] text-white hover:bg-[#084735]"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Announcement
+                  </Button>
+                ) : null
+              }
+            />
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {sortedAnnouncements.map((announcement) => (
+              <AnnouncementItem
+                key={announcement.id}
+                announcement={announcement}
+                isHRAdmin={isHRAdmin}
+                onRead={handleRead}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
       {showCreate && (
-        <CreateAnnouncementModal onClose={() => setShowCreate(false)} onCreated={fetchAnnouncements} />
+        <CreateAnnouncementModal
+          onClose={() => setShowCreate(false)}
+          onCreated={() => void fetchAnnouncements()}
+        />
       )}
     </div>
-  )
+  );
 }

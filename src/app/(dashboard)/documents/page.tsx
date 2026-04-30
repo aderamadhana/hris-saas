@@ -1,75 +1,334 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useRef } from 'react'
+// src/app/(dashboard)/dashboard/documents/page.tsx
+
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import type { ElementType, ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
-  FileText, Upload, Download, Trash2, Eye, Plus,
-  File, Image, FileSpreadsheet, Shield, Clock,
-  Search, Filter, CheckCircle, AlertTriangle, FolderOpen
-} from 'lucide-react'
-import { Button } from '@/src/components/ui/button'
-import { Card, CardContent } from '@/src/components/ui/card'
-import { Badge } from '@/src/components/ui/badge'
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Download,
+  Eye,
+  File,
+  FileSpreadsheet,
+  FileText,
+  FolderOpen,
+  Image,
+  Loader2,
+  Plus,
+  Search,
+  Shield,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 
-// ─── Types ────────────────────────────────────────────────
+import { Button } from "@/src/components/ui/button";
+
 interface EmployeeDocument {
-  id: string
-  employeeId: string
-  category: string
-  name: string
-  description?: string
-  fileUrl: string
-  fileType: string
-  fileSize: number
-  isPrivate: boolean
-  isVerified: boolean
-  expiresAt?: string
-  createdAt: string
-  employee: { firstName: string; lastName: string; employeeId: string }
-  uploader: { firstName: string; lastName: string }
+  id: string;
+  employeeId: string;
+  category: string;
+  name: string;
+  description?: string | null;
+  fileUrl: string;
+  fileType: string;
+  fileSize: number;
+  isPrivate: boolean;
+  isVerified: boolean;
+  expiresAt?: string | null;
+  createdAt: string;
+  employee: {
+    firstName: string;
+    lastName: string;
+    employeeId: string;
+  };
+  uploader: {
+    firstName: string;
+    lastName: string;
+  };
 }
 
-// ─── Config ───────────────────────────────────────────────
+interface EmployeeOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+  employeeId: string;
+}
+
+type DocumentsPayload =
+  | EmployeeDocument[]
+  | {
+      success?: boolean;
+      data?: EmployeeDocument[];
+      documents?: EmployeeDocument[];
+      error?: string;
+    };
+
+type EmployeesPayload =
+  | EmployeeOption[]
+  | {
+      success?: boolean;
+      data?: EmployeeOption[];
+      employees?: EmployeeOption[];
+      error?: string;
+    };
+
 const CATEGORIES = [
-  { value: 'contract', label: 'Kontrak Kerja', color: 'bg-blue-100 text-blue-700' },
-  { value: 'id_card', label: 'KTP / Identitas', color: 'bg-purple-100 text-purple-700' },
-  { value: 'certificate', label: 'Sertifikat', color: 'bg-green-100 text-green-700' },
-  { value: 'diploma', label: 'Ijazah', color: 'bg-yellow-100 text-yellow-700' },
-  { value: 'photo', label: 'Foto', color: 'bg-pink-100 text-pink-700' },
-  { value: 'bpjs', label: 'BPJS', color: 'bg-teal-100 text-teal-700' },
-  { value: 'tax', label: 'NPWP / Pajak', color: 'bg-orange-100 text-orange-700' },
-  { value: 'medical', label: 'Surat Kesehatan', color: 'bg-red-100 text-red-700' },
-  { value: 'other', label: 'Lainnya', color: 'bg-gray-100 text-gray-700' },
-]
+  {
+    value: "contract",
+    label: "Employment Contract",
+    badgeClass: "bg-blue-50 text-blue-700",
+  },
+  {
+    value: "id_card",
+    label: "Identity Document",
+    badgeClass: "bg-purple-50 text-purple-700",
+  },
+  {
+    value: "certificate",
+    label: "Certificate",
+    badgeClass: "bg-[#EAF5F0] text-[#0B5A43]",
+  },
+  {
+    value: "diploma",
+    label: "Diploma",
+    badgeClass: "bg-yellow-50 text-yellow-700",
+  },
+  {
+    value: "photo",
+    label: "Photo",
+    badgeClass: "bg-pink-50 text-pink-700",
+  },
+  {
+    value: "bpjs",
+    label: "BPJS",
+    badgeClass: "bg-teal-50 text-teal-700",
+  },
+  {
+    value: "tax",
+    label: "Tax Document",
+    badgeClass: "bg-orange-50 text-orange-700",
+  },
+  {
+    value: "medical",
+    label: "Medical Document",
+    badgeClass: "bg-red-50 text-red-700",
+  },
+  {
+    value: "other",
+    label: "Other",
+    badgeClass: "bg-gray-100 text-gray-700",
+  },
+];
 
-const FILE_ICONS: Record<string, React.ElementType> = {
+const FILE_ICONS: Record<string, ElementType> = {
   pdf: FileText,
-  jpg: Image, jpeg: Image, png: Image, webp: Image,
-  xlsx: FileSpreadsheet, xls: FileSpreadsheet,
-  doc: File, docx: File,
-}
+  jpg: Image,
+  jpeg: Image,
+  png: Image,
+  webp: Image,
+  xlsx: FileSpreadsheet,
+  xls: FileSpreadsheet,
+  doc: FileText,
+  docx: FileText,
+};
 
 function getCategoryConfig(value: string) {
-  return CATEGORIES.find(c => c.value === value) || CATEGORIES[CATEGORIES.length - 1]
+  return (
+    CATEGORIES.find((category) => category.value === value) ??
+    CATEGORIES[CATEGORIES.length - 1]
+  );
+}
+
+function getFileIcon(fileType: string) {
+  return FILE_ICONS[fileType.toLowerCase()] ?? File;
 }
 
 function formatFileSize(bytes: number) {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / 1048576).toFixed(1) + ' MB'
+  if (!bytes || bytes <= 0) return "Unknown size";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1_048_576) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1_048_576).toFixed(1)} MB`;
 }
 
-function isExpiringSoon(expiresAt?: string) {
-  if (!expiresAt) return false
-  const diff = new Date(expiresAt).getTime() - Date.now()
-  return diff > 0 && diff < 30 * 24 * 60 * 60 * 1000
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
 }
 
-function isExpired(expiresAt?: string) {
-  if (!expiresAt) return false
-  return new Date(expiresAt) < new Date()
+function isExpired(expiresAt?: string | null) {
+  if (!expiresAt) return false;
+  return new Date(expiresAt).getTime() < Date.now();
 }
 
-// ─── Upload Modal ──────────────────────────────────────────
+function isExpiringSoon(expiresAt?: string | null) {
+  if (!expiresAt) return false;
+
+  const expiryTime = new Date(expiresAt).getTime();
+
+  if (Number.isNaN(expiryTime)) return false;
+
+  const diff = expiryTime - Date.now();
+  return diff > 0 && diff <= 30 * 24 * 60 * 60 * 1000;
+}
+
+function extractDocuments(payload: DocumentsPayload | null) {
+  if (!payload) return [];
+
+  if (Array.isArray(payload)) return payload;
+
+  if (Array.isArray(payload.data)) return payload.data;
+
+  if (Array.isArray(payload.documents)) return payload.documents;
+
+  return [];
+}
+
+function extractEmployees(payload: EmployeesPayload | null) {
+  if (!payload) return [];
+
+  if (Array.isArray(payload)) return payload;
+
+  if (Array.isArray(payload.data)) return payload.data;
+
+  if (Array.isArray(payload.employees)) return payload.employees;
+
+  return [];
+}
+
+function getPayloadError(payload: unknown, fallback: string) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "error" in payload &&
+    typeof payload.error === "string"
+  ) {
+    return payload.error;
+  }
+
+  return fallback;
+}
+
+async function readJson<T>(response: Response): Promise<T | null> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+function ModalShell({ children }: { children: ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[2147483647] flex min-h-[100dvh] w-screen items-start justify-center overflow-y-auto bg-black/45 px-4 py-10">
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+function SummaryItem({
+  label,
+  value,
+  description,
+  icon,
+  tone = "default",
+}: {
+  label: string;
+  value: number;
+  description: string;
+  icon: ReactNode;
+  tone?: "default" | "green" | "orange" | "red";
+}) {
+  const iconClass = {
+    default: "border-gray-200 bg-gray-50 text-gray-600",
+    green: "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
+    orange: "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]",
+    red: "border-red-200 bg-red-50 text-red-700",
+  }[tone];
+
+  const valueClass = {
+    default: "text-gray-950",
+    green: "text-[#0B5A43]",
+    orange: "text-[#7A5A00]",
+    red: "text-red-700",
+  }[tone];
+
+  return (
+    <div className="border-b border-gray-200 p-4 md:border-b-0 md:border-r last:border-r-0">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            {label}
+          </p>
+          <p
+            className={`mt-2 text-3xl font-semibold tracking-tight ${valueClass}`}
+          >
+            {value}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">{description}</p>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center border ${iconClass}`}
+        >
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <section className="border border-gray-200 bg-white px-4 py-16 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center bg-gray-100 text-gray-400">
+        <FolderOpen className="h-6 w-6" />
+      </div>
+
+      <p className="mt-4 font-semibold text-gray-800">{title}</p>
+      <p className="mt-1 text-sm text-gray-500">{description}</p>
+
+      {action && <div className="mt-5">{action}</div>}
+    </section>
+  );
+}
+
 function UploadModal({
   employees,
   currentEmployeeId,
@@ -77,431 +336,808 @@ function UploadModal({
   onClose,
   onUploaded,
 }: {
-  employees: { id: string; firstName: string; lastName: string; employeeId: string }[]
-  currentEmployeeId: string
-  isHRAdmin: boolean
-  onClose: () => void
-  onUploaded: () => void
+  employees: EmployeeOption[];
+  currentEmployeeId: string;
+  isHRAdmin: boolean;
+  onClose: () => void;
+  onUploaded: () => void;
 }) {
   const [form, setForm] = useState({
     employeeId: currentEmployeeId,
-    category: 'other',
-    name: '',
-    description: '',
-    fileUrl: '',
-    fileType: 'pdf',
-    fileSize: '0',
+    category: "other",
+    name: "",
+    description: "",
+    fileUrl: "",
+    fileType: "pdf",
+    fileSize: "",
     isPrivate: false,
-    expiresAt: '',
-  })
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+    expiresAt: "",
+  });
 
-  // Simulate upload — in real app integrate Supabase Storage
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!form.fileUrl || !form.name) {
-      setError('Nama dan URL file wajib diisi')
-      return
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!form.employeeId && currentEmployeeId) {
+      setForm((current) => ({
+        ...current,
+        employeeId: currentEmployeeId,
+      }));
     }
-    setLoading(true)
-    setError('')
+  }, [currentEmployeeId, form.employeeId]);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!form.employeeId) {
+      setError("Employee is required.");
+      return;
+    }
+
+    if (!form.name.trim() || !form.fileUrl.trim()) {
+      setError("Document name and file URL are required.");
+      return;
+    }
+
+    if (loading) return;
+
+    setLoading(true);
+    setError("");
+
     try {
-      const res = await fetch('/api/documents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, fileSize: parseInt(form.fileSize) || 0 }),
-      })
-      const data = await res.json()
-      if (!data.success) throw new Error(data.error)
-      onUploaded()
-      onClose()
-    } catch (err: any) {
-      setError(err.message)
+      const response = await fetch("/api/documents", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          employeeId: form.employeeId,
+          category: form.category,
+          name: form.name.trim(),
+          description: form.description.trim() || null,
+          fileUrl: form.fileUrl.trim(),
+          fileType: form.fileType.trim().toLowerCase(),
+          fileSize: Number.parseInt(form.fileSize, 10) || 0,
+          isPrivate: Boolean(form.isPrivate),
+          expiresAt: form.expiresAt || null,
+        }),
+      });
+
+      const payload = await readJson<{ success?: boolean; error?: string }>(
+        response,
+      );
+
+      if (!response.ok || payload?.success === false) {
+        throw new Error(getPayloadError(payload, "Failed to save document."));
+      }
+
+      onUploaded();
+      onClose();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save document.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg my-8">
-        <div className="p-6 border-b flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center">
-            <Upload className="h-5 w-5 text-blue-600" />
+    <ModalShell>
+      <div className="w-full max-w-2xl border border-gray-200 bg-white shadow-xl">
+        <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center bg-[#EAF5F0] text-[#0B5A43]">
+              <Upload className="h-5 w-5" />
+            </div>
+
+            <div>
+              <h2 className="text-base font-semibold text-gray-950">
+                Upload Document
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Add a document record for an employee.
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="font-semibold text-gray-900">Upload Dokumen</h2>
-            <p className="text-xs text-gray-500">Tambahkan dokumen karyawan</p>
-          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">{error}</div>}
+        <form onSubmit={handleSubmit} className="space-y-4 px-5 py-5">
+          {error && (
+            <div className="flex items-start gap-2 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>{error}</p>
+            </div>
+          )}
 
           {isHRAdmin && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Karyawan *</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Employee
+              </label>
               <select
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={form.employeeId}
-                onChange={e => setForm(f => ({ ...f, employeeId: e.target.value }))}
                 required
+                value={form.employeeId}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    employeeId: event.target.value,
+                  }))
+                }
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
               >
-                {employees.map(emp => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.firstName} {emp.lastName} ({emp.employeeId})
+                <option value="" disabled>
+                  Select employee
+                </option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.firstName} {employee.lastName} (
+                    {employee.employeeId})
                   </option>
                 ))}
               </select>
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Kategori *</label>
-            <select
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.category}
-              onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-            >
-              {CATEGORIES.map(c => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Dokumen *</label>
-            <input
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="misal: KTP Ahmad Fauzi"
-              value={form.name}
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">URL File *</label>
-            <input
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="https://... (dari Supabase Storage)"
-              value={form.fileUrl}
-              onChange={e => setForm(f => ({ ...f, fileUrl: e.target.value }))}
-              required
-            />
-            <p className="text-xs text-gray-400 mt-1">Upload file ke Supabase Storage dulu, lalu paste URL-nya di sini</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tipe File</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Category
+              </label>
               <select
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={form.fileType}
-                onChange={e => setForm(f => ({ ...f, fileType: e.target.value }))}
+                value={form.category}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    category: event.target.value,
+                  }))
+                }
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
               >
-                {['pdf', 'jpg', 'jpeg', 'png', 'docx', 'xlsx'].map(t => (
-                  <option key={t} value={t}>.{t}</option>
+                {CATEGORIES.map((category) => (
+                  <option key={category.value} value={category.value}>
+                    {category.label}
+                  </option>
                 ))}
               </select>
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Ukuran (bytes)</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Expiry Date
+              </label>
               <input
-                type="number"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="0"
-                value={form.fileSize}
-                onChange={e => setForm(f => ({ ...f, fileSize: e.target.value }))}
+                type="date"
+                value={form.expiresAt}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    expiresAt: event.target.value,
+                  }))
+                }
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Kadaluarsa</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Document Name
+            </label>
             <input
-              type="date"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.expiresAt}
-              onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))}
+              required
+              value={form.name}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+              placeholder="Example: Employment Contract - Olivia Owen"
+              className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
             />
-            <p className="text-xs text-gray-400 mt-1">Opsional, untuk dokumen yang memiliki masa berlaku (KTP, SIM, dll)</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              File URL
+            </label>
+            <input
+              required
+              value={form.fileUrl}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  fileUrl: event.target.value,
+                }))
+              }
+              placeholder="https://..."
+              className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Upload the file to storage first, then paste the public or signed
+              URL here.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                File Type
+              </label>
+              <select
+                value={form.fileType}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    fileType: event.target.value,
+                  }))
+                }
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
+              >
+                {[
+                  "pdf",
+                  "jpg",
+                  "jpeg",
+                  "png",
+                  "webp",
+                  "doc",
+                  "docx",
+                  "xls",
+                  "xlsx",
+                ].map((type) => (
+                  <option key={type} value={type}>
+                    .{type}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                File Size in Bytes
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={form.fileSize}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    fileSize: event.target.value,
+                  }))
+                }
+                placeholder="0"
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Description
+            </label>
             <textarea
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={2}
-              placeholder="Keterangan tambahan..."
+              rows={3}
               value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  description: event.target.value,
+                }))
+              }
+              placeholder="Optional notes about this document."
+              className="w-full border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#0B5A43]"
             />
           </div>
 
           {isHRAdmin && (
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
               <input
                 type="checkbox"
-                className="rounded"
                 checked={form.isPrivate}
-                onChange={e => setForm(f => ({ ...f, isPrivate: e.target.checked }))}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    isPrivate: event.target.checked,
+                  }))
+                }
               />
-              <span className="text-sm text-gray-700">Dokumen rahasia (hanya HR & Admin yang bisa lihat)</span>
+              Private document. Only HR, admin, and owner can access it.
             </label>
           )}
 
-          <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Batal</Button>
-            <Button type="submit" className="flex-1" disabled={loading}>
-              {loading ? 'Menyimpan...' : 'Simpan Dokumen'}
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+
+            <Button
+              type="submit"
+              disabled={loading}
+              className="bg-[#0B5A43] text-white hover:bg-[#084735]"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Document"
+              )}
             </Button>
           </div>
         </form>
       </div>
-    </div>
-  )
+    </ModalShell>
+  );
 }
 
-// ─── Document Card ─────────────────────────────────────────
-function DocumentCard({ doc, onDelete }: { doc: EmployeeDocument; onDelete: (id: string) => void }) {
-  const cat = getCategoryConfig(doc.category)
-  const FileIcon = FILE_ICONS[doc.fileType] || File
-  const expired = isExpired(doc.expiresAt)
-  const expiringSoon = isExpiringSoon(doc.expiresAt)
+function DocumentItem({
+  document,
+  onDelete,
+}: {
+  document: EmployeeDocument;
+  onDelete: (id: string) => void;
+}) {
+  const category = getCategoryConfig(document.category);
+  const FileIcon = getFileIcon(document.fileType);
+  const expired = isExpired(document.expiresAt);
+  const expiringSoon = isExpiringSoon(document.expiresAt);
+
+  const employeeName =
+    `${document.employee.firstName} ${document.employee.lastName}`.trim();
+  const uploaderName =
+    `${document.uploader.firstName} ${document.uploader.lastName}`.trim();
 
   return (
-    <Card className={`transition-all hover:shadow-md ${expired ? 'border-red-200' : expiringSoon ? 'border-yellow-200' : ''}`}>
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-            expired ? 'bg-red-50' : expiringSoon ? 'bg-yellow-50' : 'bg-blue-50'
-          }`}>
-            <FileIcon className={`h-5 w-5 ${expired ? 'text-red-500' : expiringSoon ? 'text-yellow-500' : 'text-blue-500'}`} />
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="font-medium text-sm text-gray-900 truncate">{doc.name}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {doc.employee.firstName} {doc.employee.lastName} · {doc.employee.employeeId}
-                </p>
-              </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {doc.isPrivate && (
-                  <span title="Rahasia"><Shield className="h-3.5 w-3.5 text-gray-400" /></span>
-                )}
-                {doc.isVerified && (
-                  <span title="Terverifikasi"><CheckCircle className="h-3.5 w-3.5 text-green-500" /></span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cat.color}`}>{cat.label}</span>
-              <span className="text-xs text-gray-400">{formatFileSize(doc.fileSize)}</span>
-              <span className="text-xs text-gray-400 uppercase">.{doc.fileType}</span>
-            </div>
-
-            {doc.expiresAt && (
-              <div className={`flex items-center gap-1 mt-2 text-xs ${expired ? 'text-red-600' : expiringSoon ? 'text-yellow-600' : 'text-gray-400'}`}>
-                {(expired || expiringSoon) && <AlertTriangle className="h-3 w-3" />}
-                <Clock className="h-3 w-3" />
-                {expired ? 'Kadaluarsa: ' : 'Berlaku sampai: '}
-                {new Date(doc.expiresAt).toLocaleDateString('id-ID')}
-              </div>
-            )}
-
-            {doc.description && (
-              <p className="text-xs text-gray-400 mt-1 line-clamp-1">{doc.description}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t">
-          <span className="text-xs text-gray-400 flex-1">
-            Diupload oleh {doc.uploader.firstName} · {new Date(doc.createdAt).toLocaleDateString('id-ID')}
-          </span>
-          <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1">
-              <Eye className="h-3 w-3" /> Lihat
-            </Button>
-          </a>
-          <a href={doc.fileUrl} download>
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1">
-              <Download className="h-3 w-3" /> Unduh
-            </Button>
-          </a>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
-            onClick={() => {
-              if (confirm('Hapus dokumen ini?')) onDelete(doc.id)
-            }}
+    <article
+      className={[
+        "border border-gray-200 bg-white p-4",
+        expired
+          ? "border-l-4 border-l-red-500"
+          : expiringSoon
+            ? "border-l-4 border-l-[#F7A81B]"
+            : "",
+      ].join(" ")}
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div
+            className={[
+              "flex h-10 w-10 shrink-0 items-center justify-center",
+              expired
+                ? "bg-red-50 text-red-600"
+                : expiringSoon
+                  ? "bg-[#FFF4D9] text-[#7A5A00]"
+                  : "bg-[#EAF5F0] text-[#0B5A43]",
+            ].join(" ")}
           >
-            <Trash2 className="h-3 w-3" />
-          </Button>
+            <FileIcon className="h-5 w-5" />
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="truncate text-sm font-semibold text-gray-950">
+                {document.name}
+              </h3>
+
+              {document.isPrivate && (
+                <span className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">
+                  <Shield className="h-3 w-3" />
+                  Private
+                </span>
+              )}
+
+              {document.isVerified && (
+                <span className="inline-flex items-center gap-1 bg-[#EAF5F0] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#0B5A43]">
+                  <CheckCircle className="h-3 w-3" />
+                  Verified
+                </span>
+              )}
+            </div>
+
+            <p className="mt-1 text-sm text-gray-500">
+              {employeeName} · {document.employee.employeeId}
+            </p>
+
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span
+                className={`inline-flex px-2 py-1 text-xs font-semibold ${category.badgeClass}`}
+              >
+                {category.label}
+              </span>
+              <span className="text-xs text-gray-400">
+                {formatFileSize(document.fileSize)}
+              </span>
+              <span className="text-xs uppercase text-gray-400">
+                .{document.fileType}
+              </span>
+            </div>
+
+            {document.description && (
+              <p className="mt-2 line-clamp-2 text-sm leading-6 text-gray-600">
+                {document.description}
+              </p>
+            )}
+
+            {document.expiresAt && (
+              <div
+                className={[
+                  "mt-2 flex items-center gap-1.5 text-xs",
+                  expired
+                    ? "text-red-600"
+                    : expiringSoon
+                      ? "text-[#7A5A00]"
+                      : "text-gray-500",
+                ].join(" ")}
+              >
+                {(expired || expiringSoon) && (
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                )}
+                <Clock className="h-3.5 w-3.5" />
+                {expired
+                  ? `Expired on ${formatDate(document.expiresAt)}`
+                  : expiringSoon
+                    ? `Expiring soon on ${formatDate(document.expiresAt)}`
+                    : `Valid until ${formatDate(document.expiresAt)}`}
+              </div>
+            )}
+
+            <p className="mt-2 text-xs text-gray-400">
+              Uploaded by {uploaderName || "Unknown"} ·{" "}
+              {formatDate(document.createdAt)}
+            </p>
+          </div>
         </div>
-      </CardContent>
-    </Card>
-  )
+
+        <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
+          <a
+            href={document.fileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-9 items-center gap-2 border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:border-[#0B5A43] hover:text-[#0B5A43]"
+          >
+            <Eye className="h-4 w-4" />
+            View
+          </a>
+
+          <a
+            href={document.fileUrl}
+            download
+            className="inline-flex h-9 items-center gap-2 bg-[#EAF5F0] px-3 text-sm font-semibold text-[#0B5A43] hover:bg-[#DCEFE7]"
+          >
+            <Download className="h-4 w-4" />
+            Download
+          </a>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Delete this document? This action cannot be undone.",
+                )
+              ) {
+                onDelete(document.id);
+              }
+            }}
+            className="inline-flex h-9 items-center justify-center border border-red-200 bg-white px-3 text-sm font-medium text-red-600 hover:bg-red-50"
+            aria-label="Delete document"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </article>
+  );
 }
 
-// ─── Main Page ─────────────────────────────────────────────
 export default function DocumentsPage() {
-  const [docs, setDocs] = useState<EmployeeDocument[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showUpload, setShowUpload] = useState(false)
-  const [search, setSearch] = useState('')
-  const [filterCategory, setFilterCategory] = useState('all')
-  const [employees, setEmployees] = useState<any[]>([])
-  const [currentEmployeeId, setCurrentEmployeeId] = useState('')
-  const [isHRAdmin, setIsHRAdmin] = useState(false)
+  const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
+  const [employees, setEmployees] = useState<EmployeeOption[]>([]);
 
-  const fetchDocs = async () => {
-    setLoading(true)
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const [showUpload, setShowUpload] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState("all");
+
+  const [currentEmployeeId, setCurrentEmployeeId] = useState("");
+  const [isHRAdmin, setIsHRAdmin] = useState(false);
+
+  const fetchDocuments = async () => {
+    setLoading(true);
+    setError("");
+
     try {
-      const res = await fetch('/api/documents')
-      const data = await res.json()
-      if (data.success) setDocs(data.data)
+      const response = await fetch("/api/documents", {
+        cache: "no-store",
+      });
+
+      const payload = await readJson<DocumentsPayload>(response);
+
+      if (!response.ok) {
+        throw new Error(getPayloadError(payload, "Failed to load documents."));
+      }
+
+      setDocuments(extractDocuments(payload));
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load documents.",
+      );
+      setDocuments([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch('/api/employees')
-      const data = await res.json()
-      if (data.success || Array.isArray(data)) {
-        setEmployees(Array.isArray(data) ? data : data.data || [])
+      const response = await fetch("/api/employees", {
+        cache: "no-store",
+      });
+
+      const payload = await readJson<EmployeesPayload>(response);
+
+      if (response.ok) {
+        setEmployees(extractEmployees(payload));
       }
-    } catch {}
-  }
+    } catch {
+      setEmployees([]);
+    }
+  };
+
+  const fetchProfile = async () => {
+    try {
+      const response = await fetch("/api/profile", {
+        cache: "no-store",
+      });
+
+      const payload = await readJson<{
+        success?: boolean;
+        data?: {
+          id?: string;
+          role?: string;
+        };
+      }>(response);
+
+      const employeeId = payload?.data?.id ?? "";
+      const role = payload?.data?.role ?? "";
+
+      setCurrentEmployeeId(employeeId);
+      setIsHRAdmin(["owner", "admin", "hr"].includes(role));
+    } catch {
+      setCurrentEmployeeId("");
+      setIsHRAdmin(false);
+    }
+  };
 
   useEffect(() => {
-    fetchDocs()
-    fetchEmployees()
-    // Get current user info from profile
-    fetch('/api/profile').then(r => r.json()).then(d => {
-      if (d.success && d.data) {
-        setCurrentEmployeeId(d.data.id)
-        setIsHRAdmin(['admin', 'hr', 'owner'].includes(d.data.role))
-      }
-    }).catch(() => {})
-  }, [])
+    void fetchDocuments();
+    void fetchEmployees();
+    void fetchProfile();
+  }, []);
 
   const handleDelete = async (id: string) => {
+    const previousDocuments = documents;
+
+    setDocuments((current) => current.filter((document) => document.id !== id));
+
     try {
-      const res = await fetch(`/api/documents?id=${id}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (data.success) fetchDocs()
-    } catch {}
-  }
+      const response = await fetch(`/api/documents?id=${id}`, {
+        method: "DELETE",
+      });
 
-  const filtered = docs.filter(d => {
-    const matchSearch = !search || [d.name, d.employee.firstName, d.employee.lastName, d.description].some(
-      s => s?.toLowerCase().includes(search.toLowerCase())
-    )
-    const matchCat = filterCategory === 'all' || d.category === filterCategory
-    return matchSearch && matchCat
-  })
+      const payload = await readJson<{ success?: boolean; error?: string }>(
+        response,
+      );
 
-  const expiredCount = docs.filter(d => isExpired(d.expiresAt)).length
-  const expiringSoonCount = docs.filter(d => isExpiringSoon(d.expiresAt)).length
+      if (!response.ok || payload?.success === false) {
+        throw new Error(getPayloadError(payload, "Failed to delete document."));
+      }
+    } catch (err: unknown) {
+      setDocuments(previousDocuments);
+      setError(
+        err instanceof Error ? err.message : "Failed to delete document.",
+      );
+    }
+  };
+
+  const filteredDocuments = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+
+    return documents.filter((document) => {
+      const employeeName =
+        `${document.employee.firstName} ${document.employee.lastName}`.toLowerCase();
+
+      const matchesSearch =
+        !keyword ||
+        document.name.toLowerCase().includes(keyword) ||
+        employeeName.includes(keyword) ||
+        document.employee.employeeId.toLowerCase().includes(keyword) ||
+        document.description?.toLowerCase().includes(keyword);
+
+      const matchesCategory =
+        filterCategory === "all" || document.category === filterCategory;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [documents, search, filterCategory]);
+
+  const verifiedCount = documents.filter(
+    (document) => document.isVerified,
+  ).length;
+
+  const privateCount = documents.filter(
+    (document) => document.isPrivate,
+  ).length;
+
+  const expiredCount = documents.filter((document) =>
+    isExpired(document.expiresAt),
+  ).length;
+
+  const expiringSoonCount = documents.filter((document) =>
+    isExpiringSoon(document.expiresAt),
+  ).length;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dokumen Karyawan</h1>
-          <p className="text-sm text-gray-500 mt-1">Kelola dokumen & berkas karyawan</p>
-        </div>
-        <Button onClick={() => setShowUpload(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> Upload Dokumen
-        </Button>
-      </div>
+    <div className="mx-auto w-full space-y-5 pb-8">
+      <header className="border border-gray-200 bg-white p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-950">
+              Documents
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Manage employee files, contracts, certificates, and personal
+              documents.
+            </p>
+          </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Dokumen', value: docs.length, icon: FolderOpen, color: 'text-blue-600 bg-blue-50' },
-          { label: 'Terverifikasi', value: docs.filter(d => d.isVerified).length, icon: CheckCircle, color: 'text-green-600 bg-green-50' },
-          { label: 'Segera Kadaluarsa', value: expiringSoonCount, icon: Clock, color: 'text-yellow-600 bg-yellow-50' },
-          { label: 'Sudah Kadaluarsa', value: expiredCount, icon: AlertTriangle, color: 'text-red-600 bg-red-50' },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <Card key={label}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${color}`}>
-                <Icon className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-xl font-bold text-gray-900">{value}</div>
-                <div className="text-xs text-gray-500">{label}</div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+          <Button
+            type="button"
+            onClick={() => setShowUpload(true)}
+            className="w-full bg-[#0B5A43] text-white hover:bg-[#084735] sm:w-auto"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Upload Document
+          </Button>
+        </div>
+      </header>
 
-      {/* Filters */}
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Cari dokumen atau karyawan..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
-        </div>
-        <select
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          value={filterCategory}
-          onChange={e => setFilterCategory(e.target.value)}
-        >
-          <option value="all">Semua Kategori</option>
-          {CATEGORIES.map(c => (
-            <option key={c.value} value={c.value}>{c.label}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Document Grid */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <FolderOpen className="h-12 w-12 mx-auto mb-3 opacity-40" />
-          <p className="font-medium">{docs.length === 0 ? 'Belum ada dokumen' : 'Tidak ada hasil'}</p>
-          <p className="text-sm">
-            {docs.length === 0 ? 'Klik "Upload Dokumen" untuk menambahkan' : 'Coba ubah filter pencarian'}
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filtered.map(doc => (
-            <DocumentCard key={doc.id} doc={doc} onDelete={handleDelete} />
-          ))}
+      {error && (
+        <div className="flex items-start gap-2 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">Something went wrong</p>
+            <p>{error}</p>
+          </div>
         </div>
       )}
 
-      {/* Upload Modal */}
+      <section className="grid border border-gray-200 bg-white md:grid-cols-4">
+        <SummaryItem
+          label="Documents"
+          value={documents.length}
+          description="Total records"
+          icon={<FolderOpen className="h-5 w-5" />}
+        />
+
+        <SummaryItem
+          label="Verified"
+          value={verifiedCount}
+          description="Checked documents"
+          icon={<CheckCircle className="h-5 w-5" />}
+          tone="green"
+        />
+
+        <SummaryItem
+          label="Private"
+          value={privateCount}
+          description="Restricted access"
+          icon={<Shield className="h-5 w-5" />}
+          tone="orange"
+        />
+
+        <SummaryItem
+          label="Expired"
+          value={expiredCount + expiringSoonCount}
+          description="Expired or expiring soon"
+          icon={<AlertTriangle className="h-5 w-5" />}
+          tone={expiredCount + expiringSoonCount > 0 ? "red" : "default"}
+        />
+      </section>
+
+      <section className="border border-gray-200 bg-white">
+        <div className="flex flex-col gap-3 border-b border-gray-200 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search documents, employees, or employee ID..."
+              className="h-10 w-full border border-gray-300 pl-9 pr-3 text-sm outline-none focus:border-[#0B5A43]"
+            />
+          </div>
+
+          <select
+            value={filterCategory}
+            onChange={(event) => setFilterCategory(event.target.value)}
+            className="h-10 border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
+          >
+            <option value="all">All Categories</option>
+            {CATEGORIES.map((category) => (
+              <option key={category.value} value={category.value}>
+                {category.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center px-4 py-16 text-sm text-gray-500">
+            <Loader2 className="mr-2 h-5 w-5 animate-spin text-[#0B5A43]" />
+            Loading documents...
+          </div>
+        ) : filteredDocuments.length === 0 ? (
+          <div className="px-4 py-16">
+            <EmptyState
+              title={
+                documents.length === 0
+                  ? "No documents yet"
+                  : "No matching documents"
+              }
+              description={
+                documents.length === 0
+                  ? "Upload the first document to start organizing employee files."
+                  : "Try changing the search keyword or category filter."
+              }
+              action={
+                documents.length === 0 ? (
+                  <Button
+                    type="button"
+                    onClick={() => setShowUpload(true)}
+                    className="bg-[#0B5A43] text-white hover:bg-[#084735]"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Upload Document
+                  </Button>
+                ) : null
+              }
+            />
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {filteredDocuments.map((document) => (
+              <DocumentItem
+                key={document.id}
+                document={document}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
       {showUpload && (
         <UploadModal
           employees={employees}
           currentEmployeeId={currentEmployeeId}
           isHRAdmin={isHRAdmin}
           onClose={() => setShowUpload(false)}
-          onUploaded={fetchDocs}
+          onUploaded={() => void fetchDocuments()}
         />
       )}
     </div>
-  )
+  );
 }

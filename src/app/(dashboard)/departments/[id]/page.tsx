@@ -1,43 +1,28 @@
-// src/app/(dashboard)/departments/[id]/page.tsx
-// Department detail page with employee list
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { ArrowLeft, Building2, Edit, Mail, UserCog, Users } from "lucide-react";
 
 import { createClient } from "@/src/lib/supabase/server";
 import prisma from "@/src/lib/prisma";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
-import {
-  Building2,
-  Users,
-  UserCog,
-  Edit,
-  ArrowLeft,
-  Mail,
-  Phone,
-  Calendar,
-  Briefcase,
-} from "lucide-react";
-import Link from "next/link";
-import { notFound } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 
 export default async function DepartmentDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
+
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return null;
+    redirect("/login");
   }
 
   const currentEmployee = await prisma.employee.findUnique({
@@ -49,17 +34,11 @@ export default async function DepartmentDetailPage({
   });
 
   if (!currentEmployee) {
-    return null;
+    redirect("/dashboard");
   }
 
-  const canManage = ["owner", "admin", "hr"].includes(currentEmployee.role);
-
-  // Get department with full details
-  const department = await prisma.department.findFirst({
-    where: {
-      id: params.id,
-      organizationId: currentEmployee.organizationId,
-    },
+  const department = await prisma.department.findUnique({
+    where: { id },
     include: {
       manager: {
         select: {
@@ -67,307 +46,326 @@ export default async function DepartmentDetailPage({
           firstName: true,
           lastName: true,
           email: true,
-          phoneNumber: true,
           position: true,
-          joinDate: true,
         },
       },
       employees: {
-        include: {
-          department: {
-            select: {
-              name: true,
-            },
-          },
+        select: {
+          id: true,
+          employeeId: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          position: true,
+          status: true,
         },
-        orderBy: {
-          firstName: "asc",
-        },
+        orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
       },
     },
   });
 
-  if (!department) {
+  if (
+    !department ||
+    department.organizationId !== currentEmployee.organizationId
+  ) {
     notFound();
   }
 
-  // Calculate stats
-  const totalEmployees = department.employees.length;
+  const canManage = ["owner", "admin", "hr"].includes(currentEmployee.role);
+
   const activeEmployees = department.employees.filter(
-    (e) => e.status === "active",
-  ).length;
-  const inactiveEmployees = totalEmployees - activeEmployees;
+    (employee) => employee.status === "active",
+  );
 
-  // Get initials for avatars
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  };
+  const inactiveEmployees = department.employees.filter(
+    (employee) => employee.status !== "active",
+  );
 
-  // Format date
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat("id-ID", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    }).format(new Date(date));
-  };
+  const managerName = department.manager
+    ? `${department.manager.firstName ?? ""} ${
+        department.manager.lastName ?? ""
+      }`.trim() || "Unnamed manager"
+    : null;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/departments">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
+    <div className="mx-auto w-full space-y-5 pb-8">
+      <header className="border border-gray-200 bg-white p-5">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              {department.name}
-            </h1>
-            <p className="mt-1 text-sm text-gray-600">
-              {department.description || "No description"}
+            <Link
+              href="/departments"
+              className="mb-4 inline-flex items-center text-sm font-semibold text-[#0B5A43] hover:underline"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to departments
+            </Link>
+
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center border border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]">
+                <Building2 className="h-7 w-7" />
+              </div>
+
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-gray-950">
+                  {department.name}
+                </h1>
+
+                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-gray-500">
+                  {department.description || "No description provided."}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {canManage && (
+            <Link href={`/departments/${department.id}/edit`}>
+              <Button
+                variant="outline"
+                className="w-full border-[#0B5A43]/30 text-[#0B5A43] hover:border-[#0B5A43] hover:bg-[#EAF5F0] sm:w-auto"
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit department
+              </Button>
+            </Link>
+          )}
+        </div>
+      </header>
+
+      <section className="grid border border-gray-200 bg-white md:grid-cols-3">
+        <SummaryItem
+          label="Employees"
+          value={department.employees.length}
+          description="Total assigned"
+          icon={<Users className="h-5 w-5" />}
+        />
+
+        <SummaryItem
+          label="Active"
+          value={activeEmployees.length}
+          description="Currently active"
+          icon={<Users className="h-5 w-5" />}
+          tone="green"
+        />
+
+        <SummaryItem
+          label="Inactive"
+          value={inactiveEmployees.length}
+          description="Not active"
+          icon={<Users className="h-5 w-5" />}
+          tone="orange"
+        />
+      </section>
+
+      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+        <section className="border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 p-5">
+            <h2 className="text-base font-semibold text-gray-950">
+              Employees in this department
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Showing {department.employees.length} employee
+              {department.employees.length === 1 ? "" : "s"}.
             </p>
           </div>
-        </div>
 
-        {canManage && (
-          <Link href={`/departments/${department.id}/edit`}>
-            <Button>
-              <Edit className="mr-2 h-4 w-4" />
-              Edit Department
-            </Button>
-          </Link>
-        )}
-      </div>
+          {department.employees.length === 0 ? (
+            <div className="px-4 py-16 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center bg-gray-100 text-gray-400">
+                <Users className="h-6 w-6" />
+              </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">
-                  Total Employees
-                </p>
-                <p className="mt-2 text-3xl font-bold">{totalEmployees}</p>
-              </div>
-              <div className="rounded-full bg-blue-100 p-3">
-                <Users className="h-6 w-6 text-blue-600" />
-              </div>
+              <p className="mt-4 font-semibold text-gray-800">
+                No employees assigned
+              </p>
+              <p className="mt-1 text-sm text-gray-500">
+                Employees assigned to this department will appear here.
+              </p>
             </div>
-          </CardContent>
-        </Card>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {department.employees.map((employee) => {
+                const employeeName =
+                  `${employee.firstName ?? ""} ${
+                    employee.lastName ?? ""
+                  }`.trim() || "Unnamed employee";
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">
-                  Active Employees
-                </p>
-                <p className="mt-2 text-3xl font-bold text-green-600">
-                  {activeEmployees}
-                </p>
-              </div>
-              <div className="rounded-full bg-green-100 p-3">
-                <UserCog className="h-6 w-6 text-green-600" />
-              </div>
+                return (
+                  <Link
+                    key={employee.id}
+                    href={`/employees/${employee.id}`}
+                    className="grid gap-3 p-4 hover:bg-gray-50 sm:grid-cols-[1fr_auto] sm:items-center"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[#0B5A43]/20 bg-[#EAF5F0] text-sm font-semibold text-[#0B5A43]">
+                        {getInitials(employee.firstName, employee.lastName)}
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-gray-950">
+                          {employeeName}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-gray-500">
+                          {employee.employeeId}
+                          {employee.position ? ` · ${employee.position}` : ""}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-gray-500">
+                          {employee.email}
+                        </p>
+                      </div>
+                    </div>
+
+                    <StatusPill status={employee.status} />
+                  </Link>
+                );
+              })}
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </section>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">
-                  Inactive Employees
-                </p>
-                <p className="mt-2 text-3xl font-bold text-gray-600">
-                  {inactiveEmployees}
-                </p>
-              </div>
-              <div className="rounded-full bg-gray-100 p-3">
-                <Users className="h-6 w-6 text-gray-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        <aside className="space-y-5">
+          <section className="border border-gray-200 bg-white p-5">
+            <h2 className="text-base font-semibold text-gray-950">
+              Department manager
+            </h2>
 
-      {/* Manager Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserCog className="h-5 w-5" />
-            Department Manager
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {department.manager ? (
-            <div className="flex items-start gap-4">
-              <Avatar className="h-16 w-16">
-                <AvatarFallback className="bg-blue-600 text-white text-lg">
+            {department.manager ? (
+              <div className="mt-4 flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[#0B5A43]/20 bg-[#EAF5F0] text-sm font-semibold text-[#0B5A43]">
                   {getInitials(
                     department.manager.firstName,
                     department.manager.lastName,
                   )}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {department.manager.firstName} {department.manager.lastName}
-                </h3>
-                <p className="text-sm text-gray-600">
-                  {department.manager.position}
-                </p>
-
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Mail className="h-4 w-4" />
-                    <span>{department.manager.email}</span>
-                  </div>
-                  {department.manager.phoneNumber && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Phone className="h-4 w-4" />
-                      <span>{department.manager.phoneNumber}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Calendar className="h-4 w-4" />
-                    <span>
-                      Joined {formatDate(department.manager.joinDate)}
-                    </span>
-                  </div>
                 </div>
-              </div>
 
-              {canManage && (
-                <Link href={`/employees/${department.manager.id}`}>
-                  <Button variant="outline" size="sm">
-                    View Profile
-                  </Button>
-                </Link>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center justify-between rounded-lg bg-yellow-50 p-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-full bg-yellow-100 p-2">
-                  <UserCog className="h-5 w-5 text-yellow-600" />
-                </div>
-                <div>
-                  <p className="font-medium text-yellow-900">
-                    No Manager Assigned
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-950">
+                    {managerName}
                   </p>
-                  <p className="text-sm text-yellow-700">
-                    This department doesn't have a manager yet
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    {department.manager.position || "No position assigned"}
+                  </p>
+                  <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-gray-500">
+                    <Mail className="h-3.5 w-3.5" />
+                    {department.manager.email}
                   </p>
                 </div>
               </div>
+            ) : (
+              <div className="mt-4 border border-gray-200 bg-gray-50 p-4">
+                <div className="flex items-start gap-3">
+                  <UserCog className="mt-0.5 h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">
+                      No manager assigned
+                    </p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Assign a manager from the edit department page.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="border border-gray-200 bg-white p-5">
+            <h2 className="text-base font-semibold text-gray-950">Actions</h2>
+
+            <div className="mt-4 grid gap-2">
+              <Link href="/departments">
+                <Button
+                  variant="outline"
+                  className="w-full border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to departments
+                </Button>
+              </Link>
+
               {canManage && (
                 <Link href={`/departments/${department.id}/edit`}>
-                  <Button variant="outline" size="sm">
-                    Assign Manager
+                  <Button className="w-full bg-[#0B5A43] text-white hover:bg-[#084735]">
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit department
                   </Button>
                 </Link>
               )}
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Employee List */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Department Employees ({totalEmployees})
-            </CardTitle>
-            {canManage && (
-              <Link href="/employees/new">
-                <Button size="sm">Add Employee</Button>
-              </Link>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {department.employees.length > 0 ? (
-            <div className="space-y-3">
-              {department.employees.map((employee) => (
-                <div
-                  key={employee.id}
-                  className="flex items-center justify-between rounded-lg border p-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-12 w-12">
-                      <AvatarFallback className="bg-gray-200 text-gray-700">
-                        {getInitials(employee.firstName, employee.lastName)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-semibold text-gray-900">
-                          {employee.firstName} {employee.lastName}
-                        </h4>
-                        <Badge
-                          variant={
-                            employee.status === "active"
-                              ? "success"
-                              : employee.status === "inactive"
-                                ? "secondary"
-                                : "destructive"
-                          }
-                        >
-                          {employee.status}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <Briefcase className="h-3 w-3" />
-                          <span>{employee.position}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Mail className="h-3 w-3" />
-                          <span>{employee.email}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {canManage && (
-                    <Link href={`/employees/${employee.id}`}>
-                      <Button variant="ghost" size="sm">
-                        View
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="rounded-full bg-gray-100 p-4">
-                <Users className="h-8 w-8 text-gray-400" />
-              </div>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">
-                No Employees Yet
-              </h3>
-              <p className="mt-1 text-sm text-gray-600">
-                This department doesn't have any employees assigned
-              </p>
-              {canManage && (
-                <Link href="/employees/new" className="mt-4">
-                  <Button>Add First Employee</Button>
-                </Link>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </section>
+        </aside>
+      </div>
     </div>
   );
+}
+
+function SummaryItem({
+  label,
+  value,
+  description,
+  icon,
+  tone = "default",
+}: {
+  label: string;
+  value: number;
+  description: string;
+  icon: React.ReactNode;
+  tone?: "default" | "green" | "orange";
+}) {
+  const iconClass = {
+    default: "border-gray-200 bg-gray-50 text-gray-600",
+    green: "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
+    orange: "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]",
+  }[tone];
+
+  return (
+    <div className="border-b border-gray-200 p-4 md:border-b-0 md:border-r last:border-r-0">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            {label}
+          </p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-950">
+            {value}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">{description}</p>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center border ${iconClass}`}
+        >
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const className =
+    status === "active"
+      ? "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]"
+      : "border-gray-200 bg-gray-50 text-gray-600";
+
+  return (
+    <span
+      className={`w-fit border px-2.5 py-1 text-xs font-medium ${className}`}
+    >
+      {formatText(status)}
+    </span>
+  );
+}
+
+function getInitials(firstName?: string | null, lastName?: string | null) {
+  const first = firstName?.charAt(0) ?? "";
+  const last = lastName?.charAt(0) ?? "";
+
+  return `${first}${last}`.toUpperCase() || "U";
+}
+
+function formatText(value?: string | null) {
+  if (!value) return "-";
+
+  return value
+    .replace(/_/g, " ")
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }

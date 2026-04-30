@@ -1,196 +1,288 @@
-// src/app/(dashboard)/attendance/page.tsx
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
-import { AttendanceTable } from '@/src/components/attendance/attendance-table'
-import { CheckInButton } from '@/src/components/attendance/check-in-button'
-import { Card, CardContent } from '@/src/components/ui/card'
-import { Calendar, Clock, UserCheck, UserX } from 'lucide-react'
+import { redirect } from "next/navigation";
+import {
+  AlertCircle,
+  CalendarDays,
+  CheckCircle2,
+  Clock,
+  Users,
+} from "lucide-react";
 
-export const dynamic = 'force-dynamic'
+import { createClient } from "@/src/lib/supabase/server";
+import prisma from "@/src/lib/prisma";
+import { AttendanceTable } from "@/src/components/attendance/attendance-table";
+import { CheckInButton } from "@/src/components/attendance/check-in-button";
+
+export const dynamic = "force-dynamic";
+
+interface AttendancePageProps {
+  searchParams: {
+    date?: string;
+  };
+}
 
 export default async function AttendancePage({
   searchParams,
-}: {
-  searchParams: { date?: string }
-}) {
-  const supabase = await createClient()
+}: AttendancePageProps) {
+  const supabase = await createClient();
+
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    return null
+    redirect("/login");
   }
 
-  // Get current employee
   const currentEmployee = await prisma.employee.findUnique({
     where: { authId: user.id },
-    select: { 
+    select: {
       id: true,
       organizationId: true,
       firstName: true,
       role: true,
     },
-  })
+  });
 
   if (!currentEmployee) {
-    return null
+    redirect("/dashboard");
   }
 
-  // Get selected date or today
-  const selectedDate = searchParams.date 
-    ? new Date(searchParams.date) 
-    : new Date()
-  selectedDate.setHours(0, 0, 0, 0)
+  const selectedDate = parseDateParam(searchParams.date);
+  const selectedDateString = formatDateInputValue(selectedDate);
 
-  // Get attendance for selected date
-  const attendanceRecords = await prisma.attendance.findMany({
-    where: {
-      organizationId: currentEmployee.organizationId,
-      date: selectedDate,
-    },
-    include: {
-      employee: {
-        select: {
-          employeeId: true,
-          firstName: true,
-          lastName: true,
-          position: true,
-          department: {
-            select: {
-              name: true,
+  const startOfSelectedDate = new Date(selectedDate);
+  startOfSelectedDate.setHours(0, 0, 0, 0);
+
+  const endOfSelectedDate = new Date(selectedDate);
+  endOfSelectedDate.setHours(23, 59, 59, 999);
+
+  const today = new Date();
+  const startOfToday = new Date(today);
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const endOfToday = new Date(today);
+  endOfToday.setHours(23, 59, 59, 999);
+
+  const [attendanceRecords, totalEmployees, myAttendance] = await Promise.all([
+    prisma.attendance.findMany({
+      where: {
+        organizationId: currentEmployee.organizationId,
+        date: {
+          gte: startOfSelectedDate,
+          lte: endOfSelectedDate,
+        },
+      },
+      include: {
+        employee: {
+          select: {
+            employeeId: true,
+            firstName: true,
+            lastName: true,
+            position: true,
+            department: {
+              select: {
+                name: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: {
-      checkIn: 'asc',
-    },
-  })
+      orderBy: [{ checkIn: "asc" }, { createdAt: "asc" }],
+    }),
 
-  // Get all active employees for stats
-  const allEmployees = await prisma.employee.findMany({
-    where: {
-      organizationId: currentEmployee.organizationId,
-      status: 'active',
-    },
-    select: { id: true },
-  })
+    prisma.employee.count({
+      where: {
+        organizationId: currentEmployee.organizationId,
+        status: "active",
+      },
+    }),
 
-  const totalEmployees = allEmployees.length
-  const presentCount = attendanceRecords.filter(a => a.status === 'present').length
-  const lateCount = attendanceRecords.filter(a => a.status === 'late').length
-  const absentCount = totalEmployees - attendanceRecords.length
+    prisma.attendance.findFirst({
+      where: {
+        employeeId: currentEmployee.id,
+        date: {
+          gte: startOfToday,
+          lte: endOfToday,
+        },
+      },
+    }),
+  ]);
 
-  // Check if current user has checked in today
-  const myAttendance = await prisma.attendance.findFirst({
-    where: {
-      employeeId: currentEmployee.id,
-      date: new Date(new Date().setHours(0, 0, 0, 0)),
-    },
-  })
+  const presentCount = attendanceRecords.filter(
+    (record) => record.status === "present",
+  ).length;
 
-  // Transform data for table
+  const lateCount = attendanceRecords.filter(
+    (record) => record.status === "late",
+  ).length;
+
+  const recordedEmployeeIds = new Set(
+    attendanceRecords.map((record) => record.employeeId),
+  );
+
+  const absentCount = Math.max(totalEmployees - recordedEmployeeIds.size, 0);
+
   const attendanceData = attendanceRecords.map((record) => ({
     id: record.id,
     employeeId: record.employee.employeeId,
-    employeeName: `${record.employee.firstName} ${record.employee.lastName}`,
+    employeeName: `${record.employee.firstName ?? ""} ${
+      record.employee.lastName ?? ""
+    }`.trim(),
     position: record.employee.position,
-    department: record.employee.department?.name || '-',
-    checkIn: record.checkIn?.toISOString() || null,
-    checkOut: record.checkOut?.toISOString() || null,
+    department: record.employee.department?.name ?? "—",
+    checkIn: record.checkIn?.toISOString() ?? null,
+    checkOut: record.checkOut?.toISOString() ?? null,
     status: record.status,
-    notes: record.notes || '',
-  }))
+    notes: record.notes ?? "",
+  }));
+
+  const canEdit = ["owner", "admin", "hr"].includes(currentEmployee.role);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Attendance</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Track daily attendance and work hours
-          </p>
+    <div className="mx-auto w-full space-y-5 pb-8">
+      <header className="border border-gray-200 bg-white p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-950">
+              Attendance
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Track daily attendance, check-in, check-out, and work hours.
+            </p>
+          </div>
+
+          <CheckInButton
+            currentAttendance={
+              myAttendance
+                ? {
+                    id: myAttendance.id,
+                    checkIn: myAttendance.checkIn?.toISOString() ?? null,
+                    checkOut: myAttendance.checkOut?.toISOString() ?? null,
+                  }
+                : null
+            }
+            employeeId={currentEmployee.id}
+            employeeName={currentEmployee.firstName}
+          />
         </div>
+      </header>
 
-        <CheckInButton 
-          currentAttendance={myAttendance ? {
-            id: myAttendance.id,
-            checkIn: myAttendance.checkIn?.toISOString() || null,
-            checkOut: myAttendance.checkOut?.toISOString() || null,
-          } : null}
-          employeeId={currentEmployee.id}
-          employeeName={currentEmployee.firstName}
+      <section className="grid gap-3 md:grid-cols-4">
+        <SummaryCard
+          label="Total employees"
+          value={totalEmployees}
+          description="Active employees"
+          icon={<Users className="h-5 w-5" />}
         />
-      </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Employees</p>
-                <p className="mt-2 text-3xl font-bold">{totalEmployees}</p>
-              </div>
-              <div className="rounded-full bg-blue-100 p-3">
-                <Calendar className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <SummaryCard
+          label="Present"
+          value={presentCount}
+          description="Checked in on time"
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          tone="green"
+        />
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Present</p>
-                <p className="mt-2 text-3xl font-bold text-green-600">{presentCount}</p>
-              </div>
-              <div className="rounded-full bg-green-100 p-3">
-                <UserCheck className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <SummaryCard
+          label="Late"
+          value={lateCount}
+          description="Checked in late"
+          icon={<Clock className="h-5 w-5" />}
+          tone="orange"
+        />
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Late</p>
-                <p className="mt-2 text-3xl font-bold text-yellow-600">{lateCount}</p>
-              </div>
-              <div className="rounded-full bg-yellow-100 p-3">
-                <Clock className="h-6 w-6 text-yellow-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <SummaryCard
+          label="Absent"
+          value={absentCount}
+          description="No record yet"
+          icon={<AlertCircle className="h-5 w-5" />}
+          tone="red"
+        />
+      </section>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Absent</p>
-                <p className="mt-2 text-3xl font-bold text-red-600">{absentCount}</p>
-              </div>
-              <div className="rounded-full bg-red-100 p-3">
-                <UserX className="h-6 w-6 text-red-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Attendance Table */}
-      <AttendanceTable 
+      <AttendanceTable
         data={attendanceData}
-        selectedDate={selectedDate.toISOString().split('T')[0]}
-        canEdit={['owner', 'admin', 'hr'].includes(currentEmployee.role)}
+        selectedDate={selectedDateString}
+        canEdit={canEdit}
       />
     </div>
-  )
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  description,
+  icon,
+  tone = "default",
+}: {
+  label: string;
+  value: number;
+  description: string;
+  icon: React.ReactNode;
+  tone?: "default" | "green" | "orange" | "red";
+}) {
+  const toneClass = {
+    default: "border-gray-200 bg-gray-50 text-gray-600",
+    green: "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
+    orange: "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]",
+    red: "border-red-200 bg-red-50 text-red-700",
+  }[tone];
+
+  return (
+    <div className="border border-gray-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            {label}
+          </p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-gray-950">
+            {value}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">{description}</p>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center border ${toneClass}`}
+        >
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function parseDateParam(value?: string) {
+  if (!value) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }
+
+  const date = new Date(year, month - 1, day);
+  date.setHours(0, 0, 0, 0);
+
+  if (Number.isNaN(date.getTime())) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  }
+
+  return date;
+}
+
+function formatDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }

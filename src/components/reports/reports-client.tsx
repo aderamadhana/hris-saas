@@ -1,499 +1,1102 @@
-'use client'
+"use client";
 
 // src/components/reports/reports-client.tsx
-// Komponen utama Reports dengan tab, filter, tabel, dan tombol export
 
-import { useState, useCallback } from 'react'
+import { useCallback, useMemo, useState } from "react";
+import type { ElementType, ReactNode } from "react";
 import {
-  Download,
+  AlertCircle,
+  CalendarDays,
+  CheckCircle2,
+  Clock,
   FileSpreadsheet,
   FileText,
-  Calendar,
   Filter,
+  Loader2,
   RefreshCw,
-  TrendingUp,
+  Search,
   Users,
-  Clock,
-  CalendarDays,
-  DollarSign,
-  AlertCircle,
-} from 'lucide-react'
+  Wallet,
+  XCircle,
+} from "lucide-react";
+
+import { Button } from "@/src/components/ui/button";
 
 interface Employee {
-  id: string
-  name: string
-  employeeId: string
-  department: string
+  id: string;
+  name: string;
+  employeeId: string;
+  department: string;
 }
 
 interface Department {
-  id: string
-  name: string
+  id: string;
+  name: string;
 }
 
-interface Props {
-  organizationId: string
-  userRole: string
-  employees: Employee[]
-  departments: Department[]
+interface ReportsClientProps {
+  organizationId: string;
+  userRole: string;
+  employees: Employee[];
+  departments: Department[];
 }
 
-type ReportTab = 'attendance' | 'leave' | 'payroll'
+type ReportTab = "attendance" | "leave" | "payroll";
+type ReportRow = Record<string, unknown>;
 
-// Bulan Indonesia
 const MONTHS = [
-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
-]
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 
-const currentYear = new Date().getFullYear()
-const YEARS = [currentYear - 2, currentYear - 1, currentYear]
+const currentYear = new Date().getFullYear();
+const YEARS = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
 
-export function ReportsClient({ organizationId, userRole, employees, departments }: Props) {
-  const [activeTab, setActiveTab] = useState<ReportTab>('attendance')
-  const [month, setMonth] = useState(new Date().getMonth() + 1)
-  const [year, setYear] = useState(currentYear)
-  const [departmentId, setDepartmentId] = useState('')
-  const [employeeId, setEmployeeId] = useState('')
-  const [reportData, setReportData] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
-  const [exporting, setExporting] = useState(false)
-  const [hasGenerated, setHasGenerated] = useState(false)
+const REPORT_TABS: Array<{
+  id: ReportTab;
+  label: string;
+  description: string;
+  icon: ElementType;
+}> = [
+  {
+    id: "attendance",
+    label: "Attendance",
+    description: "Workdays, presence, absence, and lateness.",
+    icon: Clock,
+  },
+  {
+    id: "leave",
+    label: "Leave",
+    description: "Leave requests, approvals, and days taken.",
+    icon: CalendarDays,
+  },
+  {
+    id: "payroll",
+    label: "Payroll",
+    description: "Salary, allowances, deductions, and net pay.",
+    icon: Wallet,
+  },
+];
+
+function getValue(row: ReportRow, keys: string[]) {
+  for (const key of keys) {
+    const value = row[key];
+
+    if (value !== null && value !== undefined && value !== "") {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function formatText(value: unknown) {
+  if (value === null || value === undefined || value === "") return "-";
+  return String(value);
+}
+
+function toSafeNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return 0;
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  const normalized = String(value)
+    .replace(/[^\d.-]/g, "")
+    .trim();
+
+  if (!normalized || normalized === "-" || normalized === ".") return 0;
+
+  const number = Number(normalized);
+
+  return Number.isFinite(number) ? number : 0;
+}
+
+function formatNumber(value: unknown) {
+  const number = toSafeNumber(value);
+  return new Intl.NumberFormat("en-US").format(number);
+}
+
+function formatPercent(value: unknown) {
+  const number = toSafeNumber(value);
+  return `${number.toFixed(1)}%`;
+}
+
+function formatCurrency(value: unknown) {
+  const number = toSafeNumber(value);
+
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(number);
+}
+
+function getStatusClass(value: unknown) {
+  const status = String(value ?? "").toLowerCase();
+
+  if (["approved", "paid", "completed", "present", "active"].includes(status)) {
+    return "bg-[#EAF5F0] text-[#0B5A43]";
+  }
+
+  if (["pending", "draft", "processing"].includes(status)) {
+    return "bg-[#FFF4D9] text-[#7A5A00]";
+  }
+
+  if (["rejected", "unpaid", "absent", "failed"].includes(status)) {
+    return "bg-red-50 text-red-700";
+  }
+
+  return "bg-gray-100 text-gray-700";
+}
+
+function StatusBadge({ value }: { value: unknown }) {
+  return (
+    <span
+      className={`inline-flex px-2 py-1 text-xs font-semibold capitalize ${getStatusClass(
+        value,
+      )}`}
+    >
+      {formatText(value).replaceAll("_", " ")}
+    </span>
+  );
+}
+
+function SummaryItem({
+  label,
+  value,
+  description,
+  icon,
+  tone = "default",
+}: {
+  label: string;
+  value: string | number;
+  description: string;
+  icon: ReactNode;
+  tone?: "default" | "green" | "orange" | "red";
+}) {
+  const iconClass = {
+    default: "border-gray-200 bg-gray-50 text-gray-600",
+    green: "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
+    orange: "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]",
+    red: "border-red-200 bg-red-50 text-red-700",
+  }[tone];
+
+  const valueClass = {
+    default: "text-gray-950",
+    green: "text-[#0B5A43]",
+    orange: "text-[#7A5A00]",
+    red: "text-red-700",
+  }[tone];
+
+  const safeValue =
+    typeof value === "number" && !Number.isFinite(value) ? 0 : value;
+
+  return (
+    <div className="border-b border-gray-200 p-4 md:border-b-0 md:border-r last:border-r-0">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            {label}
+          </p>
+          <p
+            className={`mt-2 text-3xl font-semibold tracking-tight ${valueClass}`}
+          >
+            {safeValue}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">{description}</p>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center border ${iconClass}`}
+        >
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({
+  title,
+  description,
+  icon,
+}: {
+  title: string;
+  description: string;
+  icon: ReactNode;
+}) {
+  return (
+    <div className="px-4 py-16 text-center">
+      <div className="mx-auto flex h-12 w-12 items-center justify-center bg-gray-100 text-gray-400">
+        {icon}
+      </div>
+
+      <p className="mt-4 font-semibold text-gray-800">{title}</p>
+      <p className="mt-1 text-sm text-gray-500">{description}</p>
+    </div>
+  );
+}
+
+function getReportLabel(type: ReportTab) {
+  return REPORT_TABS.find((tab) => tab.id === type)?.label ?? "Report";
+}
+
+function getRowEmployeeName(row: ReportRow) {
+  return formatText(
+    getValue(row, [
+      "employeeName",
+      "name",
+      "employee",
+      "fullName",
+      "employee_name",
+    ]),
+  );
+}
+
+function getRowEmployeeId(row: ReportRow) {
+  return formatText(
+    getValue(row, ["employeeId", "employeeCode", "employee_id", "code"]),
+  );
+}
+
+function getRowDepartment(row: ReportRow) {
+  return formatText(
+    getValue(row, ["department", "departmentName", "department_name"]),
+  );
+}
+
+function AttendanceTable({ rows }: { rows: ReportRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[920px] border-collapse text-left">
+        <thead>
+          <tr className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
+            <th className="px-5 py-3 font-semibold">Employee</th>
+            <th className="px-5 py-3 font-semibold">Department</th>
+            <th className="px-5 py-3 font-semibold">Workdays</th>
+            <th className="px-5 py-3 font-semibold">Present</th>
+            <th className="px-5 py-3 font-semibold">Absent</th>
+            <th className="px-5 py-3 font-semibold">Late</th>
+            <th className="px-5 py-3 font-semibold">Overtime</th>
+            <th className="px-5 py-3 font-semibold">Rate</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {rows.map((row, index) => (
+            <tr
+              key={String(row.id ?? index)}
+              className="border-b border-gray-100 text-sm last:border-b-0 hover:bg-gray-50"
+            >
+              <td className="px-5 py-4">
+                <p className="font-semibold text-gray-950">
+                  {getRowEmployeeName(row)}
+                </p>
+                <p className="text-xs text-gray-500">{getRowEmployeeId(row)}</p>
+              </td>
+
+              <td className="px-5 py-4 text-gray-600">
+                {getRowDepartment(row)}
+              </td>
+
+              <td className="px-5 py-4">
+                {formatNumber(
+                  getValue(row, ["workingDays", "workdays", "totalWorkDays"]),
+                )}
+              </td>
+
+              <td className="px-5 py-4 text-[#0B5A43]">
+                {formatNumber(
+                  getValue(row, ["presentDays", "present", "attendanceDays"]),
+                )}
+              </td>
+
+              <td className="px-5 py-4 text-red-600">
+                {formatNumber(getValue(row, ["absentDays", "absent"]))}
+              </td>
+
+              <td className="px-5 py-4 text-[#7A5A00]">
+                {formatNumber(getValue(row, ["lateDays", "late", "lateCount"]))}
+              </td>
+
+              <td className="px-5 py-4">
+                {formatNumber(
+                  getValue(row, ["overtimeHours", "overtime", "totalOvertime"]),
+                )}
+              </td>
+
+              <td className="px-5 py-4 font-semibold">
+                {formatPercent(
+                  getValue(row, [
+                    "attendanceRate",
+                    "rate",
+                    "percentage",
+                    "attendancePercentage",
+                  ]),
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function LeaveTable({ rows }: { rows: ReportRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[920px] border-collapse text-left">
+        <thead>
+          <tr className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
+            <th className="px-5 py-3 font-semibold">Employee</th>
+            <th className="px-5 py-3 font-semibold">Department</th>
+            <th className="px-5 py-3 font-semibold">Requests</th>
+            <th className="px-5 py-3 font-semibold">Approved</th>
+            <th className="px-5 py-3 font-semibold">Pending</th>
+            <th className="px-5 py-3 font-semibold">Rejected</th>
+            <th className="px-5 py-3 font-semibold">Days Taken</th>
+            <th className="px-5 py-3 font-semibold">Balance</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {rows.map((row, index) => (
+            <tr
+              key={String(row.id ?? index)}
+              className="border-b border-gray-100 text-sm last:border-b-0 hover:bg-gray-50"
+            >
+              <td className="px-5 py-4">
+                <p className="font-semibold text-gray-950">
+                  {getRowEmployeeName(row)}
+                </p>
+                <p className="text-xs text-gray-500">{getRowEmployeeId(row)}</p>
+              </td>
+
+              <td className="px-5 py-4 text-gray-600">
+                {getRowDepartment(row)}
+              </td>
+
+              <td className="px-5 py-4">
+                {formatNumber(
+                  getValue(row, ["totalRequests", "requests", "requestCount"]),
+                )}
+              </td>
+
+              <td className="px-5 py-4 text-[#0B5A43]">
+                {formatNumber(
+                  getValue(row, [
+                    "approvedRequests",
+                    "approved",
+                    "approvedCount",
+                  ]),
+                )}
+              </td>
+
+              <td className="px-5 py-4 text-[#7A5A00]">
+                {formatNumber(
+                  getValue(row, ["pendingRequests", "pending", "pendingCount"]),
+                )}
+              </td>
+
+              <td className="px-5 py-4 text-red-600">
+                {formatNumber(
+                  getValue(row, [
+                    "rejectedRequests",
+                    "rejected",
+                    "rejectedCount",
+                  ]),
+                )}
+              </td>
+
+              <td className="px-5 py-4">
+                {formatNumber(
+                  getValue(row, ["daysTaken", "totalDays", "leaveDays"]),
+                )}
+              </td>
+
+              <td className="px-5 py-4 font-semibold">
+                {formatNumber(
+                  getValue(row, [
+                    "remainingBalance",
+                    "balance",
+                    "leaveBalance",
+                  ]),
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PayrollTable({ rows }: { rows: ReportRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[980px] border-collapse text-left">
+        <thead>
+          <tr className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
+            <th className="px-5 py-3 font-semibold">Employee</th>
+            <th className="px-5 py-3 font-semibold">Department</th>
+            <th className="px-5 py-3 font-semibold">Base Salary</th>
+            <th className="px-5 py-3 font-semibold">Allowances</th>
+            <th className="px-5 py-3 font-semibold">Overtime</th>
+            <th className="px-5 py-3 font-semibold">Deductions</th>
+            <th className="px-5 py-3 font-semibold">Net Pay</th>
+            <th className="px-5 py-3 font-semibold">Status</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {rows.map((row, index) => (
+            <tr
+              key={String(row.id ?? index)}
+              className="border-b border-gray-100 text-sm last:border-b-0 hover:bg-gray-50"
+            >
+              <td className="px-5 py-4">
+                <p className="font-semibold text-gray-950">
+                  {getRowEmployeeName(row)}
+                </p>
+                <p className="text-xs text-gray-500">{getRowEmployeeId(row)}</p>
+              </td>
+
+              <td className="px-5 py-4 text-gray-600">
+                {getRowDepartment(row)}
+              </td>
+
+              <td className="px-5 py-4">
+                {formatCurrency(getValue(row, ["baseSalary", "salary"]))}
+              </td>
+
+              <td className="px-5 py-4 text-[#0B5A43]">
+                {formatCurrency(
+                  getValue(row, ["allowances", "totalAllowances", "allowance"]),
+                )}
+              </td>
+
+              <td className="px-5 py-4">
+                {formatCurrency(
+                  getValue(row, ["overtimePay", "overtimeAmount", "overtime"]),
+                )}
+              </td>
+
+              <td className="px-5 py-4 text-red-600">
+                {formatCurrency(
+                  getValue(row, ["deductions", "totalDeductions", "deduction"]),
+                )}
+              </td>
+
+              <td className="px-5 py-4 font-semibold text-gray-950">
+                {formatCurrency(
+                  getValue(row, ["netSalary", "netPay", "takeHomePay"]),
+                )}
+              </td>
+
+              <td className="px-5 py-4">
+                <StatusBadge
+                  value={getValue(row, ["status", "paymentStatus"])}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ReportTable({ type, rows }: { type: ReportTab; rows: ReportRow[] }) {
+  if (type === "attendance") return <AttendanceTable rows={rows} />;
+  if (type === "leave") return <LeaveTable rows={rows} />;
+  return <PayrollTable rows={rows} />;
+}
+
+export function ReportsClient({ employees, departments }: ReportsClientProps) {
+  const [activeTab, setActiveTab] = useState<ReportTab>("attendance");
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [year, setYear] = useState(currentYear);
+  const [departmentId, setDepartmentId] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [search, setSearch] = useState("");
+
+  const [reportData, setReportData] = useState<ReportRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState<"xlsx" | "pdf" | null>(null);
+  const [hasGenerated, setHasGenerated] = useState(false);
+  const [error, setError] = useState("");
+
+  const activeReport = REPORT_TABS.find((tab) => tab.id === activeTab)!;
+  const ActiveIcon = activeReport.icon;
+
+  const resetReport = () => {
+    setHasGenerated(false);
+    setReportData([]);
+    setSearch("");
+    setError("");
+  };
 
   const generateReport = useCallback(async () => {
-    setLoading(true)
-    setHasGenerated(true)
+    setLoading(true);
+    setError("");
+    setHasGenerated(true);
+
     try {
       const params = new URLSearchParams({
         type: activeTab,
         month: String(month),
         year: String(year),
-        ...(departmentId && { departmentId }),
-        ...(employeeId && { employeeId }),
-      })
-      const res = await fetch(`/api/reports?${params}`)
-      if (res.ok) {
-        const data = await res.json()
-        setReportData(data.data || [])
-      }
-    } catch (error) {
-      console.error('Failed to generate report:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [activeTab, month, year, departmentId, employeeId])
+      });
 
-  const exportReport = async (format: 'xlsx' | 'pdf') => {
-    setExporting(true)
+      if (departmentId) params.set("departmentId", departmentId);
+      if (employeeId) params.set("employeeId", employeeId);
+
+      const response = await fetch(`/api/reports?${params.toString()}`, {
+        cache: "no-store",
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to generate report.");
+      }
+
+      const data = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload?.report)
+            ? payload.report
+            : [];
+
+      setReportData(data);
+    } catch (err: unknown) {
+      setReportData([]);
+      setError(
+        err instanceof Error ? err.message : "Failed to generate report.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab, month, year, departmentId, employeeId]);
+
+  const exportReport = async (format: "xlsx" | "pdf") => {
+    setExporting(format);
+    setError("");
+
     try {
       const params = new URLSearchParams({
         type: activeTab,
         month: String(month),
         year: String(year),
         format,
-        ...(departmentId && { departmentId }),
-        ...(employeeId && { employeeId }),
-      })
-      const res = await fetch(`/api/reports/export?${params}`)
-      if (res.ok) {
-        const blob = await res.blob()
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        const monthName = MONTHS[month - 1]
-        const tabLabel = activeTab === 'attendance' ? 'Absensi' : activeTab === 'leave' ? 'Cuti' : 'Payroll'
-        a.download = `Laporan_${tabLabel}_${monthName}_${year}.${format}`
-        a.click()
-        URL.revokeObjectURL(url)
-      }
-    } catch (error) {
-      console.error('Export failed:', error)
-    } finally {
-      setExporting(false)
-    }
-  }
+      });
 
-  const tabs = [
-    { id: 'attendance' as const, label: 'Laporan Absensi', icon: Clock },
-    { id: 'leave' as const, label: 'Laporan Cuti', icon: CalendarDays },
-    { id: 'payroll' as const, label: 'Laporan Payroll', icon: DollarSign },
-  ]
+      if (departmentId) params.set("departmentId", departmentId);
+      if (employeeId) params.set("employeeId", employeeId);
+
+      const response = await fetch(`/api/reports/export?${params.toString()}`);
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || "Failed to export report.");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${activeTab}-report-${MONTHS[month - 1]}-${year}.${format}`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to export report.");
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const filteredRows = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+
+    if (!keyword) return reportData;
+
+    return reportData.filter((row) => {
+      const text = [
+        getRowEmployeeName(row),
+        getRowEmployeeId(row),
+        getRowDepartment(row),
+        row.status,
+        row.paymentStatus,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return text.includes(keyword);
+    });
+  }, [reportData, search]);
+
+  const summary = useMemo(() => {
+    const totalRows = reportData.length;
+
+    if (activeTab === "attendance") {
+      const present = reportData.reduce(
+        (total, row) =>
+          total +
+          toSafeNumber(
+            getValue(row, ["presentDays", "present", "attendanceDays"]),
+          ),
+        0,
+      );
+
+      const absent = reportData.reduce(
+        (total, row) =>
+          total + toSafeNumber(getValue(row, ["absentDays", "absent"])),
+        0,
+      );
+
+      const late = reportData.reduce(
+        (total, row) =>
+          total +
+          toSafeNumber(getValue(row, ["lateDays", "late", "lateCount"])),
+        0,
+      );
+
+      return {
+        one: {
+          label: "Employees",
+          value: totalRows,
+          description: "Included in report",
+        },
+        two: {
+          label: "Present",
+          value: present,
+          description: "Total present days",
+        },
+        three: {
+          label: "Absent",
+          value: absent,
+          description: "Total absent days",
+        },
+        four: {
+          label: "Late",
+          value: late,
+          description: "Total late records",
+        },
+      };
+    }
+
+    if (activeTab === "leave") {
+      const approved = reportData.reduce(
+        (total, row) =>
+          total +
+          toSafeNumber(
+            getValue(row, ["approvedRequests", "approved", "approvedCount"]),
+          ),
+        0,
+      );
+
+      const pending = reportData.reduce(
+        (total, row) =>
+          total +
+          toSafeNumber(
+            getValue(row, ["pendingRequests", "pending", "pendingCount"]),
+          ),
+        0,
+      );
+
+      const days = reportData.reduce(
+        (total, row) =>
+          total +
+          toSafeNumber(getValue(row, ["daysTaken", "totalDays", "leaveDays"])),
+        0,
+      );
+
+      return {
+        one: {
+          label: "Employees",
+          value: totalRows,
+          description: "Included in report",
+        },
+        two: {
+          label: "Approved",
+          value: approved,
+          description: "Approved requests",
+        },
+        three: {
+          label: "Pending",
+          value: pending,
+          description: "Waiting for review",
+        },
+        four: {
+          label: "Days Taken",
+          value: days,
+          description: "Total leave days",
+        },
+      };
+    }
+
+    const netPay = reportData.reduce(
+      (total, row) =>
+        total +
+        toSafeNumber(getValue(row, ["netSalary", "netPay", "takeHomePay"])),
+      0,
+    );
+
+    const deductions = reportData.reduce(
+      (total, row) =>
+        total +
+        toSafeNumber(
+          getValue(row, ["deductions", "totalDeductions", "deduction"]),
+        ),
+      0,
+    );
+
+    return {
+      one: {
+        label: "Employees",
+        value: totalRows,
+        description: "Included in report",
+      },
+      two: {
+        label: "Net Pay",
+        value: formatCurrency(netPay),
+        description: "Total take-home pay",
+      },
+      three: {
+        label: "Deductions",
+        value: formatCurrency(deductions),
+        description: "Total deductions",
+      },
+      four: {
+        label: "Period",
+        value: MONTHS[month - 1] ?? "-",
+        description: String(year),
+      },
+    };
+  }, [activeTab, reportData, month, year]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Laporan & Analitik</h1>
-          <p className="mt-1 text-sm text-gray-500">Generate dan export laporan HR</p>
+    <div className="mx-auto w-full space-y-5 pb-8">
+      <header className="border border-gray-200 bg-white p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-950">
+              Reports
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Generate attendance, leave, and payroll reports for your
+              organization.
+            </p>
+          </div>
+
+          {hasGenerated && reportData.length > 0 && (
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="button"
+                onClick={() => exportReport("xlsx")}
+                disabled={Boolean(exporting)}
+                className="bg-[#0B5A43] text-white hover:bg-[#084735]"
+              >
+                {exporting === "xlsx" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                )}
+                Export Excel
+              </Button>
+
+              <Button
+                type="button"
+                onClick={() => exportReport("pdf")}
+                disabled={Boolean(exporting)}
+                variant="outline"
+              >
+                {exporting === "pdf" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileText className="mr-2 h-4 w-4" />
+                )}
+                Export PDF
+              </Button>
+            </div>
+          )}
         </div>
-        {hasGenerated && reportData.length > 0 && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => exportReport('xlsx')}
-              disabled={exporting}
-              className="flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Export Excel
-            </button>
-            <button
-              onClick={() => exportReport('pdf')}
-              disabled={exporting}
-              className="flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
-            >
-              <FileText className="h-4 w-4" />
-              Export PDF
-            </button>
+      </header>
+
+      <section className="grid border border-gray-200 bg-white md:grid-cols-4">
+        <SummaryItem
+          label={summary.one.label}
+          value={summary.one.value}
+          description={summary.one.description}
+          icon={<Users className="h-5 w-5" />}
+        />
+
+        <SummaryItem
+          label={summary.two.label}
+          value={summary.two.value}
+          description={summary.two.description}
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          tone="green"
+        />
+
+        <SummaryItem
+          label={summary.three.label}
+          value={summary.three.value}
+          description={summary.three.description}
+          icon={
+            activeTab === "attendance" ? (
+              <XCircle className="h-5 w-5" />
+            ) : (
+              <AlertCircle className="h-5 w-5" />
+            )
+          }
+          tone={activeTab === "attendance" ? "red" : "orange"}
+        />
+
+        <SummaryItem
+          label={summary.four.label}
+          value={summary.four.value}
+          description={summary.four.description}
+          icon={<Clock className="h-5 w-5" />}
+          tone="orange"
+        />
+      </section>
+
+      <section className="border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 p-4">
+          <div className="flex flex-wrap gap-2">
+            {REPORT_TABS.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    resetReport();
+                  }}
+                  className={[
+                    "flex min-w-[160px] flex-1 items-start gap-3 border px-4 py-3 text-left transition-colors lg:flex-none",
+                    active
+                      ? "border-[#0B5A43] bg-[#EAF5F0] text-[#0B5A43]"
+                      : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
+                  ].join(" ")}
+                >
+                  <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    <span className="block text-sm font-semibold">
+                      {tab.label}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-gray-500">
+                      {tab.description}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="border-b border-gray-200 p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <Filter className="h-4 w-4 text-gray-400" />
+            <p className="text-sm font-semibold text-gray-800">
+              Report Filters
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                Month
+              </label>
+              <select
+                value={month}
+                onChange={(event) => {
+                  setMonth(Number(event.target.value));
+                  resetReport();
+                }}
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
+              >
+                {MONTHS.map((item, index) => (
+                  <option key={item} value={index + 1}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                Year
+              </label>
+              <select
+                value={year}
+                onChange={(event) => {
+                  setYear(Number(event.target.value));
+                  resetReport();
+                }}
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
+              >
+                {YEARS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                Department
+              </label>
+              <select
+                value={departmentId}
+                onChange={(event) => {
+                  setDepartmentId(event.target.value);
+                  resetReport();
+                }}
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
+              >
+                <option value="">All Departments</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                Employee
+              </label>
+              <select
+                value={employeeId}
+                onChange={(event) => {
+                  setEmployeeId(event.target.value);
+                  resetReport();
+                }}
+                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
+              >
+                <option value="">All Employees</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name} ({employee.employeeId})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-end">
+              <Button
+                type="button"
+                onClick={generateReport}
+                disabled={loading}
+                className="h-10 w-full bg-[#0B5A43] text-white hover:bg-[#084735]"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Generate
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>{error}</p>
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex gap-1">
-          {tabs.map((tab) => {
-            const Icon = tab.icon
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id)
-                  setHasGenerated(false)
-                  setReportData([])
-                }}
-                className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            )
-          })}
-        </nav>
-      </div>
+        <div className="flex flex-col gap-3 border-b border-gray-200 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center bg-[#EAF5F0] text-[#0B5A43]">
+              <ActiveIcon className="h-4 w-4" />
+            </div>
 
-      {/* Filters */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <Filter className="h-4 w-4 text-gray-400" />
-          <span className="text-sm font-semibold text-gray-700">Filter Laporan</span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {/* Bulan */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-600">Bulan</label>
-            <select
-              value={month}
-              onChange={(e) => setMonth(Number(e.target.value))}
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              {MONTHS.map((m, i) => (
-                <option key={i} value={i + 1}>{m}</option>
-              ))}
-            </select>
+            <div>
+              <h2 className="text-base font-semibold text-gray-950">
+                {getReportLabel(activeTab)} Report
+              </h2>
+              <p className="text-sm text-gray-500">
+                {hasGenerated
+                  ? `${filteredRows.length} row${
+                      filteredRows.length === 1 ? "" : "s"
+                    } found.`
+                  : "Set filters, then generate a report."}
+              </p>
+            </div>
           </div>
 
-          {/* Tahun */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-600">Tahun</label>
-            <select
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              {YEARS.map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+          {hasGenerated && reportData.length > 0 && (
+            <div className="relative min-w-0 lg:w-80">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search report results..."
+                className="h-10 w-full border border-gray-300 pl-9 pr-3 text-sm outline-none focus:border-[#0B5A43]"
+              />
+            </div>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center px-4 py-16 text-sm text-gray-500">
+            <Loader2 className="mr-2 h-5 w-5 animate-spin text-[#0B5A43]" />
+            Generating report...
           </div>
-
-          {/* Departemen */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-600">Departemen</label>
-            <select
-              value={departmentId}
-              onChange={(e) => setDepartmentId(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="">Semua Departemen</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Karyawan */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-600">Karyawan</label>
-            <select
-              value={employeeId}
-              onChange={(e) => setEmployeeId(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="">Semua Karyawan</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>{e.name} ({e.employeeId})</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between">
-          <p className="text-xs text-gray-400">
-            Periode: {MONTHS[month - 1]} {year}
-          </p>
-          <button
-            onClick={generateReport}
-            disabled={loading}
-            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : (
-              <TrendingUp className="h-4 w-4" />
-            )}
-            {loading ? 'Memproses...' : 'Generate Laporan'}
-          </button>
-        </div>
-      </div>
-
-      {/* Results */}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white py-16">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent mb-3" />
-          <p className="text-sm text-gray-500">Memproses laporan...</p>
-        </div>
-      ) : hasGenerated && reportData.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-white py-16">
-          <AlertCircle className="h-8 w-8 text-gray-300 mb-2" />
-          <p className="text-sm font-medium text-gray-500">Tidak ada data untuk periode ini</p>
-        </div>
-      ) : hasGenerated && reportData.length > 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-          {/* Summary Bar */}
-          <div className="border-b border-gray-100 bg-gray-50 px-6 py-3 flex items-center justify-between">
-            <p className="text-sm text-gray-600">
-              Menampilkan <span className="font-semibold text-gray-900">{reportData.length}</span> data
-            </p>
-            <p className="text-xs text-gray-400">
-              {MONTHS[month - 1]} {year}
-            </p>
-          </div>
-
-          {/* Attendance Table */}
-          {activeTab === 'attendance' && <AttendanceTable data={reportData} />}
-          {activeTab === 'leave' && <LeaveTable data={reportData} />}
-          {activeTab === 'payroll' && <PayrollTable data={reportData} />}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-white py-16">
-          <TrendingUp className="h-10 w-10 text-gray-200 mb-3" />
-          <p className="text-sm font-medium text-gray-500">Pilih filter dan klik "Generate Laporan"</p>
-          <p className="text-xs text-gray-400 mt-1">untuk melihat data laporan</p>
-        </div>
-      )}
+        ) : !hasGenerated ? (
+          <EmptyState
+            title="No report generated yet"
+            description="Choose the report type and filters, then click Generate."
+            icon={<FileText className="h-6 w-6" />}
+          />
+        ) : filteredRows.length === 0 ? (
+          <EmptyState
+            title="No data found"
+            description="No records match the selected filters."
+            icon={<FileText className="h-6 w-6" />}
+          />
+        ) : (
+          <ReportTable type={activeTab} rows={filteredRows} />
+        )}
+      </section>
     </div>
-  )
+  );
 }
 
-// ============================================================
-// TABEL ABSENSI
-// ============================================================
-function AttendanceTable({ data }: { data: any[] }) {
-  const totalPresent = data.reduce((sum, r) => sum + (r.presentDays || 0), 0)
-  const totalLate = data.reduce((sum, r) => sum + (r.lateDays || 0), 0)
-  const totalAbsent = data.reduce((sum, r) => sum + (r.absentDays || 0), 0)
-
-  return (
-    <div>
-      {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-px bg-gray-100 border-b border-gray-100">
-        <div className="bg-white px-6 py-4 text-center">
-          <p className="text-2xl font-bold text-green-600">{totalPresent}</p>
-          <p className="text-xs text-gray-500 mt-1">Total Hadir</p>
-        </div>
-        <div className="bg-white px-6 py-4 text-center">
-          <p className="text-2xl font-bold text-yellow-500">{totalLate}</p>
-          <p className="text-xs text-gray-500 mt-1">Total Terlambat</p>
-        </div>
-        <div className="bg-white px-6 py-4 text-center">
-          <p className="text-2xl font-bold text-red-500">{totalAbsent}</p>
-          <p className="text-xs text-gray-500 mt-1">Total Tidak Hadir</p>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left">
-            <tr>
-              {['No', 'ID', 'Nama', 'Departemen', 'Hadir', 'Terlambat', 'Absen', 'Total Jam', 'Kehadiran %'].map((h) => (
-                <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {data.map((row, idx) => (
-              <tr key={row.employeeId || idx} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
-                <td className="px-4 py-3 font-mono text-xs text-gray-500">{row.employeeId}</td>
-                <td className="px-4 py-3 font-medium text-gray-900">{row.name}</td>
-                <td className="px-4 py-3 text-gray-500">{row.department || '-'}</td>
-                <td className="px-4 py-3">
-                  <span className="font-semibold text-green-600">{row.presentDays}</span>
-                  <span className="text-gray-400 text-xs"> hari</span>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`font-semibold ${row.lateDays > 0 ? 'text-yellow-500' : 'text-gray-400'}`}>{row.lateDays}</span>
-                  <span className="text-gray-400 text-xs"> hari</span>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`font-semibold ${row.absentDays > 0 ? 'text-red-500' : 'text-gray-400'}`}>{row.absentDays}</span>
-                  <span className="text-gray-400 text-xs"> hari</span>
-                </td>
-                <td className="px-4 py-3 text-gray-600">{row.totalHours || 0}j</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${(row.attendanceRate || 0) >= 80 ? 'bg-green-500' : (row.attendanceRate || 0) >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                        style={{ width: `${row.attendanceRate || 0}%` }}
-                      />
-                    </div>
-                    <span className="text-xs font-medium text-gray-700">{row.attendanceRate || 0}%</span>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-// ============================================================
-// TABEL CUTI
-// ============================================================
-function LeaveTable({ data }: { data: any[] }) {
-  const totalDays = data.reduce((sum, r) => sum + (r.totalDays || 0), 0)
-
-  return (
-    <div>
-      <div className="border-b border-gray-100 px-6 py-3 bg-gray-50">
-        <p className="text-sm text-gray-600">Total penggunaan cuti: <span className="font-bold text-gray-900">{totalDays} hari</span></p>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left">
-            <tr>
-              {['No', 'ID', 'Nama', 'Jenis Cuti', 'Tanggal Mulai', 'Tanggal Selesai', 'Hari', 'Status', 'Disetujui Oleh'].map((h) => (
-                <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {data.map((row, idx) => (
-              <tr key={row.id || idx} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
-                <td className="px-4 py-3 font-mono text-xs text-gray-500">{row.employeeId}</td>
-                <td className="px-4 py-3 font-medium text-gray-900">{row.employeeName}</td>
-                <td className="px-4 py-3 text-gray-600">{row.leaveType}</td>
-                <td className="px-4 py-3 text-gray-500">{row.startDate}</td>
-                <td className="px-4 py-3 text-gray-500">{row.endDate}</td>
-                <td className="px-4 py-3 font-semibold text-gray-900">{row.totalDays}</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                    row.status === 'approved' ? 'bg-green-100 text-green-700'
-                    : row.status === 'rejected' ? 'bg-red-100 text-red-700'
-                    : 'bg-yellow-100 text-yellow-700'
-                  }`}>
-                    {row.status === 'approved' ? 'Disetujui' : row.status === 'rejected' ? 'Ditolak' : 'Menunggu'}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-gray-500">{row.approvedBy || '-'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-// ============================================================
-// TABEL PAYROLL
-// ============================================================
-function PayrollTable({ data }: { data: any[] }) {
-  const totalGross = data.reduce((sum, r) => sum + (r.grossSalary || 0), 0)
-  const totalNet = data.reduce((sum, r) => sum + (r.netSalary || 0), 0)
-  const totalTax = data.reduce((sum, r) => sum + (r.pph21 || 0), 0)
-
-  const fmt = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
-
-  return (
-    <div>
-      {/* Summary */}
-      <div className="grid grid-cols-3 gap-px bg-gray-100 border-b border-gray-100">
-        <div className="bg-white px-6 py-4 text-center">
-          <p className="text-lg font-bold text-gray-900">{fmt(totalGross)}</p>
-          <p className="text-xs text-gray-500 mt-1">Total Bruto</p>
-        </div>
-        <div className="bg-white px-6 py-4 text-center">
-          <p className="text-lg font-bold text-red-500">{fmt(totalTax)}</p>
-          <p className="text-xs text-gray-500 mt-1">Total Pajak (PPh21)</p>
-        </div>
-        <div className="bg-white px-6 py-4 text-center">
-          <p className="text-lg font-bold text-green-600">{fmt(totalNet)}</p>
-          <p className="text-xs text-gray-500 mt-1">Total Neto</p>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left">
-            <tr>
-              {['No', 'ID', 'Nama', 'Departemen', 'Gaji Pokok', 'Tunjangan', 'Bonus', 'Bruto', 'BPJS', 'PPh21', 'Neto', 'Status'].map((h) => (
-                <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {data.map((row, idx) => (
-              <tr key={row.id || idx} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
-                <td className="px-4 py-3 font-mono text-xs text-gray-500">{row.employeeId}</td>
-                <td className="px-4 py-3 font-medium text-gray-900">{row.employeeName}</td>
-                <td className="px-4 py-3 text-gray-500">{row.department || '-'}</td>
-                <td className="px-4 py-3 text-gray-700">{fmt(row.baseSalary || 0)}</td>
-                <td className="px-4 py-3 text-gray-700">{fmt(row.allowances || 0)}</td>
-                <td className="px-4 py-3 text-gray-700">{fmt(row.bonus || 0)}</td>
-                <td className="px-4 py-3 font-medium text-gray-900">{fmt(row.grossSalary || 0)}</td>
-                <td className="px-4 py-3 text-red-500">{fmt((row.bpjsKesehatan || 0) + (row.bpjsKetenagakerjaan || 0))}</td>
-                <td className="px-4 py-3 text-red-500">{fmt(row.pph21 || 0)}</td>
-                <td className="px-4 py-3 font-bold text-green-600">{fmt(row.netSalary || 0)}</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                    row.status === 'paid' ? 'bg-green-100 text-green-700'
-                    : row.status === 'approved' ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    {row.status === 'paid' ? 'Dibayar' : row.status === 'approved' ? 'Disetujui' : 'Draft'}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
+export default ReportsClient;

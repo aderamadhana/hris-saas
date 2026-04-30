@@ -1,35 +1,35 @@
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
-import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
-import {
-  Users,
   DollarSign,
-  TrendingUp,
-  Calendar,
+  FileText,
   Plus,
-  Filter,
-  Download,
+  ReceiptText,
+  TrendingUp,
+  Users,
 } from "lucide-react";
-import Link from "next/link";
-import { getMonthName, formatCurrency } from "@/src/lib/payroll/calculations";
+
+import { createClient } from "@/src/lib/supabase/server";
+import prisma from "@/src/lib/prisma";
+import { Button } from "@/src/components/ui/button";
 import { PayrollFilters } from "@/src/components/payroll/payroll-filters";
+import { getMonthName, formatCurrency } from "@/src/lib/payroll/calculations";
 
 export const dynamic = "force-dynamic";
 
-export default async function PayrollPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ month?: string; year?: string; status?: string }>;
-}) {
+type PayrollPageProps = {
+  searchParams?: Promise<{
+    month?: string;
+    year?: string;
+    status?: string;
+  }>;
+};
+
+export default async function PayrollPage({ searchParams }: PayrollPageProps) {
+  const params = await searchParams;
+
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -47,26 +47,30 @@ export default async function PayrollPage({
   });
 
   if (!currentEmployee) {
-    redirect("/login");
+    redirect("/dashboard");
   }
 
-  // Only HR, Admin, Owner can access payroll management
   if (!["hr", "admin", "owner"].includes(currentEmployee.role)) {
     redirect("/dashboard");
   }
 
-  const params = await searchParams;
+  const selectedMonth = parseMonth(params?.month);
+  const selectedYear = parseYear(params?.year);
+  const selectedStatus = params?.status;
 
-  // Build filter
-  const where: any = {
+  const where: {
+    organizationId: string;
+    month?: number;
+    year?: number;
+    status?: string;
+  } = {
     organizationId: currentEmployee.organizationId,
   };
 
-  if (params.month) where.month = parseInt(params.month);
-  if (params.year) where.year = parseInt(params.year);
-  if (params.status) where.status = params.status;
+  if (selectedMonth) where.month = selectedMonth;
+  if (selectedYear) where.year = selectedYear;
+  if (selectedStatus && selectedStatus !== "all") where.status = selectedStatus;
 
-  // Get payrolls
   const payrolls = await prisma.payroll.findMany({
     where,
     include: {
@@ -76,241 +80,310 @@ export default async function PayrollPage({
           lastName: true,
           employeeId: true,
           position: true,
-          department: { select: { name: true } },
+          department: {
+            select: {
+              name: true,
+            },
+          },
         },
       },
     },
     orderBy: [{ year: "desc" }, { month: "desc" }, { createdAt: "desc" }],
   });
 
-  // Calculate summary stats
   const totalGross = payrolls.reduce(
-    (sum, p) => sum + p.grossSalary.toNumber(),
+    (sum, payroll) => sum + payroll.grossSalary.toNumber(),
     0,
   );
-  const totalNet = payrolls.reduce((sum, p) => sum + p.netSalary.toNumber(), 0);
+
+  const totalNet = payrolls.reduce(
+    (sum, payroll) => sum + payroll.netSalary.toNumber(),
+    0,
+  );
+
   const totalDeductions = payrolls.reduce(
-    (sum, p) => sum + p.totalDeductions.toNumber(),
+    (sum, payroll) => sum + payroll.totalDeductions.toNumber(),
     0,
   );
 
   const statusCounts = {
-    draft: payrolls.filter((p) => p.status === "draft").length,
-    approved: payrolls.filter((p) => p.status === "approved").length,
-    paid: payrolls.filter((p) => p.status === "paid").length,
+    draft: payrolls.filter((payroll) => payroll.status === "draft").length,
+    approved: payrolls.filter((payroll) => payroll.status === "approved")
+      .length,
+    paid: payrolls.filter((payroll) => payroll.status === "paid").length,
   };
 
-  // Get current month/year for default
-  const currentDate = new Date();
-  const currentMonth = params.month
-    ? parseInt(params.month)
-    : currentDate.getMonth() + 1;
-  const currentYear = params.year
-    ? parseInt(params.year)
-    : currentDate.getFullYear();
+  const today = new Date();
+  const currentMonth = selectedMonth ?? today.getMonth() + 1;
+  const currentYear = selectedYear ?? today.getFullYear();
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Payroll Management
-          </h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Manage employee payroll and salary processing
-          </p>
-        </div>
+    <div className="mx-auto w-full space-y-5 pb-8">
+      <header className="border border-gray-200 bg-white p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-950">
+              Payroll Management
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Generate, review, approve, and track employee payroll records.
+            </p>
+          </div>
 
-        <div className="flex items-center gap-2">
           <Link href="/payroll/generate">
-            <Button>
+            <Button className="w-full bg-[#0B5A43] text-white hover:bg-[#084735] sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               Generate Payroll
             </Button>
           </Link>
         </div>
-      </div>
+      </header>
 
-      {/* Summary Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">
-                  Total Employees
-                </p>
-                <p className="mt-2 text-3xl font-bold text-gray-900">
-                  {payrolls.length}
-                </p>
-              </div>
-              <div className="rounded-full bg-blue-100 p-3">
-                <Users className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <section className="grid border border-gray-200 bg-white md:grid-cols-4">
+        <SummaryItem
+          label="Records"
+          value={String(payrolls.length)}
+          description="Payroll entries"
+          icon={<Users className="h-5 w-5" />}
+        />
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Gross</p>
-                <p className="mt-2 text-2xl font-bold text-gray-900">
-                  {formatCurrency(totalGross)}
-                </p>
-              </div>
-              <div className="rounded-full bg-green-100 p-3">
-                <TrendingUp className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <SummaryItem
+          label="Gross"
+          value={formatCurrency(totalGross)}
+          description="Before deductions"
+          icon={<TrendingUp className="h-5 w-5" />}
+        />
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">
-                  Total Deductions
-                </p>
-                <p className="mt-2 text-2xl font-bold text-red-600">
-                  {formatCurrency(totalDeductions)}
-                </p>
-              </div>
-              <div className="rounded-full bg-red-100 p-3">
-                <DollarSign className="h-6 w-6 text-red-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <SummaryItem
+          label="Deductions"
+          value={formatCurrency(totalDeductions)}
+          description="Tax and deductions"
+          icon={<ReceiptText className="h-5 w-5" />}
+          tone="orange"
+        />
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Net</p>
-                <p className="mt-2 text-2xl font-bold text-blue-600">
-                  {formatCurrency(totalNet)}
-                </p>
-              </div>
-              <div className="rounded-full bg-purple-100 p-3">
-                <DollarSign className="h-6 w-6 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        <SummaryItem
+          label="Net"
+          value={formatCurrency(totalNet)}
+          description="Take-home pay"
+          icon={<DollarSign className="h-5 w-5" />}
+          tone="green"
+        />
+      </section>
 
-      {/* Filters - NOW USING CLIENT COMPONENT */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filters
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <section className="border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 p-5">
+          <h2 className="text-base font-semibold text-gray-950">Filters</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Filter payroll records by month, year, and status.
+          </p>
+        </div>
+
+        <div className="p-5">
           <PayrollFilters
             currentMonth={currentMonth}
             currentYear={currentYear}
             statusCounts={statusCounts}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      {/* Payroll List */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
+      <section className="border border-gray-200 bg-white">
+        <div className="flex flex-col gap-2 border-b border-gray-200 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-gray-950">
               Payroll Records
-            </CardTitle>
-            <Button variant="outline" size="sm">
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Showing {payrolls.length} payroll record
+              {payrolls.length === 1 ? "" : "s"}.
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {payrolls.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="mx-auto h-12 w-12 text-gray-400" />
-              <p className="mt-4 text-sm font-medium text-gray-900">
-                No payroll records found
-              </p>
-              <p className="mt-1 text-sm text-gray-600">
-                Generate payroll for employees to get started
-              </p>
-              <Link href="/payroll/generate">
-                <Button className="mt-4">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Generate Payroll
-                </Button>
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {payrolls.map((payroll) => (
+        </div>
+
+        {payrolls.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {payrolls.map((payroll) => {
+              const employeeName =
+                `${payroll.employee.firstName ?? ""} ${
+                  payroll.employee.lastName ?? ""
+                }`.trim() || "Unnamed employee";
+
+              return (
                 <div
                   key={payroll.id}
-                  className="flex items-center justify-between rounded-lg border p-4 hover:bg-gray-50 transition-colors"
+                  className="grid gap-4 p-4 hover:bg-gray-50 lg:grid-cols-[1fr_auto] lg:items-center"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-                      <span className="text-sm font-semibold text-blue-600">
-                        {payroll.employee.firstName.charAt(0)}
-                        {payroll.employee.lastName.charAt(0)}
-                      </span>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]">
+                      <FileText className="h-5 w-5" />
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {payroll.employee.firstName} {payroll.employee.lastName}
+
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-gray-950">
+                          {employeeName}
+                        </p>
+                        <StatusBadge status={payroll.status} />
+                      </div>
+
+                      <p className="mt-1 text-xs text-gray-500">
+                        {payroll.employee.employeeId}
+                        {payroll.employee.position
+                          ? ` · ${payroll.employee.position}`
+                          : ""}
+                        {payroll.employee.department?.name
+                          ? ` · ${payroll.employee.department.name}`
+                          : ""}
                       </p>
-                      <p className="text-sm text-gray-600">
-                        {payroll.employee.employeeId} •{" "}
-                        {payroll.employee.position}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {getMonthName(payroll.month)} {payroll.year}
-                      </p>
+
+                      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-gray-500">
+                        <span>
+                          Period:{" "}
+                          <span className="font-medium text-gray-800">
+                            {getMonthName(payroll.month)} {payroll.year}
+                          </span>
+                        </span>
+
+                        <span>
+                          Gross:{" "}
+                          <span className="font-medium text-gray-800">
+                            {formatCurrency(payroll.grossSalary.toNumber())}
+                          </span>
+                        </span>
+
+                        <span>
+                          Net:{" "}
+                          <span className="font-medium text-[#0B5A43]">
+                            {formatCurrency(payroll.netSalary.toNumber())}
+                          </span>
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600">Net Salary</p>
-                      <p className="font-semibold text-gray-900">
-                        {formatCurrency(payroll.netSalary.toNumber())}
-                      </p>
-                    </div>
-
-                    <Badge
-                      variant={
-                        payroll.status === "paid"
-                          ? "success"
-                          : payroll.status === "approved"
-                            ? "default"
-                            : "secondary"
-                      }
+                  <Link href={`/payroll/${payroll.id}`}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full border-[#0B5A43]/30 text-[#0B5A43] hover:border-[#0B5A43] hover:bg-[#EAF5F0] sm:w-auto"
                     >
-                      {payroll.status}
-                    </Badge>
-
-                    <Link href={`/payroll/${payroll.id}`}>
-                      <Button size="sm" variant="outline">
-                        View Details
-                      </Button>
-                    </Link>
-                  </div>
+                      View detail
+                    </Button>
+                  </Link>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
+}
+
+function SummaryItem({
+  label,
+  value,
+  description,
+  icon,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  description: string;
+  icon: React.ReactNode;
+  tone?: "default" | "green" | "orange";
+}) {
+  const iconClass = {
+    default: "border-gray-200 bg-gray-50 text-gray-600",
+    green: "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
+    orange: "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]",
+  }[tone];
+
+  return (
+    <div className="border-b border-gray-200 p-4 md:border-b-0 md:border-r last:border-r-0">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            {label}
+          </p>
+          <p className="mt-2 break-words text-lg font-semibold text-gray-950">
+            {value}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">{description}</p>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center border ${iconClass}`}
+        >
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const className =
+    status === "paid"
+      ? "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]"
+      : status === "approved"
+        ? "border-gray-200 bg-gray-50 text-gray-700"
+        : "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]";
+
+  return (
+    <span className={`border px-2.5 py-1 text-xs font-medium ${className}`}>
+      {formatText(status)}
+    </span>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
+      <div className="flex h-12 w-12 items-center justify-center bg-gray-100 text-gray-400">
+        <FileText className="h-6 w-6" />
+      </div>
+
+      <p className="mt-4 font-semibold text-gray-800">
+        No payroll records found
+      </p>
+
+      <p className="mt-1 max-w-sm text-sm text-gray-500">
+        Generate payroll first or adjust the current filters.
+      </p>
+
+      <Link href="/payroll/generate">
+        <Button className="mt-5 bg-[#0B5A43] text-white hover:bg-[#084735]">
+          <Plus className="mr-2 h-4 w-4" />
+          Generate Payroll
+        </Button>
+      </Link>
+    </div>
+  );
+}
+
+function parseMonth(value?: string) {
+  if (!value) return undefined;
+
+  const month = Number(value);
+  return month >= 1 && month <= 12 ? month : undefined;
+}
+
+function parseYear(value?: string) {
+  if (!value) return undefined;
+
+  const year = Number(value);
+  return Number.isFinite(year) ? year : undefined;
+}
+
+function formatText(value?: string | null) {
+  if (!value) return "-";
+
+  return value
+    .replace(/_/g, " ")
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }

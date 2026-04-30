@@ -1,190 +1,238 @@
+// src/app/api/payroll/generate/route.ts
+// Generate payroll menggunakan konfigurasi per organisasi
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/src/lib/supabase/server'
 import prisma from '@/src/lib/prisma'
-import { calculatePayroll, getPeriodDates } from '@/src/lib/payroll/calculations'
- 
-// Generate payroll for employees
+import { calculatePayroll, getDefaultPayrollConfig } from '@/src/lib/payroll/calculations'
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
- 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
- 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const currentEmployee = await prisma.employee.findUnique({
       where: { authId: user.id },
-      select: {
-        id: true,
-        organizationId: true,
-        role: true,
-      },
+      select: { organizationId: true, role: true, id: true },
     })
- 
-    if (!currentEmployee) {
-      return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
+    if (!currentEmployee) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (!['admin', 'owner', 'hr'].includes(currentEmployee.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
- 
-    // Only HR, Admin, Owner can generate payroll
-    if (!['hr', 'admin', 'owner'].includes(currentEmployee.role)) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 }
-      )
-    }
- 
+
     const body = await request.json()
     const { month, year, employeeIds } = body
- 
-    // Validate month/year
-    if (!month || !year || month < 1 || month > 12) {
-      return NextResponse.json(
-        { error: 'Invalid month or year' },
-        { status: 400 }
-      )
+
+    if (!month || !year) {
+      return NextResponse.json({ error: 'month dan year wajib diisi' }, { status: 400 })
     }
- 
-    // Get period dates
-    const { periodStart, periodEnd } = getPeriodDates(month, year)
- 
-    // Get employees to process
-    let employees
+
+    // Ambil konfigurasi payroll organisasi
+    const rawConfig = await prisma.payrollConfig.findUnique({
+      where: { organizationId: currentEmployee.organizationId },
+    })
+    const config = rawConfig ?? (getDefaultPayrollConfig(currentEmployee.organizationId) as any)
+
+    // Tentukan rentang periode
+    const periodStart = new Date(year, month - 1, 1)
+    const periodEnd   = new Date(year, month, 0)   // hari terakhir bulan
+
+    // Ambil karyawan yang akan di-generate
+    const whereClause: any = {
+      organizationId: currentEmployee.organizationId,
+      status: 'active',
+    }
     if (employeeIds && employeeIds.length > 0) {
-      employees = await prisma.employee.findMany({
-        where: {
-          id: { in: employeeIds },
-          organizationId: currentEmployee.organizationId,
-          status: 'active',
-        },
-      })
-    } else {
-      // Generate for all active employees
-      employees = await prisma.employee.findMany({
-        where: {
-          organizationId: currentEmployee.organizationId,
-          status: 'active',
-        },
-      })
+      whereClause.id = { in: employeeIds }
     }
- 
-    const results = {
-      success: 0,
-      failed: 0,
-      errors: [] as { employeeId: string; error: string }[],
+
+    const employees = await prisma.employee.findMany({
+      where: whereClause,
+      select: {
+        id: true, firstName: true, lastName: true,
+        baseSalary: true, employeeId: true,
+      },
+    })
+
+    if (employees.length === 0) {
+      return NextResponse.json({ error: 'Tidak ada karyawan aktif' }, { status: 400 })
     }
- 
-    // Generate payroll for each employee
-    for (const employee of employees) {
+
+    const results = []
+    const errors  = []
+
+    for (const emp of employees) {
       try {
-        // Check if payroll already exists
-        const existingPayroll = await prisma.payroll.findUnique({
-          where: {
-            employeeId_month_year: {
-              employeeId: employee.id,
-              month,
-              year,
-            },
-          },
+        // Cek apakah sudah ada payroll untuk periode ini
+        const existing = await prisma.payroll.findFirst({
+          where: { employeeId: emp.id, month, year },
         })
- 
-        if (existingPayroll) {
-          results.errors.push({
-            employeeId: employee.employeeId,
-            error: 'Payroll already exists for this period',
-          })
-          results.failed++
+        if (existing) {
+          errors.push({ employeeId: emp.id, name: `${emp.firstName} ${emp.lastName}`, reason: 'Sudah ada payroll periode ini' })
           continue
         }
- 
-        // Get attendance data for the period
+
+        const baseSalary = Number(emp.baseSalary)
+
+        // ── Hitung kehadiran & keterlambatan bulan ini ──────────────
         const attendances = await prisma.attendance.findMany({
           where: {
-            employeeId: employee.id,
-            date: {
-              gte: periodStart,
-              lte: periodEnd,
-            },
+            employeeId: emp.id,
+            date: { gte: periodStart, lte: periodEnd },
+          },
+          select: {
+            status: true,
+            checkIn: true,
+            checkOut: true,
+            date: true,
           },
         })
- 
-        const workDays = attendances.filter((a) =>
-          ['present', 'late'].includes(a.status)
-        ).length
-        const absentDays = attendances.filter((a) => a.status === 'absent').length
-        const lateDays = attendances.filter((a) => a.status === 'late').length
-        const overtimeHours = attendances.reduce(
-          (sum, a) => sum + (a.overtimeHours || 0),
-          0
+
+        const workDays    = attendances.filter(a => ['present', 'late'].includes(a.status)).length
+        const absentDays  = attendances.filter(a => a.status === 'absent').length
+
+        // Total menit terlambat (jika ada data checkIn dan jam masuk)
+        // Asumsi jam masuk dari OrganizationSettings atau default 08:00
+        const orgSettings = await prisma.organizationSettings.findUnique({
+          where: { organizationId: currentEmployee.organizationId },
+          select: { workStartTime: true, workEndTime: true },
+        })
+        const workStart = orgSettings?.workStartTime ?? '08:00'
+        const [startH, startM] = workStart.split(':').map(Number)
+
+        let lateMinutes = 0
+        let earlyLeaveMinutes = 0
+        const workEnd = orgSettings?.workEndTime ?? '17:00'
+        const [endH, endM] = workEnd.split(':').map(Number)
+
+        for (const att of attendances) {
+          if (att.checkIn) {
+            const ci = new Date(att.checkIn)
+            const scheduled = new Date(att.date)
+            scheduled.setHours(startH, startM, 0)
+            if (ci > scheduled) {
+              lateMinutes += Math.floor((ci.getTime() - scheduled.getTime()) / 60000)
+            }
+          }
+          if (att.checkOut) {
+            const co = new Date(att.checkOut)
+            const scheduled = new Date(att.date)
+            scheduled.setHours(endH, endM, 0)
+            if (co < scheduled) {
+              earlyLeaveMinutes += Math.floor((scheduled.getTime() - co.getTime()) / 60000)
+            }
+          }
+        }
+
+        // Total overtime dari attendance (status 'present' dengan checkout melebihi jam kerja)
+        let overtimeHours = 0
+        for (const att of attendances) {
+          if (att.checkIn && att.checkOut) {
+            const ci = new Date(att.checkIn)
+            const co = new Date(att.checkOut)
+            const scheduled = new Date(att.date)
+            scheduled.setHours(endH, endM, 0)
+            if (co > scheduled) {
+              overtimeHours += (co.getTime() - scheduled.getTime()) / (1000 * 60 * 60)
+            }
+          }
+        }
+
+        // ── Jalankan kalkulasi ───────────────────────────────────────
+        const result = calculatePayroll(
+          {
+            baseSalary,
+            allowances: 0,
+            overtimeHours: parseFloat(overtimeHours.toFixed(2)),
+            lateMinutes,
+            earlyLeaveMinutes,
+            absentDays,
+            bonus: 0,
+            workingDays: workDays,
+          },
+          config
         )
- 
-        // Calculate payroll (simplified - no allowances/bonuses for now)
-        const calculation = calculatePayroll(
-          employee.baseSalary.toNumber(),
-          0, // allowances
-          overtimeHours,
-          0, // bonus
-          0, // other deductions
-          false // isMarried (we don't have this field yet)
-        )
- 
-        // Create payroll record
-        await prisma.payroll.create({
+
+        // ── Simpan ke database ───────────────────────────────────────
+        const payroll = await prisma.payroll.create({
           data: {
-            employeeId: employee.id,
             organizationId: currentEmployee.organizationId,
+            employeeId:     emp.id,
             month,
             year,
             periodStart,
             periodEnd,
-            
-            baseSalary: employee.baseSalary,
-            allowances: 0,
-            overtime: calculation.components.overtime,
-            bonus: 0,
-            
-            bpjsKesehatan: calculation.deductions.bpjsKesehatan,
-            bpjsKetenagakerjaan: calculation.deductions.bpjsKetenagakerjaan,
-            pph21: calculation.deductions.pph21,
-            otherDeductions: 0,
-            
-            grossSalary: calculation.grossSalary,
-            totalDeductions: calculation.totalDeductions,
-            netSalary: calculation.netSalary,
-            
+
+            baseSalary:     result.baseSalary,
+            allowances:     result.allowances,
+            overtime:       result.overtimePay,
+            bonus:          result.bonus,
+
+            bpjsKesehatan:      result.bpjsKesEmployee,
+            bpjsKetenagakerjaan: result.bpjsTkJHT + result.bpjsTkJP,
+            pph21:          result.pph21,
+            otherDeductions: result.lateDeduction + result.earlyLeaveDeduction + result.absentDeduction,
+
+            grossSalary:    result.grossSalary,
+            totalDeductions: result.totalDeductions,
+            netSalary:      result.netSalary,
+
             workDays,
             absentDays,
-            lateDays,
-            overtimeHours,
-            
-            status: 'draft',
+            lateDays:       lateMinutes > 0 ? 1 : 0, // flag saja, detail di breakdown
+            overtimeHours:  parseFloat(overtimeHours.toFixed(2)),
+
+            status:    'draft',
             createdBy: currentEmployee.id,
+
+            // Simpan breakdown detail sebagai notes JSON
+            notes: JSON.stringify({
+              lateMinutes,
+              earlyLeaveMinutes,
+              lateDeduction:       result.lateDeduction,
+              earlyLeaveDeduction: result.earlyLeaveDeduction,
+              absentDeduction:     result.absentDeduction,
+              bpjsKesEmployer:     result.bpjsKesEmployer,
+              bpjsTkJHTEmployer:   result.bpjsTkJHTEmployer,
+              bpjsTkJPEmployer:    result.bpjsTkJPEmployer,
+              bpjsTkJKK:           result.bpjsTkJKK,
+              bpjsTkJKM:           result.bpjsTkJKM,
+              customAllowances:    result.customAllowances,
+              customDeductions:    result.customDeductions,
+            }),
           },
         })
- 
-        results.success++
-      } catch (error: any) {
-        console.error(`Error generating payroll for ${employee.employeeId}:`, error)
-        results.errors.push({
-          employeeId: employee.employeeId,
-          error: error.message || 'Unknown error',
+
+        results.push({
+          employeeId:   emp.id,
+          employeeName: `${emp.firstName} ${emp.lastName}`,
+          payrollId:    payroll.id,
+          netSalary:    result.netSalary,
+          grossSalary:  result.grossSalary,
+          lateMinutes,
+          absentDays,
+          overtimeHours,
         })
-        results.failed++
+      } catch (empErr: any) {
+        errors.push({
+          employeeId: emp.id,
+          name: `${emp.firstName} ${emp.lastName}`,
+          reason: empErr.message,
+        })
       }
     }
- 
+
     return NextResponse.json({
       success: true,
-      message: `Generated payroll for ${results.success} employees`,
+      generated: results.length,
+      skipped:   errors.length,
       results,
+      errors,
+      period: `${month}/${year}`,
     })
   } catch (error: any) {
-    console.error('Generate payroll error:', error)
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    )
+    console.error('POST /api/payroll/generate:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

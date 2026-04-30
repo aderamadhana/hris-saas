@@ -1,22 +1,18 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ArrowLeft, Calculator, Info } from "lucide-react";
+
 import { createClient } from "@/src/lib/supabase/server";
 import prisma from "@/src/lib/prisma";
-import { redirect } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 import { GeneratePayrollForm } from "@/src/components/payroll/generate-payroll-form";
-import { getCurrentPeriod } from "@/src/lib/payroll/calculations";
+import { getCurrentPeriod, getMonthName } from "@/src/lib/payroll/calculations";
 
 export const dynamic = "force-dynamic";
 
 export default async function GeneratePayrollPage() {
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -34,15 +30,13 @@ export default async function GeneratePayrollPage() {
   });
 
   if (!currentEmployee) {
-    redirect("/login");
+    redirect("/dashboard");
   }
 
-  // Only HR, Admin, Owner can generate payroll
   if (!["hr", "admin", "owner"].includes(currentEmployee.role)) {
     redirect("/payroll");
   }
 
-  // Get active employees for selection
   const employees = await prisma.employee.findMany({
     where: {
       organizationId: currentEmployee.organizationId,
@@ -56,15 +50,11 @@ export default async function GeneratePayrollPage() {
       position: true,
       baseSalary: true,
     },
-    orderBy: {
-      firstName: "asc",
-    },
+    orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
   });
 
-  // Get current period
   const currentPeriod = getCurrentPeriod();
 
-  // Check if payroll already exists for current period
   const existingPayroll = await prisma.payroll.findFirst({
     where: {
       organizationId: currentEmployee.organizationId,
@@ -73,72 +63,107 @@ export default async function GeneratePayrollPage() {
     },
   });
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href="/payroll">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Generate Payroll</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Generate payroll for selected employees for a specific period
-          </p>
-        </div>
-      </div>
+  const employeeOptions = employees.map((employee) => ({
+    id: employee.id,
+    firstName: employee.firstName,
+    lastName: employee.lastName,
+    employeeId: employee.employeeId,
+    position: employee.position,
+    baseSalary: employee.baseSalary.toNumber(),
+  }));
 
-      {/* Warning if payroll exists */}
+  return (
+    <div className="mx-auto w-full space-y-5 pb-8">
+      <header className="border border-gray-200 bg-white p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]">
+              <Calculator className="h-5 w-5" />
+            </div>
+
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-gray-950">
+                Generate Payroll
+              </h1>
+              <p className="mt-1 text-sm leading-relaxed text-gray-500">
+                Generate payroll for selected employees and payroll period.
+              </p>
+            </div>
+          </div>
+
+          <Link href="/payroll">
+            <Button
+              variant="outline"
+              className="w-full border-[#0B5A43]/30 text-[#0B5A43] hover:border-[#0B5A43] hover:bg-[#EAF5F0] sm:w-auto"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to payroll
+            </Button>
+          </Link>
+        </div>
+      </header>
+
       {existingPayroll && (
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="p-4">
-            <p className="text-sm text-yellow-900">
-              <strong>Note:</strong> Payroll for the current period already
-              exists. You can generate for a different period or specific
-              employees.
-            </p>
-          </CardContent>
-        </Card>
+        <section className="border border-[#F7A81B]/40 bg-[#FFF4D9] p-4">
+          <p className="text-sm font-semibold text-[#0B5A43]">
+            Payroll already exists
+          </p>
+          <p className="mt-1 text-sm leading-relaxed text-[#7A5A00]">
+            Payroll for {getMonthName(currentPeriod.month)} {currentPeriod.year}{" "}
+            already exists. You can generate for a different period or selected
+            employees only.
+          </p>
+        </section>
       )}
 
-      {/* Generate Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Payroll Generation Settings</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <section className="border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 p-5">
+          <h2 className="text-base font-semibold text-gray-950">
+            Payroll generation settings
+          </h2>
+          <p className="mt-1 text-sm leading-relaxed text-gray-500">
+            Select the payroll period and employees before generating payroll.
+          </p>
+        </div>
+
+        <div className="p-5">
           <GeneratePayrollForm
-            employees={employees.map((e) => ({
-              ...e,
-              baseSalary: e.baseSalary.toNumber(),
-            }))}
+            employees={employeeOptions}
             defaultMonth={currentPeriod.month}
             defaultYear={currentPeriod.year}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      {/* Info Card */}
-      <Card className="bg-blue-50 border-blue-200">
-        <CardContent className="p-6">
-          <h3 className="font-semibold text-blue-900 mb-2">
-            How Payroll Generation Works
-          </h3>
-          <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-            <li>
-              Payroll is calculated based on attendance data for the period
-            </li>
-            <li>Overtime hours are automatically included in calculations</li>
-            <li>BPJS (1% health, 2% employment) and PPh21 are deducted</li>
-            <li>
-              You can edit allowances, bonuses, and deductions after generation
-            </li>
-            <li>Payroll must be approved before marking as paid</li>
-          </ul>
-        </CardContent>
-      </Card>
+      <section className="border border-gray-200 bg-white p-5">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]">
+            <Info className="h-5 w-5" />
+          </div>
+
+          <div>
+            <h2 className="text-base font-semibold text-gray-950">
+              How payroll generation works
+            </h2>
+
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-relaxed text-gray-600">
+              <li>
+                Payroll is calculated from employee salary and attendance data.
+              </li>
+              <li>
+                Overtime, absence, late days, and deductions are included.
+              </li>
+              <li>
+                BPJS and PPh21 deductions are calculated during generation.
+              </li>
+              <li>
+                Allowances, bonuses, and deductions can be edited afterward.
+              </li>
+              <li>Payroll should be reviewed before approval and payment.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

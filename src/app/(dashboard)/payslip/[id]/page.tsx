@@ -1,57 +1,79 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import {
+  ArrowLeft,
+  CalendarDays,
+  CheckCircle,
+  Clock,
+  DollarSign,
+  FileText,
+  ReceiptText,
+  User,
+  XCircle,
+} from "lucide-react";
+
 import { createClient } from "@/src/lib/supabase/server";
 import prisma from "@/src/lib/prisma";
-import { notFound, redirect } from "next/navigation";
-import { format } from "date-fns";
-import { Download, ArrowLeft, CheckCircle, Clock, XCircle } from "lucide-react";
-import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
-function formatCurrency(amount: number | string) {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(Number(amount));
-}
+type PayslipDetailPageProps = {
+  params: Promise<{
+    id: string;
+  }>;
+};
 
 const STATUS_CONFIG = {
-  draft: { label: "Draft", icon: Clock, cls: "bg-gray-100 text-gray-600" },
+  draft: {
+    label: "Draft",
+    icon: Clock,
+    className: "border-gray-200 bg-gray-50 text-gray-700",
+  },
   approved: {
     label: "Approved",
     icon: CheckCircle,
-    cls: "bg-blue-100 text-blue-700",
+    className: "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
   },
   paid: {
     label: "Paid",
     icon: CheckCircle,
-    cls: "bg-green-100 text-green-700",
+    className: "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
   },
   rejected: {
     label: "Rejected",
     icon: XCircle,
-    cls: "bg-red-100 text-red-600",
+    className: "border-red-200 bg-red-50 text-red-700",
   },
 };
 
 export default async function PayslipDetailPage({
   params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+}: PayslipDetailPageProps) {
   const { id } = await params;
+
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+
+  if (!user) {
+    redirect("/login");
+  }
 
   const currentEmployee = await prisma.employee.findUnique({
     where: { authId: user.id },
-    select: { id: true, organizationId: true, role: true },
+    select: {
+      id: true,
+      organizationId: true,
+      role: true,
+    },
   });
-  if (!currentEmployee) redirect("/login");
+
+  if (!currentEmployee) {
+    redirect("/dashboard");
+  }
 
   const payroll = await prisma.payroll.findFirst({
     where: {
@@ -69,228 +91,436 @@ export default async function PayslipDetailPage({
           employeeId: true,
           position: true,
           email: true,
-          department: { select: { name: true } },
+          department: {
+            select: {
+              name: true,
+            },
+          },
         },
       },
     },
   });
 
-  if (!payroll) notFound();
+  if (!payroll) {
+    notFound();
+  }
 
-  const emp = payroll.employee;
-  const statusCfg =
+  const employeeName = `${payroll.employee.firstName ?? ""} ${
+    payroll.employee.lastName ?? ""
+  }`.trim();
+
+  const statusConfig =
     STATUS_CONFIG[payroll.status as keyof typeof STATUS_CONFIG] ??
     STATUS_CONFIG.draft;
-  const StatusIcon = statusCfg.icon;
+
+  const StatusIcon = statusConfig.icon;
 
   const earnings = [
-    { label: "Base Salary", amount: Number(payroll.baseSalary) },
-    ...(Number(payroll.allowances) > 0
-      ? [{ label: "Allowances", amount: Number(payroll.allowances) }]
-      : []),
-    ...(Number(payroll.overtime) > 0
-      ? [{ label: "Overtime Pay", amount: Number(payroll.overtime) }]
-      : []),
-    ...(Number(payroll.bonus) > 0
-      ? [{ label: "Bonus", amount: Number(payroll.bonus) }]
-      : []),
-  ];
+    {
+      label: "Base salary",
+      amount: toNumber(payroll.baseSalary),
+      always: true,
+    },
+    { label: "Allowances", amount: toNumber(payroll.allowances) },
+    { label: "Overtime pay", amount: toNumber(payroll.overtime) },
+    { label: "Bonus", amount: toNumber(payroll.bonus) },
+  ].filter((item) => item.always || item.amount > 0);
 
   const deductions = [
-    ...(Number(payroll.bpjsKesehatan) > 0
-      ? [
-          {
-            label: "BPJS Kesehatan (1%)",
-            amount: Number(payroll.bpjsKesehatan),
-          },
-        ]
-      : []),
-    ...(Number(payroll.bpjsKetenagakerjaan) > 0
-      ? [
-          {
-            label: "BPJS Ketenagakerjaan (2%)",
-            amount: Number(payroll.bpjsKetenagakerjaan),
-          },
-        ]
-      : []),
-    ...(Number(payroll.pph21) > 0
-      ? [{ label: "Income Tax (PPh 21)", amount: Number(payroll.pph21) }]
-      : []),
-    ...(Number(payroll.otherDeductions) > 0
-      ? [{ label: "Other Deductions", amount: Number(payroll.otherDeductions) }]
-      : []),
-  ];
+    {
+      label: "BPJS Kesehatan",
+      amount: toNumber(payroll.bpjsKesehatan),
+    },
+    {
+      label: "BPJS Ketenagakerjaan",
+      amount: toNumber(payroll.bpjsKetenagakerjaan),
+    },
+    {
+      label: "PPh 21",
+      amount: toNumber(payroll.pph21),
+    },
+    {
+      label: "Other deductions",
+      amount: toNumber(payroll.otherDeductions),
+    },
+  ].filter((item) => item.amount > 0);
+
+  const monthLabel = formatMonthYear(payroll.month, payroll.year);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      {/* ── Back ── */}
-      <Link
-        href="/payslip"
-        className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Payslips
-      </Link>
-
-      {/* ── Header card ── */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+    <div className="mx-auto w-full space-y-5 pb-8">
+      <header className="border border-gray-200 bg-white p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">
-              Payslip —{" "}
-              {new Date(payroll.year, payroll.month - 1).toLocaleString("en", {
-                month: "long",
-                year: "numeric",
-              })}
-            </h1>
-            <div className="mt-1 space-y-0.5 text-sm text-gray-500">
-              <p>
-                {emp.firstName} {emp.lastName}
-              </p>
-              <p>
-                {emp.position}
-                {emp.department?.name ? ` · ${emp.department.name}` : ""}
-              </p>
-              <p className="text-xs text-gray-400">
-                {emp.employeeId} · {emp.email}
-              </p>
+            <Link
+              href="/payslip"
+              className="mb-4 inline-flex items-center text-sm font-semibold text-[#0B5A43] hover:underline"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to payslips
+            </Link>
+
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]">
+                <FileText className="h-5 w-5" />
+              </div>
+
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-gray-950">
+                  Payslip Detail
+                </h1>
+                <p className="mt-1 text-sm text-gray-500">{monthLabel}</p>
+              </div>
             </div>
           </div>
-          <div className="flex flex-col items-start gap-3 sm:items-end">
+
+          <div className="flex flex-col items-start gap-2 sm:items-end">
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${statusCfg.cls}`}
+              className={`inline-flex items-center gap-1.5 border px-2.5 py-1 text-xs font-semibold ${statusConfig.className}`}
             >
               <StatusIcon className="h-3.5 w-3.5" />
-              {statusCfg.label}
+              {statusConfig.label}
             </span>
+
             {payroll.paidDate && (
-              <p className="text-xs text-gray-400">
-                Paid on {format(new Date(payroll.paidDate), "MMMM d, yyyy")}
+              <p className="text-xs text-gray-500">
+                Paid on {formatDate(payroll.paidDate)}
               </p>
             )}
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* ── Earnings ── */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
-          Earnings
-        </h2>
-        <div className="space-y-2">
-          {earnings.map((e) => (
-            <div
-              key={e.label}
-              className="flex items-center justify-between py-1"
-            >
-              <span className="text-gray-600">{e.label}</span>
-              <span className="font-mono text-gray-900">
-                {formatCurrency(e.amount)}
-              </span>
-            </div>
-          ))}
-          <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-            <span className="font-semibold text-gray-900">Gross Salary</span>
-            <span className="font-semibold font-mono text-gray-900">
-              {formatCurrency(Number(payroll.grossSalary))}
-            </span>
-          </div>
-        </div>
-      </div>
+      <section className="grid border border-gray-200 bg-white md:grid-cols-3">
+        <SummaryItem
+          label="Net salary"
+          value={formatCurrency(payroll.netSalary)}
+          description="Take-home pay"
+          icon={<DollarSign className="h-5 w-5" />}
+          tone="green"
+        />
 
-      {/* ── Deductions ── */}
-      {deductions.length > 0 && (
-        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm space-y-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
-            Deductions
+        <SummaryItem
+          label="Gross salary"
+          value={formatCurrency(payroll.grossSalary)}
+          description="Before deductions"
+          icon={<ReceiptText className="h-5 w-5" />}
+        />
+
+        <SummaryItem
+          label="Total deductions"
+          value={formatCurrency(payroll.totalDeductions)}
+          description="Tax and deductions"
+          icon={<ReceiptText className="h-5 w-5" />}
+          tone="orange"
+        />
+      </section>
+
+      <section className="border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 p-5">
+          <h2 className="text-base font-semibold text-gray-950">
+            Employee information
           </h2>
-          <div className="space-y-2">
-            {deductions.map((d) => (
-              <div
-                key={d.label}
-                className="flex items-center justify-between py-1"
-              >
-                <span className="text-gray-600">{d.label}</span>
-                <span className="font-mono text-red-600">
-                  − {formatCurrency(d.amount)}
-                </span>
-              </div>
-            ))}
-            <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-              <span className="font-semibold text-gray-900">
-                Total Deductions
-              </span>
-              <span className="font-semibold font-mono text-red-600">
-                − {formatCurrency(Number(payroll.totalDeductions))}
-              </span>
-            </div>
-          </div>
         </div>
-      )}
 
-      {/* ── Net salary ── */}
-      <div className="rounded-2xl border-2 border-blue-200 bg-blue-50 p-6">
-        <div className="flex items-center justify-between">
+        <div className="grid gap-0 border-gray-200 sm:grid-cols-2">
+          <DetailItem
+            icon={<User className="h-4 w-4" />}
+            label="Employee"
+            value={employeeName || "Unnamed employee"}
+          />
+          <DetailItem
+            icon={<FileText className="h-4 w-4" />}
+            label="Employee ID"
+            value={payroll.employee.employeeId}
+          />
+          <DetailItem
+            icon={<User className="h-4 w-4" />}
+            label="Position"
+            value={payroll.employee.position || "Not assigned"}
+          />
+          <DetailItem
+            icon={<User className="h-4 w-4" />}
+            label="Department"
+            value={payroll.employee.department?.name || "No department"}
+          />
+        </div>
+      </section>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <PayrollSection
+          title="Earnings"
+          totalLabel="Gross salary"
+          totalAmount={toNumber(payroll.grossSalary)}
+          totalTone="default"
+        >
+          {earnings.map((item) => (
+            <AmountRow
+              key={item.label}
+              label={item.label}
+              amount={item.amount}
+            />
+          ))}
+        </PayrollSection>
+
+        <PayrollSection
+          title="Deductions"
+          totalLabel="Total deductions"
+          totalAmount={toNumber(payroll.totalDeductions)}
+          totalTone="red"
+        >
+          {deductions.length > 0 ? (
+            deductions.map((item) => (
+              <AmountRow
+                key={item.label}
+                label={item.label}
+                amount={item.amount}
+                negative
+              />
+            ))
+          ) : (
+            <p className="text-sm text-gray-500">No deductions recorded.</p>
+          )}
+        </PayrollSection>
+      </div>
+
+      <section className="border border-[#0B5A43]/20 bg-[#EAF5F0] p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-medium text-blue-700">Net Salary</p>
-            <p className="text-xs text-blue-500">
-              Take-home pay after all deductions
+            <p className="text-sm font-semibold text-[#0B5A43]">Net salary</p>
+            <p className="mt-1 text-sm text-gray-600">
+              Final amount after earnings and deductions.
             </p>
           </div>
-          <p className="text-2xl font-bold text-blue-700 font-mono">
-            {formatCurrency(Number(payroll.netSalary))}
+
+          <p className="text-2xl font-semibold tracking-tight text-[#0B5A43]">
+            {formatCurrency(payroll.netSalary)}
           </p>
         </div>
-      </div>
+      </section>
 
-      {/* ── Attendance ── */}
-      {(payroll.workDays != null || payroll.overtimeHours != null) && (
-        <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-gray-400">
-            Attendance Summary
+      <section className="border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 p-5">
+          <h2 className="text-base font-semibold text-gray-950">
+            Attendance summary
           </h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {[
-              { label: "Days Worked", value: payroll.workDays ?? "—" },
-              { label: "Days Absent", value: payroll.absentDays ?? 0 },
-              { label: "Late Days", value: payroll.lateDays ?? 0 },
-              {
-                label: "Overtime (hrs)",
-                value:
-                  payroll.overtimeHours != null
-                    ? Number(payroll.overtimeHours).toFixed(1)
-                    : "—",
-              },
-            ].map((s) => (
-              <div
-                key={s.label}
-                className="rounded-xl bg-gray-50 p-3 text-center"
-              >
-                <p className="text-xl font-bold text-gray-900">{s.value}</p>
-                <p className="mt-0.5 text-xs text-gray-500">{s.label}</p>
-              </div>
-            ))}
-          </div>
         </div>
-      )}
 
-      {/* ── Notes ── */}
-      {payroll.notes && (
-        <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          <strong>Notes:</strong> {payroll.notes}
+        <div className="grid gap-0 sm:grid-cols-2 lg:grid-cols-4">
+          <DetailItem
+            icon={<CalendarDays className="h-4 w-4" />}
+            label="Work days"
+            value={payroll.workDays ?? "—"}
+          />
+          <DetailItem
+            icon={<CalendarDays className="h-4 w-4" />}
+            label="Absent days"
+            value={payroll.absentDays ?? 0}
+          />
+          <DetailItem
+            icon={<Clock className="h-4 w-4" />}
+            label="Late days"
+            value={payroll.lateDays ?? 0}
+          />
+          <DetailItem
+            icon={<Clock className="h-4 w-4" />}
+            label="Overtime hours"
+            value={
+              payroll.overtimeHours != null
+                ? `${Number(payroll.overtimeHours).toFixed(1)} hrs`
+                : "—"
+            }
+          />
         </div>
-      )}
+      </section>
 
-      {/* ── Download ── */}
-      <div className="flex justify-end pb-6">
-        <Button variant="outline" className="gap-2" disabled>
-          <Download className="h-4 w-4" />
-          Download PDF
-          <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-400">
-            Coming soon
-          </span>
-        </Button>
+      <div className="flex justify-end">
+        <Link href="/payslip">
+          <Button
+            variant="outline"
+            className="border-[#0B5A43]/30 text-[#0B5A43] hover:border-[#0B5A43] hover:bg-[#EAF5F0]"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to payslips
+          </Button>
+        </Link>
       </div>
     </div>
   );
+}
+
+function PayrollSection({
+  title,
+  totalLabel,
+  totalAmount,
+  totalTone = "default",
+  children,
+}: {
+  title: string;
+  totalLabel: string;
+  totalAmount: number;
+  totalTone?: "default" | "red";
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="border border-gray-200 bg-white">
+      <div className="border-b border-gray-200 p-5">
+        <h2 className="text-base font-semibold text-gray-950">{title}</h2>
+      </div>
+
+      <div className="space-y-3 p-5">
+        {children}
+
+        <div className="flex items-center justify-between border-t border-gray-200 pt-3">
+          <span className="text-sm font-semibold text-gray-950">
+            {totalLabel}
+          </span>
+          <span
+            className={
+              totalTone === "red"
+                ? "text-sm font-semibold text-red-700"
+                : "text-sm font-semibold text-gray-950"
+            }
+          >
+            {totalTone === "red" ? "− " : ""}
+            {formatCurrency(totalAmount)}
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AmountRow({
+  label,
+  amount,
+  negative = false,
+}: {
+  label: string;
+  amount: number;
+  negative?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-sm text-gray-600">{label}</span>
+      <span
+        className={
+          negative
+            ? "text-sm font-medium text-red-700"
+            : "text-sm font-medium text-gray-950"
+        }
+      >
+        {negative ? "− " : ""}
+        {formatCurrency(amount)}
+      </span>
+    </div>
+  );
+}
+
+function SummaryItem({
+  label,
+  value,
+  description,
+  icon,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  description: string;
+  icon: React.ReactNode;
+  tone?: "default" | "green" | "orange";
+}) {
+  const iconClass = {
+    default: "border-gray-200 bg-gray-50 text-gray-600",
+    green: "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
+    orange: "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]",
+  }[tone];
+
+  return (
+    <div className="border-b border-gray-200 p-4 md:border-b-0 md:border-r last:border-r-0">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            {label}
+          </p>
+          <p className="mt-2 break-words text-lg font-semibold text-gray-950">
+            {value}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">{description}</p>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center border ${iconClass}`}
+        >
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailItem({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value?: string | number | null;
+}) {
+  return (
+    <div className="border-b border-gray-200 p-4 sm:border-r even:sm:border-r-0 last:border-b-0">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 text-[#0B5A43]">{icon}</span>
+
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            {label}
+          </p>
+          <p className="mt-1 break-words text-sm font-medium text-gray-950">
+            {value ?? "-"}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function toNumber(value: unknown) {
+  if (value === null || value === undefined) return 0;
+
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toNumber" in value &&
+    typeof value.toNumber === "function"
+  ) {
+    return value.toNumber();
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatCurrency(value: unknown) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(toNumber(value));
+}
+
+function formatMonthYear(month: number, year: number) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, month - 1, 1));
+}
+
+function formatDate(value: Date | string) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(value));
 }

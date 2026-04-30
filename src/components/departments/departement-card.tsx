@@ -1,10 +1,19 @@
 // src/components/departments/department-card.tsx
-'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader } from '@/src/components/ui/card'
-import { Button } from '@/src/components/ui/button'
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Building2,
+  Edit,
+  MoreVertical,
+  Trash2,
+  UserCog,
+  Users,
+} from "lucide-react";
+
+import { Button } from "@/src/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,54 +21,43 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/src/components/ui/dropdown-menu'
-import { Badge } from '@/src/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/src/components/ui/avatar'
-import { Building2, Users, MoreVertical, Edit, Trash2, UserCog } from 'lucide-react'
-import { DeleteDepartmentDialog } from './delete-department-dialog'
+} from "@/src/components/ui/dropdown-menu";
+import { DeleteDepartmentDialog } from "./delete-department-dialog";
 
 interface DepartmentCardProps {
   department: {
-    id: string
-    name: string
-    description: string
-    managerName: string
-    managerEmail: string
-    employeeCount: number
-    totalEmployees: number
-  }
-  canManage: boolean
+    id: string;
+    name: string;
+    description: string;
+    managerName: string;
+    managerEmail: string;
+    employeeCount: number;
+    totalEmployees: number;
+  };
+  canManage: boolean;
 }
 
 export function DepartmentCard({ department, canManage }: DepartmentCardProps) {
-  const router = useRouter()
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const router = useRouter();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
-  }
-
-  const hasManager = department.managerName !== 'No Manager'
+  const hasManager = department.managerName !== "No Manager";
 
   return (
     <>
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
-              <Building2 className="h-6 w-6 text-blue-600" />
+      <article className="border border-gray-200 bg-white">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-200 p-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]">
+              <Building2 className="h-5 w-5" />
             </div>
-            <div>
-              <h3 className="font-semibold text-lg text-gray-900">
+
+            <div className="min-w-0">
+              <h2 className="truncate text-base font-semibold text-gray-950">
                 {department.name}
-              </h3>
-              <p className="text-sm text-gray-600 line-clamp-1">
-                {department.description || 'No description'}
+              </h2>
+              <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-gray-500">
+                {department.description || "No description provided."}
               </p>
             </div>
           </div>
@@ -67,21 +65,27 @@ export function DepartmentCard({ department, canManage }: DepartmentCardProps) {
           {canManage && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
+
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                 <DropdownMenuSeparator />
+
                 <DropdownMenuItem
-                  onClick={() =>
-                    router.push(`/departments/${department.id}`)
-                  }
+                  onClick={() => router.push(`/departments/${department.id}`)}
                 >
                   <Building2 className="mr-2 h-4 w-4" />
-                  View Details
+                  View details
                 </DropdownMenuItem>
+
                 <DropdownMenuItem
                   onClick={() =>
                     router.push(`/departments/${department.id}/edit`)
@@ -90,7 +94,9 @@ export function DepartmentCard({ department, canManage }: DepartmentCardProps) {
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </DropdownMenuItem>
+
                 <DropdownMenuSeparator />
+
                 <DropdownMenuItem
                   onClick={() => setDeleteDialogOpen(true)}
                   className="text-red-600 focus:text-red-600"
@@ -101,44 +107,72 @@ export function DepartmentCard({ department, canManage }: DepartmentCardProps) {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-        </CardHeader>
+        </div>
 
-        <CardContent className="space-y-4">
-          {/* Manager Info */}
-          <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3">
-            <Avatar className="h-10 w-10">
-              <AvatarFallback className="bg-blue-600 text-white text-sm">
-                {hasManager ? getInitials(department.managerName) : <UserCog className="h-5 w-5" />}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900">
-                {hasManager ? department.managerName : 'No Manager'}
-              </p>
-              {hasManager && (
-                <p className="text-xs text-gray-600 truncate">
-                  {department.managerEmail}
+        <div className="space-y-4 p-5">
+          <div className="border border-gray-200 bg-gray-50 p-4">
+            <div className="flex items-start gap-3">
+              <div
+                className={
+                  hasManager
+                    ? "flex h-10 w-10 shrink-0 items-center justify-center border border-[#0B5A43]/20 bg-[#EAF5F0] text-sm font-semibold text-[#0B5A43]"
+                    : "flex h-10 w-10 shrink-0 items-center justify-center border border-gray-200 bg-white text-gray-400"
+                }
+              >
+                {hasManager ? (
+                  getInitials(department.managerName)
+                ) : (
+                  <UserCog className="h-5 w-5" />
+                )}
+              </div>
+
+              <div className="min-w-0">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Manager
                 </p>
-              )}
+
+                <p className="mt-1 truncate text-sm font-semibold text-gray-950">
+                  {hasManager ? department.managerName : "No manager assigned"}
+                </p>
+
+                {hasManager && (
+                  <p className="mt-0.5 truncate text-xs text-gray-500">
+                    {department.managerEmail}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="flex items-center justify-between pt-2 border-t">
-            <div className="flex items-center gap-2 text-gray-600">
-              <Users className="h-4 w-4" />
-              <span className="text-sm font-medium">
-                {department.employeeCount} Active
-              </span>
+          <div className="grid grid-cols-2 border border-gray-200">
+            <div className="border-r border-gray-200 p-4">
+              <div className="flex items-center gap-2 text-[#0B5A43]">
+                <Users className="h-4 w-4" />
+                <span className="text-xs font-medium uppercase tracking-wide">
+                  Active
+                </span>
+              </div>
+
+              <p className="mt-2 text-2xl font-semibold text-gray-950">
+                {department.employeeCount}
+              </p>
             </div>
-            {department.totalEmployees > department.employeeCount && (
-              <span className="text-xs text-gray-500">
-                {department.totalEmployees} total
-              </span>
-            )}
+
+            <div className="p-4">
+              <div className="flex items-center gap-2 text-gray-500">
+                <Users className="h-4 w-4" />
+                <span className="text-xs font-medium uppercase tracking-wide">
+                  Total
+                </span>
+              </div>
+
+              <p className="mt-2 text-2xl font-semibold text-gray-950">
+                {department.totalEmployees}
+              </p>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </article>
 
       <DeleteDepartmentDialog
         open={deleteDialogOpen}
@@ -150,5 +184,14 @@ export function DepartmentCard({ department, canManage }: DepartmentCardProps) {
         }}
       />
     </>
-  )
+  );
+}
+
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/);
+
+  const first = parts[0]?.charAt(0) ?? "";
+  const second = parts[1]?.charAt(0) ?? "";
+
+  return `${first}${second}`.toUpperCase() || "M";
 }

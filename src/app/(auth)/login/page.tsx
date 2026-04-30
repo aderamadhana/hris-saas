@@ -2,26 +2,36 @@
 
 // src/app/(auth)/login/page.tsx
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Loader2,
+  LockKeyhole,
+  Mail,
+} from "lucide-react";
+
 import { createClient } from "@/src/lib/supabase/client";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 
-function ArsadayaIcon({ size = 28 }: { size?: number }) {
+function ArsadayaIcon({ size = 40 }: { size?: number }) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 200 200"
       xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
     >
-      <rect width="200" height="200" rx="42" fill="#2D6A50" />
+      <rect width="200" height="200" fill="#0B5A43" />
       <line
         x1="100"
         y1="52"
@@ -49,283 +59,369 @@ function ArsadayaIcon({ size = 28 }: { size?: number }) {
         strokeWidth="19"
         strokeLinecap="round"
       />
-      <circle cx="100" cy="38" r="16" fill="#F5A623" />
+      <circle cx="100" cy="38" r="16" fill="#F7A81B" />
     </svg>
   );
 }
 
-const schema = z.object({
-  email: z.string().email("Please enter a valid email"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+function GoogleIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 18 18" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"
+      />
+      <path
+        fill="#34A853"
+        d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.909-2.259c-.806.54-1.837.86-3.047.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
+      />
+      <path
+        fill="#EA4335"
+        d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"
+      />
+    </svg>
+  );
+}
+
+const loginSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email is required")
+    .email("Enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
 });
-type FormData = z.infer<typeof schema>;
+
+type LoginFormData = z.infer<typeof loginSchema>;
+
+function getAuthErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) {
+    return "Something went wrong. Please try again.";
+  }
+
+  if (error.message.includes("Invalid login credentials")) {
+    return "Invalid email or password.";
+  }
+
+  if (error.message.includes("Email not confirmed")) {
+    return "Please verify your email before signing in.";
+  }
+
+  return error.message || "Something went wrong. Please try again.";
+}
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
-  const [showPwd, setShowPwd] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const supabase = React.useMemo(() => createClient(), []);
+
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<FormData>({
-    resolver: zodResolver(schema),
+  } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
   });
 
-  const onSubmit = async (data: FormData) => {
-    setIsLoading(true);
+  const onSubmit = async (data: LoginFormData) => {
+    setIsSubmitting(true);
     setError(null);
+
     try {
-      const { error: e } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       });
-      if (e) throw e;
-      router.push("/dashboard");
+
+      if (signInError) {
+        throw signInError;
+      }
+
+      router.replace("/dashboard");
       router.refresh();
-    } catch (err: any) {
-      setError(
-        err.message?.includes("Invalid login credentials")
-          ? "Invalid email or password."
-          : (err.message ?? "Something went wrong."),
-      );
+    } catch (authError) {
+      setError(getAuthErrorMessage(authError));
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleGoogle = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    setError(null);
+
+    try {
+      const { error: googleError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (googleError) {
+        throw googleError;
+      }
+    } catch (authError) {
+      setError(getAuthErrorMessage(authError));
+      setIsGoogleLoading(false);
+    }
   };
 
+  const isBusy = isSubmitting || isGoogleLoading;
+
   return (
-    <div className="min-h-screen flex" style={{ background: "#F4F5F7" }}>
-      {/* Left panel — branding */}
-      <div
-        className="hidden lg:flex flex-col justify-between w-[420px] shrink-0 p-10"
-        style={{ background: "#111B15" }}
-      >
-        <div className="flex items-center gap-2.5">
-          <ArsadayaIcon size={32} />
-          <span
-            className="text-white font-bold tracking-widest text-base"
-            style={{ fontFamily: "Georgia, serif" }}
-          >
-            ARSADAYA
-          </span>
-        </div>
+    <main className="min-h-screen bg-[#F8FBF8]">
+      <div className="grid min-h-screen lg:grid-cols-[520px_1fr]">
+        <section className="relative hidden overflow-hidden bg-[#0B5A43] text-white lg:flex lg:flex-col lg:justify-between">
+          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#F7A81B]/25" />
+          <div className="pointer-events-none absolute bottom-24 right-20 h-28 w-28 rounded-full bg-white/10" />
+          <div className="pointer-events-none absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-black/10" />
 
-        <div>
-          <p className="text-2xl font-semibold text-white leading-snug mb-3">
-            All your HR tools,
-            <br />
-            in one place.
-          </p>
-          <p className="text-sm" style={{ color: "#52A688" }}>
-            Attendance · Leave · Payroll · Reports
-          </p>
-        </div>
-
-        <p className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
-          © {new Date().getFullYear()} ARSADAYA. All rights reserved.
-        </p>
-      </div>
-
-      {/* Right panel — form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-sm">
-          {/* Mobile brand */}
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <ArsadayaIcon size={28} />
-            <span
-              className="font-bold tracking-widest text-sm"
-              style={{ color: "#111B15", fontFamily: "Georgia, serif" }}
-            >
-              ARSADAYA
-            </span>
+          <div className="relative p-10">
+            <div className="flex items-center gap-3">
+              <ArsadayaIcon size={42} />
+              <div>
+                <p className="text-base font-bold tracking-[0.28em]">
+                  ARSADAYA
+                </p>
+                <p className="mt-0.5 text-xs text-white/60">
+                  HR management system
+                </p>
+              </div>
+            </div>
           </div>
 
-          <h1
-            className="text-xl font-semibold mb-1"
-            style={{ color: "#111827" }}
-          >
-            Sign in
-          </h1>
-          <p className="text-sm mb-7" style={{ color: "#6B7280" }}>
-            Don't have an account?{" "}
-            <Link
-              href="/register"
-              style={{ color: "#2D6A50" }}
-              className="font-medium hover:underline"
-            >
-              Sign up
-            </Link>
-          </p>
+          <div className="relative p-10">
+            <p className="max-w-sm text-4xl font-semibold leading-tight tracking-tight">
+              Manage attendance, leave, payroll, and people in one place.
+            </p>
 
-          {error && (
-            <div
-              className="mb-5 px-3 py-2.5 rounded-lg text-sm"
-              style={{
-                background: "#FEF2F2",
-                color: "#B91C1C",
-                border: "1px solid #FECACA",
-              }}
-            >
-              {error}
+            <div className="mt-8 grid max-w-md grid-cols-2 gap-3">
+              <FeatureItem label="Attendance" />
+              <FeatureItem label="Leave approval" />
+              <FeatureItem label="Payroll" />
+              <FeatureItem label="Reports" />
             </div>
-          )}
+          </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <Label
-                htmlFor="email"
-                className="text-xs font-medium mb-1.5 block"
-                style={{ color: "#374151" }}
-              >
-                Email address
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@company.com"
-                {...register("email")}
-                className="h-9 text-sm"
-                style={{ borderColor: "#E5E7EB", background: "white" }}
-              />
-              {errors.email && (
-                <p className="text-xs mt-1" style={{ color: "#DC2626" }}>
-                  {errors.email.message}
+          <div className="relative p-10 text-xs text-white/45">
+            © {new Date().getFullYear()} ARSADAYA. All rights reserved.
+          </div>
+        </section>
+
+        <section className="flex items-center justify-center px-5 py-10 sm:px-6">
+          <div className="w-full max-w-[420px]">
+            <div className="mb-8 flex items-center gap-3 lg:hidden">
+              <ArsadayaIcon size={38} />
+              <div>
+                <p className="text-sm font-bold tracking-[0.25em] text-[#0B5A43]">
+                  ARSADAYA
                 </p>
-              )}
+                <p className="mt-0.5 text-xs text-gray-500">
+                  HR management system
+                </p>
+              </div>
             </div>
 
-            <div>
-              <div className="flex justify-between mb-1.5">
-                <Label
-                  htmlFor="password"
-                  className="text-xs font-medium"
-                  style={{ color: "#374151" }}
-                >
-                  Password
-                </Label>
-                <Link
-                  href="/forgot-password"
-                  className="text-xs hover:underline"
-                  style={{ color: "#2D6A50" }}
-                >
-                  Forgot password?
-                </Link>
+            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm sm:p-7">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0B5A43]">
+                  Welcome back
+                </p>
+
+                <h1 className="mt-3 text-2xl font-semibold tracking-tight text-gray-950">
+                  Sign in to your account
+                </h1>
+
+                <p className="mt-2 text-sm leading-relaxed text-gray-500">
+                  Use your company email and password to access your dashboard.
+                </p>
               </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPwd ? "text" : "password"}
-                  placeholder="••••••••"
-                  {...register("password")}
-                  className="h-9 text-sm pr-9"
-                  style={{ borderColor: "#E5E7EB", background: "white" }}
-                />
+
+              {error && (
+                <div className="mt-5 flex gap-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>{error}</p>
+                </div>
+              )}
+
+              <form
+                onSubmit={handleSubmit(onSubmit)}
+                className="mt-6 space-y-4"
+                noValidate
+              >
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="email"
+                    className="text-sm font-medium text-gray-800"
+                  >
+                    Email address
+                  </Label>
+
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@company.com"
+                      autoComplete="email"
+                      disabled={isBusy}
+                      aria-invalid={Boolean(errors.email)}
+                      className="h-11 pl-9 text-sm focus-visible:ring-[#0B5A43]"
+                      {...register("email")}
+                    />
+                  </div>
+
+                  {errors.email && (
+                    <p className="text-xs text-red-600">
+                      {errors.email.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label
+                      htmlFor="password"
+                      className="text-sm font-medium text-gray-800"
+                    >
+                      Password
+                    </Label>
+
+                    <Link
+                      href="/forgot-password"
+                      className="text-xs font-semibold text-[#0B5A43] hover:underline"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+
+                  <div className="relative">
+                    <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter your password"
+                      autoComplete="current-password"
+                      disabled={isBusy}
+                      aria-invalid={Boolean(errors.password)}
+                      className="h-11 pl-9 pr-10 text-sm focus-visible:ring-[#0B5A43]"
+                      {...register("password")}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((current) => !current)}
+                      disabled={isBusy}
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition hover:text-[#0B5A43] disabled:opacity-50"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+
+                  {errors.password && (
+                    <p className="text-xs text-red-600">
+                      {errors.password.message}
+                    </p>
+                  )}
+                </div>
+
                 <button
-                  type="button"
-                  onClick={() => setShowPwd(!showPwd)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2"
-                  style={{ color: "#9CA3AF" }}
+                  type="submit"
+                  disabled={isBusy}
+                  className="group inline-flex h-11 w-full items-center justify-center rounded-md bg-[#0B5A43] px-4 text-sm font-semibold text-white transition hover:bg-[#084735] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B5A43] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {showPwd ? (
-                    <EyeOff className="h-3.5 w-3.5" />
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in
+                    </>
                   ) : (
-                    <Eye className="h-3.5 w-3.5" />
+                    <>
+                      Sign in
+                      <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-0.5" />
+                    </>
                   )}
                 </button>
+              </form>
+
+              <div className="my-6 flex items-center gap-3">
+                <div className="h-px flex-1 bg-gray-200" />
+                <span className="text-xs font-medium text-gray-400">or</span>
+                <div className="h-px flex-1 bg-gray-200" />
               </div>
-              {errors.password && (
-                <p className="text-xs mt-1" style={{ color: "#DC2626" }}>
-                  {errors.password.message}
-                </p>
-              )}
+
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={isBusy}
+                className="inline-flex h-11 w-full items-center justify-center rounded-md border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:border-[#0B5A43]/40 hover:bg-[#EAF5F0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B5A43] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isGoogleLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Redirecting
+                  </>
+                ) : (
+                  <>
+                    <GoogleIcon />
+                    <span className="ml-2">Continue with Google</span>
+                  </>
+                )}
+              </button>
+
+              <p className="mt-6 text-center text-sm text-gray-500">
+                Don&apos;t have an account?{" "}
+                <Link
+                  href="/register"
+                  className="font-semibold text-[#0B5A43] hover:underline"
+                >
+                  Create one
+                </Link>
+              </p>
             </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-9 rounded-lg text-sm font-medium text-white flex items-center justify-center gap-2 transition-opacity disabled:opacity-60"
-              style={{ background: "#2D6A50" }}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Signing in…
-                </>
-              ) : (
-                "Sign In"
-              )}
-            </button>
-          </form>
-
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px" style={{ background: "#E5E7EB" }} />
-            <span className="text-xs" style={{ color: "#9CA3AF" }}>
-              or
-            </span>
-            <div className="flex-1 h-px" style={{ background: "#E5E7EB" }} />
+            <p className="mt-5 text-center text-xs leading-relaxed text-gray-400">
+              By signing in, you agree to our{" "}
+              <Link href="/terms" className="hover:text-[#0B5A43]">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" className="hover:text-[#0B5A43]">
+                Privacy Policy
+              </Link>
+              .
+            </p>
           </div>
-
-          <button
-            onClick={handleGoogle}
-            className="w-full h-9 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
-            style={{
-              border: "1px solid #E5E7EB",
-              background: "white",
-              color: "#374151",
-            }}
-          >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 18 18">
-              <path
-                fill="#4285F4"
-                d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"
-              />
-              <path
-                fill="#34A853"
-                d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.909-2.259c-.806.54-1.837.86-3.047.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"
-              />
-              <path
-                fill="#EA4335"
-                d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z"
-              />
-            </svg>
-            Continue with Google
-          </button>
-
-          <p className="text-center text-xs mt-6" style={{ color: "#9CA3AF" }}>
-            By signing in, you agree to our{" "}
-            <Link
-              href="/terms"
-              className="hover:underline"
-              style={{ color: "#6B7280" }}
-            >
-              Terms
-            </Link>{" "}
-            and{" "}
-            <Link
-              href="/privacy"
-              className="hover:underline"
-              style={{ color: "#6B7280" }}
-            >
-              Privacy Policy
-            </Link>
-            .
-          </p>
-        </div>
+        </section>
       </div>
+    </main>
+  );
+}
+
+function FeatureItem({ label }: { label: string }) {
+  return (
+    <div className="rounded-md border border-white/10 bg-white/10 px-4 py-3">
+      <p className="text-sm font-medium text-white">{label}</p>
     </div>
   );
 }

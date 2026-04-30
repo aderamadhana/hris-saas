@@ -1,9 +1,6 @@
-// src/app/api/attendance/monthly-recap/route.ts
-// Returns monthly attendance recap per employee, with department filter
-
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import prisma from '@/lib/prisma'
+import { createClient } from '@/src/lib/supabase/server'
+import prisma from '@/src/lib/prisma'
 import { startOfMonth, endOfMonth, eachDayOfInterval, isWeekend, format } from 'date-fns'
 
 export async function GET(request: NextRequest) {
