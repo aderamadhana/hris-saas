@@ -2,34 +2,30 @@
 
 // src/components/reports/reports-client.tsx
 
-import { useCallback, useMemo, useState } from "react";
-import type { ElementType, ReactNode } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   AlertCircle,
-  CalendarDays,
-  CheckCircle2,
-  Clock,
-  FileSpreadsheet,
+  BarChart3,
+  Calendar,
+  Download,
   FileText,
-  Filter,
   Loader2,
   RefreshCw,
-  Search,
   Users,
   Wallet,
-  XCircle,
 } from "lucide-react";
-
 import { Button } from "@/src/components/ui/button";
 
-interface Employee {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface EmployeeOption {
   id: string;
   name: string;
   employeeId: string;
   department: string;
 }
 
-interface Department {
+interface DepartmentOption {
   id: string;
   name: string;
 }
@@ -37,12 +33,59 @@ interface Department {
 interface ReportsClientProps {
   organizationId: string;
   userRole: string;
-  employees: Employee[];
-  departments: Department[];
+  employees: EmployeeOption[];
+  departments: DepartmentOption[];
 }
 
-type ReportTab = "attendance" | "leave" | "payroll";
-type ReportRow = Record<string, unknown>;
+type ReportType = "attendance" | "leave" | "payroll";
+
+interface AttendanceRow {
+  employeeId: string;
+  name: string;
+  department: string;
+  presentDays: number;
+  lateDays: number;
+  absentDays: number;
+  totalHours: number;
+  attendanceRate: number;
+  workingDays: number;
+}
+
+interface LeaveRow {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  status: string;
+  reason: string;
+  approvedBy: string;
+}
+
+interface PayrollRow {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  baseSalary: number;
+  allowances: number;
+  overtime: number;
+  bonus: number;
+  grossSalary: number;
+  bpjsKesehatan: number;
+  bpjsKetenagakerjaan: number;
+  pph21: number;
+  totalDeductions: number;
+  netSalary: number;
+  status: string;
+  workDays: number;
+  absentDays: number;
+}
+
+type ReportRow = AttendanceRow | LeaveRow | PayrollRow;
 
 const MONTHS = [
   "January",
@@ -59,167 +102,675 @@ const MONTHS = [
   "December",
 ];
 
-const currentYear = new Date().getFullYear();
-const YEARS = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
-
-const REPORT_TABS: Array<{
-  id: ReportTab;
+const REPORT_TYPES: Array<{
+  value: ReportType;
   label: string;
-  description: string;
-  icon: ElementType;
+  icon: typeof BarChart3;
 }> = [
-  {
-    id: "attendance",
-    label: "Attendance",
-    description: "Workdays, presence, absence, and lateness.",
-    icon: Clock,
-  },
-  {
-    id: "leave",
-    label: "Leave",
-    description: "Leave requests, approvals, and days taken.",
-    icon: CalendarDays,
-  },
-  {
-    id: "payroll",
-    label: "Payroll",
-    description: "Salary, allowances, deductions, and net pay.",
-    icon: Wallet,
-  },
+  { value: "attendance", label: "Attendance", icon: Calendar },
+  { value: "leave", label: "Leave", icon: FileText },
+  { value: "payroll", label: "Payroll", icon: Wallet },
 ];
 
-function getValue(row: ReportRow, keys: string[]) {
-  for (const key of keys) {
-    const value = row[key];
-
-    if (value !== null && value !== undefined && value !== "") {
-      return value;
-    }
-  }
-
-  return null;
-}
-
-function formatText(value: unknown) {
-  if (value === null || value === undefined || value === "") return "-";
-  return String(value);
-}
-
-function toSafeNumber(value: unknown) {
-  if (value === null || value === undefined || value === "") return 0;
-
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : 0;
-  }
-
-  const normalized = String(value)
-    .replace(/[^\d.-]/g, "")
-    .trim();
-
-  if (!normalized || normalized === "-" || normalized === ".") return 0;
-
-  const number = Number(normalized);
-
-  return Number.isFinite(number) ? number : 0;
-}
-
-function formatNumber(value: unknown) {
-  const number = toSafeNumber(value);
-  return new Intl.NumberFormat("en-US").format(number);
-}
-
-function formatPercent(value: unknown) {
-  const number = toSafeNumber(value);
-  return `${number.toFixed(1)}%`;
-}
-
-function formatCurrency(value: unknown) {
-  const number = toSafeNumber(value);
-
+function formatCurrency(value: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(number);
+    minimumFractionDigits: 0,
+  }).format(value);
 }
 
-function getStatusClass(value: unknown) {
-  const status = String(value ?? "").toLowerCase();
-
-  if (["approved", "paid", "completed", "present", "active"].includes(status)) {
-    return "bg-[#EAF5F0] text-[#0B5A43]";
-  }
-
-  if (["pending", "draft", "processing"].includes(status)) {
-    return "bg-[#FFF4D9] text-[#7A5A00]";
-  }
-
-  if (["rejected", "unpaid", "absent", "failed"].includes(status)) {
-    return "bg-red-50 text-red-700";
-  }
-
-  return "bg-gray-100 text-gray-700";
+function formatLeaveType(type: string) {
+  const map: Record<string, string> = {
+    annual: "Cuti Tahunan",
+    sick: "Sakit",
+    maternity: "Cuti Melahirkan",
+    marriage: "Cuti Menikah",
+    paternity: "Cuti Istri Melahirkan",
+    family_death: "Keluarga Meninggal",
+    hajj: "Haji",
+    wfh: "WFH",
+    wfa: "WFA",
+    out_of_office: "Out of Office",
+    business_trip_local: "Dinas Kota",
+    business_trip_province: "Dinas Provinsi",
+    unpaid: "Tanpa Upah",
+  };
+  return map[type] ?? type.replace(/_/g, " ");
 }
 
-function StatusBadge({ value }: { value: unknown }) {
+// ─── Export to CSV ────────────────────────────────────────────────────────────
+
+function exportToCSV(
+  data: ReportRow[],
+  type: ReportType,
+  month: number,
+  year: number,
+) {
+  if (!data.length) return;
+
+  let headers: string[] = [];
+  let rows: string[][] = [];
+
+  if (type === "attendance") {
+    headers = [
+      "Employee ID",
+      "Name",
+      "Department",
+      "Present",
+      "Late",
+      "Absent",
+      "Hours",
+      "Rate (%)",
+      "Working Days",
+    ];
+    rows = (data as AttendanceRow[]).map((r) => [
+      r.employeeId,
+      r.name,
+      r.department,
+      String(r.presentDays),
+      String(r.lateDays),
+      String(r.absentDays),
+      String(r.totalHours),
+      String(r.attendanceRate),
+      String(r.workingDays),
+    ]);
+  } else if (type === "leave") {
+    headers = [
+      "Employee ID",
+      "Name",
+      "Department",
+      "Type",
+      "Start",
+      "End",
+      "Days",
+      "Status",
+      "Approved By",
+    ];
+    rows = (data as LeaveRow[]).map((r) => [
+      r.employeeId,
+      r.employeeName,
+      r.department,
+      formatLeaveType(r.leaveType),
+      r.startDate,
+      r.endDate,
+      String(r.totalDays),
+      r.status,
+      r.approvedBy,
+    ]);
+  } else {
+    headers = [
+      "Employee ID",
+      "Name",
+      "Department",
+      "Base Salary",
+      "Allowances",
+      "Overtime",
+      "Bonus",
+      "Gross",
+      "BPJS Kes",
+      "BPJS TK",
+      "PPh21",
+      "Deductions",
+      "Net Salary",
+      "Status",
+    ];
+    rows = (data as PayrollRow[]).map((r) => [
+      r.employeeId,
+      r.employeeName,
+      r.department,
+      String(r.baseSalary),
+      String(r.allowances),
+      String(r.overtime),
+      String(r.bonus),
+      String(r.grossSalary),
+      String(r.bpjsKesehatan),
+      String(r.bpjsKetenagakerjaan),
+      String(r.pph21),
+      String(r.totalDeductions),
+      String(r.netSalary),
+      r.status,
+    ]);
+  }
+
+  const csv = [headers, ...rows]
+    .map((row) => row.map((cell) => `"${cell}"`).join(","))
+    .join("\n");
+
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `report-${type}-${MONTHS[month - 1].toLowerCase()}-${year}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export function ReportsClient({ employees, departments }: ReportsClientProps) {
+  const now = new Date();
+
+  const [reportType, setReportType] = useState<ReportType>("attendance");
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+  const [departmentId, setDepartmentId] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+
+  const [data, setData] = useState<ReportRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchReport = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        type: reportType,
+        month: String(month),
+        year: String(year),
+      });
+      if (departmentId) params.set("departmentId", departmentId);
+      if (employeeId) params.set("employeeId", employeeId);
+
+      const res = await fetch(`/api/reports?${params}`, { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to fetch report");
+      setData(Array.isArray(json.data) ? json.data : []);
+    } catch (err: any) {
+      setError(err.message ?? "Failed to fetch report");
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [reportType, month, year, departmentId, employeeId]);
+
+  useEffect(() => {
+    fetchReport();
+  }, [fetchReport]);
+
+  return (
+    <div className="mx-auto w-full space-y-5 pb-8">
+      {/* Header */}
+      <header className="border border-gray-200 bg-white p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-950">
+              Reports
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Attendance, leave, and payroll reports with export to CSV.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={fetchReport}
+              disabled={loading}
+              className="sm:w-auto"
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
+            </Button>
+            <Button
+              onClick={() => exportToCSV(data, reportType, month, year)}
+              disabled={loading || data.length === 0}
+              className="bg-[#0B5A43] text-white hover:bg-[#084735] sm:w-auto"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* Report type tabs */}
+      <div className="flex gap-1 border-b border-gray-200 bg-white px-4">
+        {REPORT_TYPES.map(({ value, label, icon: Icon }) => (
+          <button
+            key={value}
+            onClick={() => setReportType(value)}
+            className={[
+              "flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors",
+              reportType === value
+                ? "border-[#0B5A43] text-[#0B5A43]"
+                : "border-transparent text-gray-500 hover:text-gray-800",
+            ].join(" ")}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="border border-gray-200 bg-white p-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">
+              Month
+            </label>
+            <select
+              value={month}
+              onChange={(e) => setMonth(Number(e.target.value))}
+              className="h-9 w-full border border-gray-300 px-2 text-sm outline-none focus:border-[#0B5A43]"
+            >
+              {MONTHS.map((m, i) => (
+                <option key={m} value={i + 1}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">
+              Year
+            </label>
+            <select
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+              className="h-9 w-full border border-gray-300 px-2 text-sm outline-none focus:border-[#0B5A43]"
+            >
+              {[
+                now.getFullYear() - 1,
+                now.getFullYear(),
+                now.getFullYear() + 1,
+              ].map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">
+              Department
+            </label>
+            <select
+              value={departmentId}
+              onChange={(e) => setDepartmentId(e.target.value)}
+              className="h-9 w-full border border-gray-300 px-2 text-sm outline-none focus:border-[#0B5A43]"
+            >
+              <option value="">All departments</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">
+              Employee
+            </label>
+            <select
+              value={employeeId}
+              onChange={(e) => setEmployeeId(e.target.value)}
+              className="h-9 w-full border border-gray-300 px-2 text-sm outline-none focus:border-[#0B5A43]"
+            >
+              <option value="">All employees</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name} ({e.employeeId})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="flex items-start gap-3 border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>{error}</p>
+        </div>
+      )}
+
+      {/* Summary stats */}
+      {!loading && data.length > 0 && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <StatCard
+            label="Records"
+            value={String(data.length)}
+            icon={<Users className="h-5 w-5" />}
+          />
+          {reportType === "attendance" && (
+            <>
+              <StatCard
+                label="Avg Rate"
+                value={`${Math.round((data as AttendanceRow[]).reduce((s, r) => s + r.attendanceRate, 0) / data.length)}%`}
+                icon={<BarChart3 className="h-5 w-5" />}
+                tone="green"
+              />
+              <StatCard
+                label="Total Present"
+                value={String(
+                  (data as AttendanceRow[]).reduce(
+                    (s, r) => s + r.presentDays,
+                    0,
+                  ),
+                )}
+                icon={<Calendar className="h-5 w-5" />}
+                tone="green"
+              />
+              <StatCard
+                label="Total Absent"
+                value={String(
+                  (data as AttendanceRow[]).reduce(
+                    (s, r) => s + r.absentDays,
+                    0,
+                  ),
+                )}
+                icon={<AlertCircle className="h-5 w-5" />}
+                tone="orange"
+              />
+            </>
+          )}
+          {reportType === "leave" && (
+            <>
+              <StatCard
+                label="Approved"
+                value={String(
+                  (data as LeaveRow[]).filter((r) => r.status === "approved")
+                    .length,
+                )}
+                icon={<FileText className="h-5 w-5" />}
+                tone="green"
+              />
+              <StatCard
+                label="Pending"
+                value={String(
+                  (data as LeaveRow[]).filter((r) => r.status === "pending")
+                    .length,
+                )}
+                icon={<FileText className="h-5 w-5" />}
+                tone="orange"
+              />
+              <StatCard
+                label="Rejected"
+                value={String(
+                  (data as LeaveRow[]).filter((r) => r.status === "rejected")
+                    .length,
+                )}
+                icon={<AlertCircle className="h-5 w-5" />}
+              />
+            </>
+          )}
+          {reportType === "payroll" && (
+            <>
+              <StatCard
+                label="Total Gross"
+                value={formatCurrency(
+                  (data as PayrollRow[]).reduce((s, r) => s + r.grossSalary, 0),
+                )}
+                icon={<Wallet className="h-5 w-5" />}
+                tone="green"
+              />
+              <StatCard
+                label="Total Net"
+                value={formatCurrency(
+                  (data as PayrollRow[]).reduce((s, r) => s + r.netSalary, 0),
+                )}
+                icon={<Wallet className="h-5 w-5" />}
+                tone="green"
+              />
+              <StatCard
+                label="Total Tax"
+                value={formatCurrency(
+                  (data as PayrollRow[]).reduce((s, r) => s + r.pph21, 0),
+                )}
+                icon={<BarChart3 className="h-5 w-5" />}
+                tone="orange"
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="border border-gray-200 bg-white">
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-6 w-6 animate-spin text-[#0B5A43]" />
+            <span className="ml-3 text-sm text-gray-500">
+              Loading report...
+            </span>
+          </div>
+        ) : data.length === 0 ? (
+          <div className="py-16 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center bg-gray-100 text-gray-400">
+              <BarChart3 className="h-6 w-6" />
+            </div>
+            <p className="mt-4 font-semibold text-gray-800">No data found</p>
+            <p className="mt-1 text-sm text-gray-500">
+              Try adjusting the filters or selecting a different period.
+            </p>
+          </div>
+        ) : reportType === "attendance" ? (
+          <AttendanceTable data={data as AttendanceRow[]} />
+        ) : reportType === "leave" ? (
+          <LeaveTable data={data as LeaveRow[]} />
+        ) : (
+          <PayrollTable data={data as PayrollRow[]} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Sub-tables ───────────────────────────────────────────────────────────────
+
+function AttendanceTable({ data }: { data: AttendanceRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead>
+          <tr className="border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <Th>Employee</Th>
+            <Th>Dept</Th>
+            <Th>Present</Th>
+            <Th>Late</Th>
+            <Th>Absent</Th>
+            <Th>Hours</Th>
+            <Th>Rate</Th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {data.map((r) => (
+            <tr key={r.employeeId} className="hover:bg-gray-50">
+              <td className="px-4 py-3">
+                <p className="font-medium text-gray-900">{r.name}</p>
+                <p className="text-xs text-gray-500">{r.employeeId}</p>
+              </td>
+              <Td>{r.department}</Td>
+              <Td>
+                <span className="font-medium text-[#0B5A43]">
+                  {r.presentDays}
+                </span>
+              </Td>
+              <Td>
+                <span className="font-medium text-[#7A5A00]">{r.lateDays}</span>
+              </Td>
+              <Td>
+                <span className="font-medium text-red-600">{r.absentDays}</span>
+              </Td>
+              <Td>{r.totalHours}h</Td>
+              <td className="px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-1.5 w-16 rounded-full bg-gray-200">
+                    <div
+                      className="h-1.5 rounded-full bg-[#0B5A43]"
+                      style={{ width: `${r.attendanceRate}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-medium">
+                    {r.attendanceRate}%
+                  </span>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function LeaveTable({ data }: { data: LeaveRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead>
+          <tr className="border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <Th>Employee</Th>
+            <Th>Dept</Th>
+            <Th>Type</Th>
+            <Th>Period</Th>
+            <Th>Days</Th>
+            <Th>Status</Th>
+            <Th>Approved By</Th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {data.map((r) => (
+            <tr key={r.id} className="hover:bg-gray-50">
+              <td className="px-4 py-3">
+                <p className="font-medium text-gray-900">{r.employeeName}</p>
+                <p className="text-xs text-gray-500">{r.employeeId}</p>
+              </td>
+              <Td>{r.department}</Td>
+              <Td>{formatLeaveType(r.leaveType)}</Td>
+              <Td>
+                {r.startDate} – {r.endDate}
+              </Td>
+              <Td>{r.totalDays}</Td>
+              <td className="px-4 py-3">
+                <StatusBadge status={r.status} />
+              </td>
+              <Td>{r.approvedBy}</Td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PayrollTable({ data }: { data: PayrollRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead>
+          <tr className="border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <Th>Employee</Th>
+            <Th>Dept</Th>
+            <Th>Base</Th>
+            <Th>Gross</Th>
+            <Th>Deductions</Th>
+            <Th>Net</Th>
+            <Th>Status</Th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {data.map((r) => (
+            <tr key={r.id} className="hover:bg-gray-50">
+              <td className="px-4 py-3">
+                <p className="font-medium text-gray-900">{r.employeeName}</p>
+                <p className="text-xs text-gray-500">{r.employeeId}</p>
+              </td>
+              <Td>{r.department}</Td>
+              <Td>{formatCurrency(r.baseSalary)}</Td>
+              <Td>{formatCurrency(r.grossSalary)}</Td>
+              <Td>
+                <span className="text-red-600">
+                  {formatCurrency(r.totalDeductions)}
+                </span>
+              </Td>
+              <Td>
+                <span className="font-semibold text-[#0B5A43]">
+                  {formatCurrency(r.netSalary)}
+                </span>
+              </Td>
+              <td className="px-4 py-3">
+                <StatusBadge status={r.status} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function Th({ children }: { children: React.ReactNode }) {
+  return <th className="px-4 py-3 text-left">{children}</th>;
+}
+
+function Td({ children }: { children: React.ReactNode }) {
+  return <td className="px-4 py-3 text-gray-600">{children}</td>;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const cls =
+    status === "approved" || status === "paid"
+      ? "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]"
+      : status === "pending"
+        ? "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]"
+        : status === "rejected"
+          ? "border-red-200 bg-red-50 text-red-700"
+          : "border-gray-200 bg-gray-50 text-gray-600";
   return (
     <span
-      className={`inline-flex px-2 py-1 text-xs font-semibold capitalize ${getStatusClass(
-        value,
-      )}`}
+      className={`border px-2 py-0.5 text-xs font-medium capitalize ${cls}`}
     >
-      {formatText(value).replaceAll("_", " ")}
+      {status}
     </span>
   );
 }
 
-function SummaryItem({
+function StatCard({
   label,
   value,
-  description,
   icon,
   tone = "default",
 }: {
   label: string;
-  value: string | number;
-  description: string;
-  icon: ReactNode;
-  tone?: "default" | "green" | "orange" | "red";
+  value: string;
+  icon: React.ReactNode;
+  tone?: "default" | "green" | "orange";
 }) {
-  const iconClass = {
-    default: "border-gray-200 bg-gray-50 text-gray-600",
-    green: "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
-    orange: "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]",
-    red: "border-red-200 bg-red-50 text-red-700",
+  const cls = {
+    default: {
+      icon: "border-gray-200 bg-gray-50 text-gray-600",
+      value: "text-gray-950",
+    },
+    green: {
+      icon: "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
+      value: "text-[#0B5A43]",
+    },
+    orange: {
+      icon: "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]",
+      value: "text-[#7A5A00]",
+    },
   }[tone];
-
-  const valueClass = {
-    default: "text-gray-950",
-    green: "text-[#0B5A43]",
-    orange: "text-[#7A5A00]",
-    red: "text-red-700",
-  }[tone];
-
-  const safeValue =
-    typeof value === "number" && !Number.isFinite(value) ? 0 : value;
 
   return (
-    <div className="border-b border-gray-200 p-4 md:border-b-0 md:border-r last:border-r-0">
-      <div className="flex items-start justify-between gap-3">
+    <div className="border border-gray-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
             {label}
           </p>
-          <p
-            className={`mt-2 text-3xl font-semibold tracking-tight ${valueClass}`}
-          >
-            {safeValue}
-          </p>
-          <p className="mt-1 text-xs text-gray-500">{description}</p>
+          <p className={`mt-2 text-lg font-semibold ${cls.value}`}>{value}</p>
         </div>
-
         <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center border ${iconClass}`}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center border ${cls.icon}`}
         >
           {icon}
         </div>
@@ -227,876 +778,3 @@ function SummaryItem({
     </div>
   );
 }
-
-function EmptyState({
-  title,
-  description,
-  icon,
-}: {
-  title: string;
-  description: string;
-  icon: ReactNode;
-}) {
-  return (
-    <div className="px-4 py-16 text-center">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center bg-gray-100 text-gray-400">
-        {icon}
-      </div>
-
-      <p className="mt-4 font-semibold text-gray-800">{title}</p>
-      <p className="mt-1 text-sm text-gray-500">{description}</p>
-    </div>
-  );
-}
-
-function getReportLabel(type: ReportTab) {
-  return REPORT_TABS.find((tab) => tab.id === type)?.label ?? "Report";
-}
-
-function getRowEmployeeName(row: ReportRow) {
-  return formatText(
-    getValue(row, [
-      "employeeName",
-      "name",
-      "employee",
-      "fullName",
-      "employee_name",
-    ]),
-  );
-}
-
-function getRowEmployeeId(row: ReportRow) {
-  return formatText(
-    getValue(row, ["employeeId", "employeeCode", "employee_id", "code"]),
-  );
-}
-
-function getRowDepartment(row: ReportRow) {
-  return formatText(
-    getValue(row, ["department", "departmentName", "department_name"]),
-  );
-}
-
-function AttendanceTable({ rows }: { rows: ReportRow[] }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[920px] border-collapse text-left">
-        <thead>
-          <tr className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
-            <th className="px-5 py-3 font-semibold">Employee</th>
-            <th className="px-5 py-3 font-semibold">Department</th>
-            <th className="px-5 py-3 font-semibold">Workdays</th>
-            <th className="px-5 py-3 font-semibold">Present</th>
-            <th className="px-5 py-3 font-semibold">Absent</th>
-            <th className="px-5 py-3 font-semibold">Late</th>
-            <th className="px-5 py-3 font-semibold">Overtime</th>
-            <th className="px-5 py-3 font-semibold">Rate</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {rows.map((row, index) => (
-            <tr
-              key={String(row.id ?? index)}
-              className="border-b border-gray-100 text-sm last:border-b-0 hover:bg-gray-50"
-            >
-              <td className="px-5 py-4">
-                <p className="font-semibold text-gray-950">
-                  {getRowEmployeeName(row)}
-                </p>
-                <p className="text-xs text-gray-500">{getRowEmployeeId(row)}</p>
-              </td>
-
-              <td className="px-5 py-4 text-gray-600">
-                {getRowDepartment(row)}
-              </td>
-
-              <td className="px-5 py-4">
-                {formatNumber(
-                  getValue(row, ["workingDays", "workdays", "totalWorkDays"]),
-                )}
-              </td>
-
-              <td className="px-5 py-4 text-[#0B5A43]">
-                {formatNumber(
-                  getValue(row, ["presentDays", "present", "attendanceDays"]),
-                )}
-              </td>
-
-              <td className="px-5 py-4 text-red-600">
-                {formatNumber(getValue(row, ["absentDays", "absent"]))}
-              </td>
-
-              <td className="px-5 py-4 text-[#7A5A00]">
-                {formatNumber(getValue(row, ["lateDays", "late", "lateCount"]))}
-              </td>
-
-              <td className="px-5 py-4">
-                {formatNumber(
-                  getValue(row, ["overtimeHours", "overtime", "totalOvertime"]),
-                )}
-              </td>
-
-              <td className="px-5 py-4 font-semibold">
-                {formatPercent(
-                  getValue(row, [
-                    "attendanceRate",
-                    "rate",
-                    "percentage",
-                    "attendancePercentage",
-                  ]),
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function LeaveTable({ rows }: { rows: ReportRow[] }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[920px] border-collapse text-left">
-        <thead>
-          <tr className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
-            <th className="px-5 py-3 font-semibold">Employee</th>
-            <th className="px-5 py-3 font-semibold">Department</th>
-            <th className="px-5 py-3 font-semibold">Requests</th>
-            <th className="px-5 py-3 font-semibold">Approved</th>
-            <th className="px-5 py-3 font-semibold">Pending</th>
-            <th className="px-5 py-3 font-semibold">Rejected</th>
-            <th className="px-5 py-3 font-semibold">Days Taken</th>
-            <th className="px-5 py-3 font-semibold">Balance</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {rows.map((row, index) => (
-            <tr
-              key={String(row.id ?? index)}
-              className="border-b border-gray-100 text-sm last:border-b-0 hover:bg-gray-50"
-            >
-              <td className="px-5 py-4">
-                <p className="font-semibold text-gray-950">
-                  {getRowEmployeeName(row)}
-                </p>
-                <p className="text-xs text-gray-500">{getRowEmployeeId(row)}</p>
-              </td>
-
-              <td className="px-5 py-4 text-gray-600">
-                {getRowDepartment(row)}
-              </td>
-
-              <td className="px-5 py-4">
-                {formatNumber(
-                  getValue(row, ["totalRequests", "requests", "requestCount"]),
-                )}
-              </td>
-
-              <td className="px-5 py-4 text-[#0B5A43]">
-                {formatNumber(
-                  getValue(row, [
-                    "approvedRequests",
-                    "approved",
-                    "approvedCount",
-                  ]),
-                )}
-              </td>
-
-              <td className="px-5 py-4 text-[#7A5A00]">
-                {formatNumber(
-                  getValue(row, ["pendingRequests", "pending", "pendingCount"]),
-                )}
-              </td>
-
-              <td className="px-5 py-4 text-red-600">
-                {formatNumber(
-                  getValue(row, [
-                    "rejectedRequests",
-                    "rejected",
-                    "rejectedCount",
-                  ]),
-                )}
-              </td>
-
-              <td className="px-5 py-4">
-                {formatNumber(
-                  getValue(row, ["daysTaken", "totalDays", "leaveDays"]),
-                )}
-              </td>
-
-              <td className="px-5 py-4 font-semibold">
-                {formatNumber(
-                  getValue(row, [
-                    "remainingBalance",
-                    "balance",
-                    "leaveBalance",
-                  ]),
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function PayrollTable({ rows }: { rows: ReportRow[] }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[980px] border-collapse text-left">
-        <thead>
-          <tr className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
-            <th className="px-5 py-3 font-semibold">Employee</th>
-            <th className="px-5 py-3 font-semibold">Department</th>
-            <th className="px-5 py-3 font-semibold">Base Salary</th>
-            <th className="px-5 py-3 font-semibold">Allowances</th>
-            <th className="px-5 py-3 font-semibold">Overtime</th>
-            <th className="px-5 py-3 font-semibold">Deductions</th>
-            <th className="px-5 py-3 font-semibold">Net Pay</th>
-            <th className="px-5 py-3 font-semibold">Status</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {rows.map((row, index) => (
-            <tr
-              key={String(row.id ?? index)}
-              className="border-b border-gray-100 text-sm last:border-b-0 hover:bg-gray-50"
-            >
-              <td className="px-5 py-4">
-                <p className="font-semibold text-gray-950">
-                  {getRowEmployeeName(row)}
-                </p>
-                <p className="text-xs text-gray-500">{getRowEmployeeId(row)}</p>
-              </td>
-
-              <td className="px-5 py-4 text-gray-600">
-                {getRowDepartment(row)}
-              </td>
-
-              <td className="px-5 py-4">
-                {formatCurrency(getValue(row, ["baseSalary", "salary"]))}
-              </td>
-
-              <td className="px-5 py-4 text-[#0B5A43]">
-                {formatCurrency(
-                  getValue(row, ["allowances", "totalAllowances", "allowance"]),
-                )}
-              </td>
-
-              <td className="px-5 py-4">
-                {formatCurrency(
-                  getValue(row, ["overtimePay", "overtimeAmount", "overtime"]),
-                )}
-              </td>
-
-              <td className="px-5 py-4 text-red-600">
-                {formatCurrency(
-                  getValue(row, ["deductions", "totalDeductions", "deduction"]),
-                )}
-              </td>
-
-              <td className="px-5 py-4 font-semibold text-gray-950">
-                {formatCurrency(
-                  getValue(row, ["netSalary", "netPay", "takeHomePay"]),
-                )}
-              </td>
-
-              <td className="px-5 py-4">
-                <StatusBadge
-                  value={getValue(row, ["status", "paymentStatus"])}
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function ReportTable({ type, rows }: { type: ReportTab; rows: ReportRow[] }) {
-  if (type === "attendance") return <AttendanceTable rows={rows} />;
-  if (type === "leave") return <LeaveTable rows={rows} />;
-  return <PayrollTable rows={rows} />;
-}
-
-export function ReportsClient({ employees, departments }: ReportsClientProps) {
-  const [activeTab, setActiveTab] = useState<ReportTab>("attendance");
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [year, setYear] = useState(currentYear);
-  const [departmentId, setDepartmentId] = useState("");
-  const [employeeId, setEmployeeId] = useState("");
-  const [search, setSearch] = useState("");
-
-  const [reportData, setReportData] = useState<ReportRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [exporting, setExporting] = useState<"xlsx" | "pdf" | null>(null);
-  const [hasGenerated, setHasGenerated] = useState(false);
-  const [error, setError] = useState("");
-
-  const activeReport = REPORT_TABS.find((tab) => tab.id === activeTab)!;
-  const ActiveIcon = activeReport.icon;
-
-  const resetReport = () => {
-    setHasGenerated(false);
-    setReportData([]);
-    setSearch("");
-    setError("");
-  };
-
-  const generateReport = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    setHasGenerated(true);
-
-    try {
-      const params = new URLSearchParams({
-        type: activeTab,
-        month: String(month),
-        year: String(year),
-      });
-
-      if (departmentId) params.set("departmentId", departmentId);
-      if (employeeId) params.set("employeeId", employeeId);
-
-      const response = await fetch(`/api/reports?${params.toString()}`, {
-        cache: "no-store",
-      });
-
-      const payload = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(payload?.error || "Failed to generate report.");
-      }
-
-      const data = Array.isArray(payload)
-        ? payload
-        : Array.isArray(payload?.data)
-          ? payload.data
-          : Array.isArray(payload?.report)
-            ? payload.report
-            : [];
-
-      setReportData(data);
-    } catch (err: unknown) {
-      setReportData([]);
-      setError(
-        err instanceof Error ? err.message : "Failed to generate report.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [activeTab, month, year, departmentId, employeeId]);
-
-  const exportReport = async (format: "xlsx" | "pdf") => {
-    setExporting(format);
-    setError("");
-
-    try {
-      const params = new URLSearchParams({
-        type: activeTab,
-        month: String(month),
-        year: String(year),
-        format,
-      });
-
-      if (departmentId) params.set("departmentId", departmentId);
-      if (employeeId) params.set("employeeId", employeeId);
-
-      const response = await fetch(`/api/reports/export?${params.toString()}`);
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error || "Failed to export report.");
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `${activeTab}-report-${MONTHS[month - 1]}-${year}.${format}`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-
-      URL.revokeObjectURL(url);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to export report.");
-    } finally {
-      setExporting(null);
-    }
-  };
-
-  const filteredRows = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
-
-    if (!keyword) return reportData;
-
-    return reportData.filter((row) => {
-      const text = [
-        getRowEmployeeName(row),
-        getRowEmployeeId(row),
-        getRowDepartment(row),
-        row.status,
-        row.paymentStatus,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return text.includes(keyword);
-    });
-  }, [reportData, search]);
-
-  const summary = useMemo(() => {
-    const totalRows = reportData.length;
-
-    if (activeTab === "attendance") {
-      const present = reportData.reduce(
-        (total, row) =>
-          total +
-          toSafeNumber(
-            getValue(row, ["presentDays", "present", "attendanceDays"]),
-          ),
-        0,
-      );
-
-      const absent = reportData.reduce(
-        (total, row) =>
-          total + toSafeNumber(getValue(row, ["absentDays", "absent"])),
-        0,
-      );
-
-      const late = reportData.reduce(
-        (total, row) =>
-          total +
-          toSafeNumber(getValue(row, ["lateDays", "late", "lateCount"])),
-        0,
-      );
-
-      return {
-        one: {
-          label: "Employees",
-          value: totalRows,
-          description: "Included in report",
-        },
-        two: {
-          label: "Present",
-          value: present,
-          description: "Total present days",
-        },
-        three: {
-          label: "Absent",
-          value: absent,
-          description: "Total absent days",
-        },
-        four: {
-          label: "Late",
-          value: late,
-          description: "Total late records",
-        },
-      };
-    }
-
-    if (activeTab === "leave") {
-      const approved = reportData.reduce(
-        (total, row) =>
-          total +
-          toSafeNumber(
-            getValue(row, ["approvedRequests", "approved", "approvedCount"]),
-          ),
-        0,
-      );
-
-      const pending = reportData.reduce(
-        (total, row) =>
-          total +
-          toSafeNumber(
-            getValue(row, ["pendingRequests", "pending", "pendingCount"]),
-          ),
-        0,
-      );
-
-      const days = reportData.reduce(
-        (total, row) =>
-          total +
-          toSafeNumber(getValue(row, ["daysTaken", "totalDays", "leaveDays"])),
-        0,
-      );
-
-      return {
-        one: {
-          label: "Employees",
-          value: totalRows,
-          description: "Included in report",
-        },
-        two: {
-          label: "Approved",
-          value: approved,
-          description: "Approved requests",
-        },
-        three: {
-          label: "Pending",
-          value: pending,
-          description: "Waiting for review",
-        },
-        four: {
-          label: "Days Taken",
-          value: days,
-          description: "Total leave days",
-        },
-      };
-    }
-
-    const netPay = reportData.reduce(
-      (total, row) =>
-        total +
-        toSafeNumber(getValue(row, ["netSalary", "netPay", "takeHomePay"])),
-      0,
-    );
-
-    const deductions = reportData.reduce(
-      (total, row) =>
-        total +
-        toSafeNumber(
-          getValue(row, ["deductions", "totalDeductions", "deduction"]),
-        ),
-      0,
-    );
-
-    return {
-      one: {
-        label: "Employees",
-        value: totalRows,
-        description: "Included in report",
-      },
-      two: {
-        label: "Net Pay",
-        value: formatCurrency(netPay),
-        description: "Total take-home pay",
-      },
-      three: {
-        label: "Deductions",
-        value: formatCurrency(deductions),
-        description: "Total deductions",
-      },
-      four: {
-        label: "Period",
-        value: MONTHS[month - 1] ?? "-",
-        description: String(year),
-      },
-    };
-  }, [activeTab, reportData, month, year]);
-
-  return (
-    <div className="mx-auto w-full space-y-5 pb-8">
-      <header className="border border-gray-200 bg-white p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-gray-950">
-              Reports
-            </h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Generate attendance, leave, and payroll reports for your
-              organization.
-            </p>
-          </div>
-
-          {hasGenerated && reportData.length > 0 && (
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                type="button"
-                onClick={() => exportReport("xlsx")}
-                disabled={Boolean(exporting)}
-                className="bg-[#0B5A43] text-white hover:bg-[#084735]"
-              >
-                {exporting === "xlsx" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
-                )}
-                Export Excel
-              </Button>
-
-              <Button
-                type="button"
-                onClick={() => exportReport("pdf")}
-                disabled={Boolean(exporting)}
-                variant="outline"
-              >
-                {exporting === "pdf" ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <FileText className="mr-2 h-4 w-4" />
-                )}
-                Export PDF
-              </Button>
-            </div>
-          )}
-        </div>
-      </header>
-
-      <section className="grid border border-gray-200 bg-white md:grid-cols-4">
-        <SummaryItem
-          label={summary.one.label}
-          value={summary.one.value}
-          description={summary.one.description}
-          icon={<Users className="h-5 w-5" />}
-        />
-
-        <SummaryItem
-          label={summary.two.label}
-          value={summary.two.value}
-          description={summary.two.description}
-          icon={<CheckCircle2 className="h-5 w-5" />}
-          tone="green"
-        />
-
-        <SummaryItem
-          label={summary.three.label}
-          value={summary.three.value}
-          description={summary.three.description}
-          icon={
-            activeTab === "attendance" ? (
-              <XCircle className="h-5 w-5" />
-            ) : (
-              <AlertCircle className="h-5 w-5" />
-            )
-          }
-          tone={activeTab === "attendance" ? "red" : "orange"}
-        />
-
-        <SummaryItem
-          label={summary.four.label}
-          value={summary.four.value}
-          description={summary.four.description}
-          icon={<Clock className="h-5 w-5" />}
-          tone="orange"
-        />
-      </section>
-
-      <section className="border border-gray-200 bg-white">
-        <div className="border-b border-gray-200 p-4">
-          <div className="flex flex-wrap gap-2">
-            {REPORT_TABS.map((tab) => {
-              const Icon = tab.icon;
-              const active = activeTab === tab.id;
-
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                    resetReport();
-                  }}
-                  className={[
-                    "flex min-w-[160px] flex-1 items-start gap-3 border px-4 py-3 text-left transition-colors lg:flex-none",
-                    active
-                      ? "border-[#0B5A43] bg-[#EAF5F0] text-[#0B5A43]"
-                      : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
-                  ].join(" ")}
-                >
-                  <Icon className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>
-                    <span className="block text-sm font-semibold">
-                      {tab.label}
-                    </span>
-                    <span className="mt-0.5 block text-xs text-gray-500">
-                      {tab.description}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="border-b border-gray-200 p-4">
-          <div className="mb-4 flex items-center gap-2">
-            <Filter className="h-4 w-4 text-gray-400" />
-            <p className="text-sm font-semibold text-gray-800">
-              Report Filters
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">
-                Month
-              </label>
-              <select
-                value={month}
-                onChange={(event) => {
-                  setMonth(Number(event.target.value));
-                  resetReport();
-                }}
-                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
-              >
-                {MONTHS.map((item, index) => (
-                  <option key={item} value={index + 1}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">
-                Year
-              </label>
-              <select
-                value={year}
-                onChange={(event) => {
-                  setYear(Number(event.target.value));
-                  resetReport();
-                }}
-                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
-              >
-                {YEARS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">
-                Department
-              </label>
-              <select
-                value={departmentId}
-                onChange={(event) => {
-                  setDepartmentId(event.target.value);
-                  resetReport();
-                }}
-                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
-              >
-                <option value="">All Departments</option>
-                {departments.map((department) => (
-                  <option key={department.id} value={department.id}>
-                    {department.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">
-                Employee
-              </label>
-              <select
-                value={employeeId}
-                onChange={(event) => {
-                  setEmployeeId(event.target.value);
-                  resetReport();
-                }}
-                className="h-10 w-full border border-gray-300 px-3 text-sm outline-none focus:border-[#0B5A43]"
-              >
-                <option value="">All Employees</option>
-                {employees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.name} ({employee.employeeId})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-end">
-              <Button
-                type="button"
-                onClick={generateReport}
-                disabled={loading}
-                className="h-10 w-full bg-[#0B5A43] text-white hover:bg-[#084735]"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Generate
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {error && (
-          <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>{error}</p>
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-col gap-3 border-b border-gray-200 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center bg-[#EAF5F0] text-[#0B5A43]">
-              <ActiveIcon className="h-4 w-4" />
-            </div>
-
-            <div>
-              <h2 className="text-base font-semibold text-gray-950">
-                {getReportLabel(activeTab)} Report
-              </h2>
-              <p className="text-sm text-gray-500">
-                {hasGenerated
-                  ? `${filteredRows.length} row${
-                      filteredRows.length === 1 ? "" : "s"
-                    } found.`
-                  : "Set filters, then generate a report."}
-              </p>
-            </div>
-          </div>
-
-          {hasGenerated && reportData.length > 0 && (
-            <div className="relative min-w-0 lg:w-80">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search report results..."
-                className="h-10 w-full border border-gray-300 pl-9 pr-3 text-sm outline-none focus:border-[#0B5A43]"
-              />
-            </div>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center px-4 py-16 text-sm text-gray-500">
-            <Loader2 className="mr-2 h-5 w-5 animate-spin text-[#0B5A43]" />
-            Generating report...
-          </div>
-        ) : !hasGenerated ? (
-          <EmptyState
-            title="No report generated yet"
-            description="Choose the report type and filters, then click Generate."
-            icon={<FileText className="h-6 w-6" />}
-          />
-        ) : filteredRows.length === 0 ? (
-          <EmptyState
-            title="No data found"
-            description="No records match the selected filters."
-            icon={<FileText className="h-6 w-6" />}
-          />
-        ) : (
-          <ReportTable type={activeTab} rows={filteredRows} />
-        )}
-      </section>
-    </div>
-  );
-}
-
-export default ReportsClient;

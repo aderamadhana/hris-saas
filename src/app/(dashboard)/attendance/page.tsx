@@ -1,7 +1,7 @@
+// src/app/(dashboard)/attendance/page.tsx
 import { redirect } from "next/navigation";
 import {
   AlertCircle,
-  CalendarDays,
   CheckCircle2,
   Clock,
   Users,
@@ -15,23 +15,21 @@ import { CheckInButton } from "@/src/components/attendance/check-in-button";
 export const dynamic = "force-dynamic";
 
 interface AttendancePageProps {
-  searchParams: {
-    date?: string;
-  };
+  searchParams: Promise<{ date?: string }>; // ← Next.js 14: Promise
 }
 
 export default async function AttendancePage({
   searchParams,
 }: AttendancePageProps) {
-  const supabase = await createClient();
+  // ── Await searchParams (Next.js 14 requirement) ───────────────────────────
+  const params = await searchParams;
 
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/login");
-  }
+  if (!user) redirect("/login");
 
   const currentEmployee = await prisma.employee.findUnique({
     where: { authId: user.id },
@@ -43,11 +41,9 @@ export default async function AttendancePage({
     },
   });
 
-  if (!currentEmployee) {
-    redirect("/dashboard");
-  }
+  if (!currentEmployee) redirect("/dashboard");
 
-  const selectedDate = parseDateParam(searchParams.date);
+  const selectedDate       = parseDateParam(params.date);
   const selectedDateString = formatDateInputValue(selectedDate);
 
   const startOfSelectedDate = new Date(selectedDate);
@@ -56,87 +52,97 @@ export default async function AttendancePage({
   const endOfSelectedDate = new Date(selectedDate);
   endOfSelectedDate.setHours(23, 59, 59, 999);
 
-  const today = new Date();
-  const startOfToday = new Date(today);
+  const today         = new Date();
+  const startOfToday  = new Date(today);
   startOfToday.setHours(0, 0, 0, 0);
-
-  const endOfToday = new Date(today);
+  const endOfToday    = new Date(today);
   endOfToday.setHours(23, 59, 59, 999);
+
+  const isHRAdmin = ["owner", "admin", "hr"].includes(currentEmployee.role);
+  const isManager = currentEmployee.role === "manager";
+
+  // ── Query attendance ──────────────────────────────────────────────────────
+  // Employee hanya lihat miliknya, Manager lihat tim, HR/Admin lihat semua
+  const attendanceWhere: any = {
+    organizationId: currentEmployee.organizationId,
+    date: {
+      gte: startOfSelectedDate,
+      lte: endOfSelectedDate,
+    },
+  };
+
+  if (!isHRAdmin && !isManager) {
+    // Employee: hanya lihat milik sendiri
+    attendanceWhere.employeeId = currentEmployee.id;
+  } else if (isManager) {
+    // Manager: lihat tim (employee yang managerId = currentEmployee.id)
+    const teamMembers = await prisma.employee.findMany({
+      where: { managerId: currentEmployee.id, status: "active" },
+      select: { id: true },
+    });
+    const teamIds = [currentEmployee.id, ...teamMembers.map((e) => e.id)];
+    attendanceWhere.employeeId = { in: teamIds };
+  }
 
   const [attendanceRecords, totalEmployees, myAttendance] = await Promise.all([
     prisma.attendance.findMany({
-      where: {
-        organizationId: currentEmployee.organizationId,
-        date: {
-          gte: startOfSelectedDate,
-          lte: endOfSelectedDate,
-        },
-      },
+      where: attendanceWhere,
       include: {
         employee: {
           select: {
             employeeId: true,
-            firstName: true,
-            lastName: true,
-            position: true,
-            department: {
-              select: {
-                name: true,
-              },
-            },
+            firstName:  true,
+            lastName:   true,
+            position:   true,
+            department: { select: { name: true } },
           },
         },
       },
       orderBy: [{ checkIn: "asc" }, { createdAt: "asc" }],
     }),
 
-    prisma.employee.count({
-      where: {
-        organizationId: currentEmployee.organizationId,
-        status: "active",
-      },
-    }),
+    // Total employees untuk stats (sesuai scope role)
+    isHRAdmin
+      ? prisma.employee.count({
+          where: { organizationId: currentEmployee.organizationId, status: "active" },
+        })
+      : isManager
+        ? prisma.employee.count({
+            where: { managerId: currentEmployee.id, status: "active" },
+          })
+        : Promise.resolve(1),
 
+    // Attendance hari ini milik user yang login (untuk check-in button)
     prisma.attendance.findFirst({
       where: {
         employeeId: currentEmployee.id,
-        date: {
-          gte: startOfToday,
-          lte: endOfToday,
-        },
+        date: { gte: startOfToday, lte: endOfToday },
       },
     }),
   ]);
 
   const presentCount = attendanceRecords.filter(
-    (record) => record.status === "present",
+    (r) => r.status === "present"
   ).length;
-
   const lateCount = attendanceRecords.filter(
-    (record) => record.status === "late",
+    (r) => r.status === "late"
   ).length;
-
-  const recordedEmployeeIds = new Set(
-    attendanceRecords.map((record) => record.employeeId),
-  );
-
-  const absentCount = Math.max(totalEmployees - recordedEmployeeIds.size, 0);
+  const recordedIds  = new Set(attendanceRecords.map((r) => r.employeeId));
+  const absentCount  = Math.max(totalEmployees - recordedIds.size, 0);
 
   const attendanceData = attendanceRecords.map((record) => ({
-    id: record.id,
-    employeeId: record.employee.employeeId,
-    employeeName: `${record.employee.firstName ?? ""} ${
-      record.employee.lastName ?? ""
-    }`.trim(),
-    position: record.employee.position,
-    department: record.employee.department?.name ?? "—",
-    checkIn: record.checkIn?.toISOString() ?? null,
-    checkOut: record.checkOut?.toISOString() ?? null,
-    status: record.status,
-    notes: record.notes ?? "",
+    id:           record.id,
+    employeeId:   record.employee.employeeId,
+    employeeName: `${record.employee.firstName ?? ""} ${record.employee.lastName ?? ""}`.trim(),
+    position:     record.employee.position,
+    department:   record.employee.department?.name ?? "—",
+    checkIn:      record.checkIn?.toISOString()  ?? null,
+    checkOut:     record.checkOut?.toISOString() ?? null,
+    status:       record.status,
+    notes:        record.notes ?? "",
   }));
 
-  const canEdit = ["owner", "admin", "hr"].includes(currentEmployee.role);
+  const canEdit = isHRAdmin;
 
   return (
     <div className="mx-auto w-full space-y-5 pb-8">
@@ -155,8 +161,8 @@ export default async function AttendancePage({
             currentAttendance={
               myAttendance
                 ? {
-                    id: myAttendance.id,
-                    checkIn: myAttendance.checkIn?.toISOString() ?? null,
+                    id:       myAttendance.id,
+                    checkIn:  myAttendance.checkIn?.toISOString()  ?? null,
                     checkOut: myAttendance.checkOut?.toISOString() ?? null,
                   }
                 : null
@@ -171,10 +177,9 @@ export default async function AttendancePage({
         <SummaryCard
           label="Total employees"
           value={totalEmployees}
-          description="Active employees"
+          description={isManager ? "Your team" : "Active employees"}
           icon={<Users className="h-5 w-5" />}
         />
-
         <SummaryCard
           label="Present"
           value={presentCount}
@@ -182,7 +187,6 @@ export default async function AttendancePage({
           icon={<CheckCircle2 className="h-5 w-5" />}
           tone="green"
         />
-
         <SummaryCard
           label="Late"
           value={lateCount}
@@ -190,7 +194,6 @@ export default async function AttendancePage({
           icon={<Clock className="h-5 w-5" />}
           tone="orange"
         />
-
         <SummaryCard
           label="Absent"
           value={absentCount}
@@ -209,6 +212,8 @@ export default async function AttendancePage({
   );
 }
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
 function SummaryCard({
   label,
   value,
@@ -216,17 +221,17 @@ function SummaryCard({
   icon,
   tone = "default",
 }: {
-  label: string;
-  value: number;
+  label:       string;
+  value:       number;
   description: string;
-  icon: React.ReactNode;
-  tone?: "default" | "green" | "orange" | "red";
+  icon:        React.ReactNode;
+  tone?:       "default" | "green" | "orange" | "red";
 }) {
   const toneClass = {
     default: "border-gray-200 bg-gray-50 text-gray-600",
-    green: "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
-    orange: "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]",
-    red: "border-red-200 bg-red-50 text-red-700",
+    green:   "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
+    orange:  "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]",
+    red:     "border-red-200 bg-red-50 text-red-700",
   }[tone];
 
   return (
@@ -241,7 +246,6 @@ function SummaryCard({
           </p>
           <p className="mt-1 text-xs text-gray-500">{description}</p>
         </div>
-
         <div
           className={`flex h-10 w-10 shrink-0 items-center justify-center border ${toneClass}`}
         >
@@ -252,37 +256,33 @@ function SummaryCard({
   );
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function parseDateParam(value?: string) {
   if (!value) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return today;
   }
-
   const [year, month, day] = value.split("-").map(Number);
-
   if (!year || !month || !day) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return today;
   }
-
   const date = new Date(year, month - 1, day);
   date.setHours(0, 0, 0, 0);
-
   if (Number.isNaN(date.getTime())) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return today;
   }
-
   return date;
 }
 
 function formatDateInputValue(date: Date) {
-  const year = date.getFullYear();
+  const year  = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
+  const day   = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }

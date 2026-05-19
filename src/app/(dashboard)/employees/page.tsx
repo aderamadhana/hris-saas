@@ -1,5 +1,4 @@
 // src/app/(dashboard)/employees/page.tsx
-
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Plus, UserCheck, Users, UserX, ShieldCheck } from "lucide-react";
@@ -11,6 +10,9 @@ import { Button } from "@/src/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
+// Role yang boleh akses halaman ini
+const ALLOWED_ROLES = ["manager", "hr", "admin", "owner"];
+
 export default async function EmployeesPage() {
   const supabase = await createClient();
 
@@ -18,44 +20,41 @@ export default async function EmployeesPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/login");
-  }
+  if (!user) redirect("/login");
 
   const currentEmployee = await prisma.employee.findUnique({
     where: { authId: user.id },
     select: {
       organizationId: true,
       role: true,
+      id: true,
     },
   });
 
-  if (!currentEmployee) {
+  if (!currentEmployee) redirect("/dashboard");
+
+  // ── Guard: hanya role tertentu yang boleh masuk ───────────────────────────
+  if (!ALLOWED_ROLES.includes(currentEmployee.role)) {
     redirect("/dashboard");
   }
 
   const canAdd = ["hr", "admin", "owner"].includes(currentEmployee.role);
+  const canDelete = ["admin", "owner"].includes(currentEmployee.role);
+
+  // Manager hanya lihat tim-nya sendiri
+  const isManager = currentEmployee.role === "manager";
 
   const employees = await prisma.employee.findMany({
     where: {
       organizationId: currentEmployee.organizationId,
+      // Manager hanya lihat employee yang dia manage
+      ...(isManager ? { managerId: currentEmployee.id } : {}),
     },
     include: {
-      department: {
-        select: {
-          name: true,
-        },
-      },
-      manager: {
-        select: {
-          firstName: true,
-          lastName: true,
-        },
-      },
+      department: { select: { name: true } },
+      manager: { select: { firstName: true, lastName: true } },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { createdAt: "desc" },
   });
 
   const employeeData = employees.map((emp) => ({
@@ -78,15 +77,11 @@ export default async function EmployeesPage() {
   }));
 
   const totalEmployees = employees.length;
-  const activeEmployees = employees.filter(
-    (emp) => emp.status === "active",
-  ).length;
+  const activeEmployees = employees.filter((e) => e.status === "active").length;
   const inactiveEmployees = employees.filter(
-    (emp) => emp.status !== "active",
+    (e) => e.status !== "active",
   ).length;
-  const employeesWithAccess = employees.filter((emp) =>
-    Boolean(emp.authId),
-  ).length;
+  const employeesWithAccess = employees.filter((e) => Boolean(e.authId)).length;
 
   return (
     <div className="mx-auto w-full space-y-5 pb-8">
@@ -94,11 +89,12 @@ export default async function EmployeesPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-gray-950">
-              Employees
+              {isManager ? "My Team" : "Employees"}
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage employee records, roles, departments, managers, and account
-              access.
+              {isManager
+                ? "View and manage your direct reports."
+                : "Manage employee records, roles, departments, managers, and account access."}
             </p>
           </div>
 
@@ -117,10 +113,9 @@ export default async function EmployeesPage() {
         <SummaryItem
           label="Total"
           value={totalEmployees}
-          description="Employee records"
+          description={isManager ? "Direct reports" : "Employee records"}
           icon={<Users className="h-5 w-5" />}
         />
-
         <SummaryItem
           label="Active"
           value={activeEmployees}
@@ -128,7 +123,6 @@ export default async function EmployeesPage() {
           icon={<UserCheck className="h-5 w-5" />}
           tone="green"
         />
-
         <SummaryItem
           label="Inactive"
           value={inactiveEmployees}
@@ -136,7 +130,6 @@ export default async function EmployeesPage() {
           icon={<UserX className="h-5 w-5" />}
           tone="orange"
         />
-
         <SummaryItem
           label="Account access"
           value={employeesWithAccess}
@@ -153,6 +146,8 @@ export default async function EmployeesPage() {
     </div>
   );
 }
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SummaryItem({
   label,
@@ -193,7 +188,6 @@ function SummaryItem({
           </p>
           <p className="mt-1 text-xs text-gray-500">{description}</p>
         </div>
-
         <div
           className={`flex h-10 w-10 shrink-0 items-center justify-center border ${iconClass}`}
         >
@@ -208,6 +202,5 @@ function formatDateInputValue(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
-
   return `${year}-${month}-${day}`;
 }

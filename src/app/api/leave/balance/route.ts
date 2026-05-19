@@ -1,5 +1,7 @@
 // src/app/api/leave/balance/route.ts
-// Balance API — sudah menggunakan LeavePolicyConfig
+// Menggunakan OrganizationSettings (annualLeaveQuota, sickLeaveQuota)
+// yang sudah pasti ada di schema — TIDAK pakai LeavePolicyConfig
+// yang belum tentu ada.
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@/src/lib/supabase/server'
@@ -9,62 +11,78 @@ export async function GET() {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
     const employee = await prisma.employee.findUnique({
       where: { authId: user.id },
       select: { id: true, organizationId: true },
     })
-    if (!employee) return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
 
-    const year = new Date().getFullYear()
-
-    // Ambil semua kebijakan cuti yang aktif untuk organisasi ini
-    const policies = await prisma.leavePolicyConfig.findMany({
-      where: { organizationId: employee.organizationId, isEnabled: true },
-    })
-
-    if (policies.length === 0) {
-      return NextResponse.json({ balance: [], message: 'No leave types configured yet' })
+    if (!employee) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
     }
 
-    // Hitung sisa saldo per jenis cuti
-    const balance = await Promise.all(
-      policies.map(async (policy) => {
-        const quota = policy.maxDaysOverride
+    const year = new Date().getFullYear()
+    const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`)
+    const endOfYear   = new Date(`${year}-12-31T23:59:59.999Z`)
 
-        // Jumlah hari yang sudah dipakai tahun ini (approved + pending)
-        const usedAgg = await prisma.leave.aggregate({
-          where: {
-            employeeId: employee.id,
-            leaveType: policy.leaveTypeId,
-            status: { in: ['approved', 'pending'] },
-            startDate: { gte: new Date(`${year}-01-01`) },
-            endDate:   { lte: new Date(`${year}-12-31`) },
-          },
-          _sum: { days: true },
-        })
+    // ── Ambil quota dari OrganizationSettings ─────────────────────────────
+    // Model ini sudah pasti ada karena dibuat saat register.
+    const settings = await prisma.organizationSettings.findUnique({
+      where: { organizationId: employee.organizationId },
+      select: { annualLeaveQuota: true, sickLeaveQuota: true },
+    })
 
-        const used = usedAgg._sum.days ?? 0
-        const remaining = quota !== null ? Math.max(0, quota - used) : null
+    const annualQuota = settings?.annualLeaveQuota ?? 12
+    const sickQuota   = settings?.sickLeaveQuota   ?? 12
 
-        return {
-          leaveTypeId:  policy.leaveTypeId,
-          customName:   policy.customName,
-          quota,           // null = tidak terbatas
-          used,
-          remaining,       // null = tidak terbatas
-          requiresApproval: policy.requiresApproval,
-          requiresDocument: policy.requiresDocument,
-          requiresDelegation: policy.requiresDelegation,
-          countWeekend: policy.countWeekend,
-        }
-      })
-    )
+    // ── Hitung yang sudah terpakai tahun ini ─────────────────────────────
+    const [annualUsed, sickUsed] = await Promise.all([
+      prisma.leave.aggregate({
+        where: {
+          employeeId:    employee.id,
+          leaveType:     'annual',
+          status:        { in: ['approved', 'pending'] },
+          startDate:     { gte: startOfYear },
+          endDate:       { lte: endOfYear },
+        },
+        _sum: { days: true },
+      }),
+      prisma.leave.aggregate({
+        where: {
+          employeeId:    employee.id,
+          leaveType:     'sick',
+          status:        { in: ['approved', 'pending'] },
+          startDate:     { gte: startOfYear },
+          endDate:       { lte: endOfYear },
+        },
+        _sum: { days: true },
+      }),
+    ])
 
-    return NextResponse.json({ balance, year })
+    const annualUsedDays = annualUsed._sum.days ?? 0
+    const sickUsedDays   = sickUsed._sum.days   ?? 0
+
+    return NextResponse.json({
+      success: true,
+      balance: {
+        annual:          Math.max(0, annualQuota - annualUsedDays),
+        annualQuota,
+        annualUsed:      annualUsedDays,
+        sick:            sickQuota,   // sick leave tidak terbatas, tampilkan quota
+        sickQuota,
+        sickUsed:        sickUsedDays,
+      },
+      year,
+    })
   } catch (error: any) {
-    console.error('GET /api/leave/balance:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('GET /api/leave/balance error:', error)
+    return NextResponse.json(
+      { error: error.message || 'Failed to get leave balance' },
+      { status: 500 }
+    )
   }
 }

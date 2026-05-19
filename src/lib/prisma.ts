@@ -7,14 +7,14 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function createPrismaClient() {
-  // Pakai DIRECT_URL jika ada (bypass PgBouncer),
-  // fallback ke DATABASE_URL
-  const url = process.env.DIRECT_URL || process.env.DATABASE_URL
+  // SELALU pakai DATABASE_URL (via PgBouncer).
+  // JANGAN pakai DIRECT_URL di sini — direct connection limitnya sangat
+  // kecil di Supabase (15 slot) dan habis cepat saat banyak request.
+  // DIRECT_URL hanya dipakai oleh `prisma migrate` via prisma.schema.
+  const url = process.env.DATABASE_URL
 
   if (!url) {
-    throw new Error(
-      'DATABASE_URL atau DIRECT_URL harus diset di .env.local'
-    )
+    throw new Error('DATABASE_URL harus diset di .env.local / environment variables')
   }
 
   return new PrismaClient({

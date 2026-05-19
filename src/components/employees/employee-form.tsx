@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { AlertCircle, Loader2, Save } from "lucide-react";
@@ -11,6 +11,7 @@ import { AlertCircle, Loader2, Save } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { CurrencyInput } from "@/src/components/ui/currency-input";
 import {
   Select,
   SelectContent,
@@ -110,27 +111,16 @@ const EMPLOYMENT_TYPES = [
 function getRolesForUser(currentUserRole: string) {
   const hierarchy = ["employee", "manager", "hr", "admin", "owner"];
   const currentIndex = hierarchy.indexOf(currentUserRole);
-
-  if (currentIndex < 0) {
-    return ROLE_OPTIONS.filter((role) => role.value === "employee");
-  }
-
-  return ROLE_OPTIONS.filter(
-    (role) => hierarchy.indexOf(role.value) <= currentIndex,
-  );
+  if (currentIndex < 0)
+    return ROLE_OPTIONS.filter((r) => r.value === "employee");
+  return ROLE_OPTIONS.filter((r) => hierarchy.indexOf(r.value) <= currentIndex);
 }
 
 function formatDateInput(value?: string | null) {
-  if (!value) {
-    return new Date().toISOString().slice(0, 10);
-  }
-
+  if (!value) return new Date().toISOString().slice(0, 10);
   const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
+  if (Number.isNaN(date.getTime()))
     return new Date().toISOString().slice(0, 10);
-  }
-
   return date.toISOString().slice(0, 10);
 }
 
@@ -146,14 +136,11 @@ export function EmployeeForm({
   currentUserRole,
 }: EmployeeFormProps) {
   const router = useRouter();
-
   const [serverError, setServerError] = useState<string | null>(null);
-
   const availableRoles = useMemo(
     () => getRolesForUser(currentUserRole),
     [currentUserRole],
   );
-
   const safeDepartments = Array.isArray(departments) ? departments : [];
 
   const {
@@ -161,6 +148,7 @@ export function EmployeeForm({
     handleSubmit,
     setValue,
     watch,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<EmployeeFormData>({
     resolver: zodResolver(employeeSchema),
@@ -181,29 +169,23 @@ export function EmployeeForm({
 
   const selectedRole = watch("role");
   const selectedRoleInfo =
-    ROLE_OPTIONS.find((role) => role.value === selectedRole) ?? ROLE_OPTIONS[0];
-
+    ROLE_OPTIONS.find((r) => r.value === selectedRole) ?? ROLE_OPTIONS[0];
   const selectedDepartmentId = watch("departmentId") ?? "";
   const selectedEmploymentType = watch("employmentType");
 
   async function onSubmit(data: EmployeeFormData) {
     setServerError(null);
-
     try {
-      if (mode === "edit" && !employee?.id) {
+      if (mode === "edit" && !employee?.id)
         throw new Error("Employee ID is missing.");
-      }
 
       const url =
         mode === "create" ? "/api/employees" : `/api/employees/${employee?.id}`;
-
       const method = mode === "create" ? "POST" : "PUT";
 
       const response = await fetch(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...data,
           departmentId: data.departmentId || null,
@@ -236,6 +218,7 @@ export function EmployeeForm({
         </div>
       )}
 
+      {/* ── Personal information ──────────────────────────────────────── */}
       <FormSection
         title="Personal information"
         description="Basic identity and contact details for the employee."
@@ -287,6 +270,7 @@ export function EmployeeForm({
         </div>
       </FormSection>
 
+      {/* ── Employment details ────────────────────────────────────────── */}
       <FormSection
         title="Employment details"
         description="Work identity, department, job title, salary, and start date."
@@ -330,14 +314,13 @@ export function EmployeeForm({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No department</SelectItem>
-                {safeDepartments.map((department) => (
-                  <SelectItem key={department.id} value={department.id}>
-                    {department.name}
+                {safeDepartments.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-
             {safeDepartments.length === 0 && (
               <p className="mt-1 text-xs text-[#7A5A00]">
                 No department has been created yet.
@@ -364,9 +347,9 @@ export function EmployeeForm({
                 <SelectValue placeholder="Select employment type" />
               </SelectTrigger>
               <SelectContent>
-                {EMPLOYMENT_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
+                {EMPLOYMENT_TYPES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    {t.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -382,32 +365,33 @@ export function EmployeeForm({
             />
           </Field>
 
+          {/* ── Base Salary — pakai CurrencyInput ── */}
           <Field
-            label="Base salary"
+            label="Base salary (IDR)"
             error={errors.baseSalary?.message}
             required
           >
-            <Input
-              type="number"
-              min={0}
-              step={1000}
-              placeholder="0"
-              disabled={isSubmitting}
-              className="h-10 focus-visible:ring-[#0B5A43]"
-              {...register("baseSalary", {
-                setValueAs: (value) => {
-                  if (value === "" || value === null || value === undefined)
-                    return 0;
-
-                  const parsed = Number(value);
-                  return Number.isFinite(parsed) ? parsed : 0;
-                },
-              })}
+            <Controller
+              control={control}
+              name="baseSalary"
+              render={({ field }) => (
+                <CurrencyInput
+                  id="baseSalary"
+                  value={field.value}
+                  onChange={field.onChange}
+                  disabled={isSubmitting}
+                  placeholder="Rp 0"
+                />
+              )}
             />
+            <p className="mt-1 text-xs text-gray-400">
+              Contoh: ketik 12000000 → tampil Rp 12.000.000
+            </p>
           </Field>
         </div>
       </FormSection>
 
+      {/* ── Access role ───────────────────────────────────────────────── */}
       <FormSection
         title="Access role"
         description="Choose what this employee can access in the system."
@@ -428,14 +412,13 @@ export function EmployeeForm({
                 <SelectValue placeholder="Select role" />
               </SelectTrigger>
               <SelectContent>
-                {availableRoles.map((role) => (
-                  <SelectItem key={role.value} value={role.value}>
-                    {role.label}
+                {availableRoles.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>
+                    {r.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-
             <p className="mt-1 text-xs text-gray-500">
               You can only assign roles up to your own access level.
             </p>
@@ -452,6 +435,7 @@ export function EmployeeForm({
         </div>
       </FormSection>
 
+      {/* ── Actions ───────────────────────────────────────────────────── */}
       <div className="flex flex-col-reverse gap-3 border-t border-gray-200 pt-5 sm:flex-row sm:items-center sm:justify-end">
         <Link href="/employees">
           <Button
@@ -463,7 +447,6 @@ export function EmployeeForm({
             Cancel
           </Button>
         </Link>
-
         <Button
           type="submit"
           disabled={isSubmitting}
@@ -503,7 +486,6 @@ function FormSection({
           {description}
         </p>
       </div>
-
       <div className="p-4">{children}</div>
     </section>
   );
@@ -526,9 +508,7 @@ function Field({
         {label}
         {required && <span className="ml-1 text-red-600">*</span>}
       </Label>
-
       {children}
-
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );
