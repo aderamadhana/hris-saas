@@ -33,6 +33,8 @@ model Organization {
   autoApproveBelow        Int                   @default(0)
   leaveApprovalLevels     Int                   @default(1)
   requireHrApprovalAbove  Int                   @default(5)
+  lastPaymentAt           DateTime?
+  lastPaymentAmount       Float?
   attendance              Attendance[]
   departments             Department[]
   employees               Employee[]
@@ -43,17 +45,14 @@ model Organization {
   payrolls                Payroll[]
   salaryComponents        SalaryComponent[]
   usageLogs               UsageLog[]
-  lastPaymentAt       DateTime?
-  lastPaymentAmount   Float?
- 
-  transactions        BillingTransaction[]
-  reviewCycles       ReviewCycle[]
-  performanceReviews PerformanceReview[]
-  employeeDocuments  EmployeeDocument[]
-  announcements      Announcement[]
-  companyEvents      CompanyEvent[]
-  payrollConfig    PayrollConfig?
-  leavePolicies    LeavePolicyConfig[]
+  transactions            BillingTransaction[]
+  reviewCycles            ReviewCycle[]
+  performanceReviews      PerformanceReview[]
+  employeeDocuments       EmployeeDocument[]
+  announcements           Announcement[]
+  companyEvents           CompanyEvent[]
+  payrollConfig           PayrollConfig?
+  leavePolicies           LeavePolicyConfig[]
 
   @@index([slug])
   @@index([stripeCustomerId])
@@ -64,22 +63,18 @@ model BillingTransaction {
   orderId               String    @unique
   organizationId        String
   planId                String
-  billingCycle          String    @default("monthly")   // monthly | yearly
+  billingCycle          String    @default("monthly")
   amount                Float
   currency              String    @default("IDR")
-  status                String    @default("pending")   // pending | active | failed | expired
- 
-  // Midtrans fields
+  status                String    @default("pending")
   midtransOrderId       String?
   midtransTransactionId String?
-  paymentType           String?   // gopay | bank_transfer | credit_card | etc
+  paymentType           String?
   paidAt                DateTime?
- 
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
- 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
- 
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   @@index([organizationId])
   @@index([status])
 }
@@ -130,25 +125,27 @@ model Employee {
   baseSalary            Decimal         @db.Decimal(12, 2)
   currency              String          @default("IDR")
   role                  String          @default("employee")
+  managerId             String?
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
-  managerId             String?
+
   attendance            Attendance[]
-  managedDepartment     Department[]    @relation("DepartmentManager")
-  department            Department?     @relation(fields: [departmentId], references: [id])
-  manager               Employee?       @relation("ManagerSubordinates", fields: [managerId], references: [id])
-  subordinates          Employee[]      @relation("ManagerSubordinates")
-  organization          Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  delegatedLeaves       Leave[]         @relation("DelegatedLeaves")
+  managedDepartment     Department[]         @relation("DepartmentManager")
+  department            Department?          @relation(fields: [departmentId], references: [id])
+  manager               Employee?            @relation("ManagerSubordinates", fields: [managerId], references: [id])
+  subordinates          Employee[]           @relation("ManagerSubordinates")
+  organization          Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  delegatedLeaves       Leave[]              @relation("DelegatedLeaves")
   leaves                Leave[]
-  leaveApprovals        LeaveApproval[] @relation("LeaveApprovals")
+  leaveApprovals        LeaveApproval[]      @relation("LeaveApprovals")
   leaveRequests         LeaveRequest[]
-  receivedNotifications Notification[]  @relation("ReceivedNotifications")
-  sentNotifications     Notification[]  @relation("SentNotifications")
+  receivedNotifications Notification[]       @relation("ReceivedNotifications")
+  sentNotifications     Notification[]       @relation("SentNotifications")
   payrolls              Payroll[]
-  reviewsAsEmployee  PerformanceReview[]  @relation("ReviewedEmployee")
-  reviewsAsReviewer  PerformanceReview[]  @relation("ReviewerEmployee")
-  goalTrackings      GoalTracking[]
+  // Performance — usar revieweeId (não mais employeeId)
+  reviewsAsReviewee     PerformanceReview[]  @relation("ReviewedEmployee")
+  reviewsAsReviewer     PerformanceReview[]  @relation("ReviewerEmployee")
+  goalTrackings         GoalTracking[]
   documents             EmployeeDocument[]   @relation("EmployeeDocs")
   uploadedDocuments     EmployeeDocument[]   @relation("DocumentUploader")
   authoredAnnouncements Announcement[]       @relation("AnnouncementAuthor")
@@ -175,7 +172,7 @@ model Department {
   employees      Employee[]
   announcements  Announcement[]  @relation("AnnouncementDept")
   calendarEvents CompanyEvent[]  @relation("CalendarDept")
-  
+
   @@unique([organizationId, name])
   @@index([organizationId])
 }
@@ -261,8 +258,6 @@ model Leave {
   approvedBy             String?
   approvedAt             DateTime?
   rejectedReason         String?
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
   category               String          @default("annual")
   delegateNotes          String?
   delegateTo             String?
@@ -273,6 +268,8 @@ model Leave {
   totalHours             Float?
   currentApprovalLevel   Int             @default(1)
   requiresApprovalLevels Int             @default(1)
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
   delegate               Employee?       @relation("DelegatedLeaves", fields: [delegateTo], references: [id])
   employee               Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   organization           Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -290,32 +287,32 @@ model Payroll {
   id                  String       @id @default(cuid())
   organizationId      String
   employeeId          String
+  month               Int
+  year                Int
+  periodStart         DateTime
+  periodEnd           DateTime
   baseSalary          Decimal      @db.Decimal(15, 2)
   allowances          Decimal      @default(0) @db.Decimal(15, 2)
   overtime            Decimal      @default(0) @db.Decimal(15, 2)
   bonus               Decimal      @default(0) @db.Decimal(15, 2)
   otherDeductions     Decimal      @default(0) @db.Decimal(15, 2)
-  grossSalary         Decimal      @db.Decimal(15, 2)
-  netSalary           Decimal      @db.Decimal(15, 2)
-  status              String       @default("draft")
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
-  absentDays          Int          @default(0)
-  approvedBy          String?
   bpjsKesehatan       Decimal      @default(0) @db.Decimal(15, 2)
   bpjsKetenagakerjaan Decimal      @default(0) @db.Decimal(15, 2)
-  createdBy           String?
-  lateDays            Int          @default(0)
-  month               Int
-  notes               String?
-  overtimeHours       Decimal      @default(0) @db.Decimal(5, 2)
-  paidDate            DateTime?
-  periodEnd           DateTime
-  periodStart         DateTime
   pph21               Decimal      @default(0) @db.Decimal(15, 2)
   totalDeductions     Decimal      @db.Decimal(15, 2)
+  grossSalary         Decimal      @db.Decimal(15, 2)
+  netSalary           Decimal      @db.Decimal(15, 2)
   workDays            Int          @default(0)
-  year                Int
+  absentDays          Int          @default(0)
+  lateDays            Int          @default(0)
+  overtimeHours       Decimal      @default(0) @db.Decimal(5, 2)
+  status              String       @default("draft")
+  paidDate            DateTime?
+  notes               String?
+  createdBy           String?
+  approvedBy          String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
   employee            Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -371,72 +368,71 @@ model ReviewCycle {
   id             String   @id @default(cuid())
   organizationId String
   name           String
-  type           String   // quarterly, semi_annual, annual
+  type           String
   startDate      DateTime
   endDate        DateTime
-  status         String   @default("draft") // draft, active, completed
+  status         String   @default("draft")
   description    String?  @db.Text
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  reviews      PerformanceReview[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviews        PerformanceReview[]
 
   @@index([organizationId])
   @@index([status])
 }
 
+// ─── UPDATED: field names aligned with API ───────────────────────────────────
 model PerformanceReview {
   id             String @id @default(cuid())
   organizationId String
   cycleId        String
-  employeeId     String
+  revieweeId     String  // was: employeeId
   reviewerId     String
 
-  attendanceScore    Float?
-  workQualityScore   Float?
-  teamworkScore      Float?
-  initiativeScore    Float?
-  communicationScore Float?
-  overallScore       Float?
+  // Self-assessment (submitted by employee)
+  selfRating    Float?  // was: selfScore
+  selfComments  String? @db.Text  // was: selfAssessment
 
-  strengths      String? @db.Text
-  improvements   String? @db.Text
-  goals          String? @db.Text
-  reviewerNotes  String? @db.Text
-  selfAssessment String? @db.Text
-  selfScore      Float?
+  // Manager review (submitted by reviewer)
+  managerRating   Float?  // was: overallScore / attendanceScore / etc
+  managerComments String? @db.Text  // was: reviewerNotes
 
-  status      String    @default("pending") // pending, self_submitted, reviewed, completed
+  // Shared
+  strengths     String? @db.Text
+  improvements  String? @db.Text
+  overallRating Float?  // auto-calculated avg(selfRating, managerRating)
+
+  // Status: pending_employee → pending_manager → completed
+  status      String    @default("pending_employee")
   submittedAt DateTime?
-  completedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  cycle        ReviewCycle   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  employee     Employee      @relation("ReviewedEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
-  reviewer     Employee      @relation("ReviewerEmployee", fields: [reviewerId], references: [id], onDelete: Cascade)
-  goals_list   GoalTracking[]
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  cycle        ReviewCycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  reviewee     Employee        @relation("ReviewedEmployee", fields: [revieweeId], references: [id], onDelete: Cascade)
+  reviewer     Employee        @relation("ReviewerEmployee", fields: [reviewerId], references: [id], onDelete: Cascade)
+  goals        GoalTracking[]
 
-  @@unique([cycleId, employeeId])
+  @@unique([cycleId, revieweeId])
   @@index([organizationId])
-  @@index([employeeId])
+  @@index([revieweeId])
   @@index([reviewerId])
   @@index([status])
 }
 
+// ─── UPDATED: targetDate replaces dueDate, removed target field ──────────────
 model GoalTracking {
   id          String    @id @default(cuid())
   reviewId    String
   employeeId  String
+
   title       String
   description String?   @db.Text
-  target      String
+  targetDate  DateTime?  // was: dueDate
   progress    Int       @default(0)
-  status      String    @default("in_progress") // in_progress, completed, cancelled
-  dueDate     DateTime?
+  status      String    @default("in_progress")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -449,28 +445,25 @@ model GoalTracking {
 }
 
 model EmployeeDocument {
-  id             String  @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   employeeId     String
   uploadedBy     String
-
-  category    String  // contract, id_card, certificate, diploma, photo, bpjs, tax, medical, other
-  name        String
-  description String?  @db.Text
-  fileUrl     String
-  fileType    String   // pdf, jpg, png, docx, xlsx
-  fileSize    Int
-  isPrivate   Boolean  @default(false)
-  isVerified  Boolean  @default(false)
-  verifiedBy  String?
-  expiresAt   DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  employee     Employee     @relation("EmployeeDocs", fields: [employeeId], references: [id], onDelete: Cascade)
-  uploader     Employee     @relation("DocumentUploader", fields: [uploadedBy], references: [id])
+  category       String
+  name           String
+  description    String?   @db.Text
+  fileUrl        String
+  fileType       String
+  fileSize       Int
+  isPrivate      Boolean   @default(false)
+  isVerified     Boolean   @default(false)
+  verifiedBy     String?
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employee       Employee     @relation("EmployeeDocs", fields: [employeeId], references: [id], onDelete: Cascade)
+  uploader       Employee     @relation("DocumentUploader", fields: [uploadedBy], references: [id])
 
   @@index([organizationId])
   @@index([employeeId])
@@ -478,31 +471,26 @@ model EmployeeDocument {
 }
 
 model Announcement {
-  id             String   @id @default(cuid())
-  organizationId String
-  authorId       String
-
-  title       String
-  content     String   @db.Text
-  type        String   @default("info") // info, warning, urgent, event
-  isPinned    Boolean  @default(false)
-  isPublished Boolean  @default(false)
-  publishedAt DateTime?
-
-  targetRoles        String?  // "all", "employee,manager"
+  id                 String    @id @default(cuid())
+  organizationId     String
+  authorId           String
+  title              String
+  content            String    @db.Text
+  type               String    @default("info")
+  isPinned           Boolean   @default(false)
+  isPublished        Boolean   @default(false)
+  publishedAt        DateTime?
+  targetRoles        String?
   targetDepartmentId String?
-
-  expiresAt      DateTime?
-  attachmentUrl  String?
-  attachmentName String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  author           Employee          @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  targetDepartment Department?       @relation("AnnouncementDept", fields: [targetDepartmentId], references: [id])
-  reads            AnnouncementRead[]
+  expiresAt          DateTime?
+  attachmentUrl      String?
+  attachmentName     String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  author             Employee          @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  targetDepartment   Department?       @relation("AnnouncementDept", fields: [targetDepartmentId], references: [id])
+  reads              AnnouncementRead[]
 
   @@index([organizationId])
   @@index([authorId])
@@ -515,46 +503,38 @@ model AnnouncementRead {
   announcementId String
   employeeId     String
   readAt         DateTime @default(now())
-
-  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
-  employee     Employee     @relation("AnnouncementReads", fields: [employeeId], references: [id], onDelete: Cascade)
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  employee       Employee     @relation("AnnouncementReads", fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@unique([announcementId, employeeId])
   @@index([employeeId])
 }
 
 model CompanyEvent {
-  id             String   @id @default(cuid())
-  organizationId String
-  createdBy      String
-
-  title       String
-  description String?  @db.Text
-  type        String   // holiday, event, meeting, reminder, birthday, training
-  color       String   @default("#3B82F6")
-
-  startDate DateTime
-  endDate   DateTime
-  isAllDay  Boolean  @default(true)
-  startTime String?
-  endTime   String?
-
-  isNational    Boolean  @default(false)
-  isRecurring   Boolean  @default(false)
-  recurringType String?
-
-  location   String?
-  meetingUrl String?
-
+  id                 String    @id @default(cuid())
+  organizationId     String
+  createdBy          String
+  title              String
+  description        String?   @db.Text
+  type               String
+  color              String    @default("#3B82F6")
+  startDate          DateTime
+  endDate            DateTime
+  isAllDay           Boolean   @default(true)
+  startTime          String?
+  endTime            String?
+  isNational         Boolean   @default(false)
+  isRecurring        Boolean   @default(false)
+  recurringType      String?
+  location           String?
+  meetingUrl         String?
   targetRoles        String?
   targetDepartmentId String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  creator          Employee     @relation("CalendarCreator", fields: [createdBy], references: [id], onDelete: Cascade)
-  targetDepartment Department?  @relation("CalendarDept", fields: [targetDepartmentId], references: [id])
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator            Employee     @relation("CalendarCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  targetDepartment   Department?  @relation("CalendarDept", fields: [targetDepartmentId], references: [id])
 
   @@index([organizationId])
   @@index([startDate])
@@ -564,13 +544,10 @@ model CompanyEvent {
 model PayrollConfig {
   id             String   @id @default(cuid())
   organizationId String   @unique
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
   bpjsKesEnabled      Boolean  @default(false)
   bpjsKesEmployee     Float    @default(1.0)
   bpjsKesEmployer     Float    @default(4.0)
   bpjsKesMaxSalary    Float?
-
   bpjsTkEnabled       Boolean  @default(false)
   bpjsTkJHT           Float    @default(2.0)
   bpjsTkJHTEmployer   Float    @default(3.7)
@@ -579,65 +556,56 @@ model PayrollConfig {
   bpjsTkJKK           Float    @default(0.24)
   bpjsTkJKM           Float    @default(0.3)
   bpjsTkMaxSalary     Float?
-
   pph21Enabled        Boolean  @default(false)
   pph21Method         String   @default("gross")
   pph21PTKP           Float    @default(54000000)
   ptkpStatus          String   @default("TK/0")
-
   lateDeductEnabled   Boolean  @default(false)
   lateGraceMinutes    Int      @default(15)
   lateDeductMethod    String   @default("minute_salary")
   lateDeductAmount    Float    @default(0)
   lateDeductPercent   Float    @default(0)
-
   earlyLeaveDeductEnabled Boolean @default(false)
   earlyLeaveDeductMethod  String  @default("minute_salary")
   earlyLeaveDeductAmount  Float   @default(0)
   earlyLeaveDeductPercent Float   @default(0)
-
   absentDeductEnabled Boolean @default(false)
   absentDeductMethod  String  @default("daily_salary")
   absentDeductAmount  Float   @default(0)
-
   overtimeEnabled     Boolean @default(true)
   overtimeRate1       Float   @default(1.5)
   overtimeRate2       Float   @default(2.0)
   overtimeRateHoliday Float   @default(2.0)
   overtimeHourlyBasis Int     @default(173)
-
   customAllowances    String  @default("[]")
   customDeductions    String  @default("[]")
-
   payrollDate         Int     @default(25)
   cutoffDate          Int     @default(20)
   salaryType          String  @default("monthly")
   workingDaysPerMonth Int     @default(22)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 model LeavePolicyConfig {
-  id             String   @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  leaveTypeId       String
-  isEnabled         Boolean  @default(false)
-  customName        String?
-  maxDaysOverride   Int?
-  isPaidOverride    Boolean?
-  requiresApproval  Boolean  @default(true)
-  requiresDocument  Boolean  @default(false)
-  canCarryForward   Boolean  @default(false)
-  maxCarryForward   Int?
-  countWeekend      Boolean  @default(false)
-  requiresDelegation Boolean @default(false)
-  notes             String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  organizationId     String
+  leaveTypeId        String
+  isEnabled          Boolean  @default(false)
+  customName         String?
+  maxDaysOverride    Int?
+  isPaidOverride     Boolean?
+  requiresApproval   Boolean  @default(true)
+  requiresDocument   Boolean  @default(false)
+  canCarryForward    Boolean  @default(false)
+  maxCarryForward    Int?
+  countWeekend       Boolean  @default(false)
+  requiresDelegation Boolean  @default(false)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, leaveTypeId])
   @@index([organizationId])

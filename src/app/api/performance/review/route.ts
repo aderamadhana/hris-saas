@@ -21,16 +21,13 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const cycleId = searchParams.get('cycleId')
-
     const isAdminHR = ['admin', 'hr', 'owner'].includes(employee.role)
 
     const where: any = { organizationId: employee.organizationId }
     if (cycleId) where.cycleId = cycleId
-
-    // Non-admin hanya lihat review miliknya sendiri (sebagai employee atau reviewer)
     if (!isAdminHR) {
       where.OR = [
-        { employeeId: employee.id },
+        { revieweeId: employee.id },
         { reviewerId: employee.id },
       ]
     }
@@ -38,29 +35,56 @@ export async function GET(request: NextRequest) {
     const reviews = await prisma.performanceReview.findMany({
       where,
       include: {
-        employee: {
+        reviewee: {
           select: {
-            id:         true,
-            firstName:  true,
-            lastName:   true,
-            position:   true,
+            id: true, firstName: true, lastName: true,
+            position: true, employeeId: true,
             department: { select: { name: true } },
           },
         },
-        reviewer: {
-          select: { id: true, firstName: true, lastName: true },
-        },
-        cycle: {
-          select: { id: true, name: true, type: true },
-        },
-        // goals_list dihapus — cek dulu apakah GoalTracking ada di schema kamu
-        // Kalau ada, uncomment baris berikut:
-        // goals_list: true,
+        reviewer: { select: { id: true, firstName: true, lastName: true } },
+        cycle: { select: { id: true, name: true, type: true, status: true } },
+        goals: true,
       },
       orderBy: { createdAt: 'desc' },
     })
 
-    return NextResponse.json({ success: true, reviews })
+    const serialized = reviews.map((r) => ({
+      id:              r.id,
+      status:          r.status,
+      selfRating:      r.selfRating,
+      managerRating:   r.managerRating,
+      overallRating:   r.overallRating,
+      selfComments:    r.selfComments,
+      managerComments: r.managerComments,
+      strengths:       r.strengths,
+      improvements:    r.improvements,
+      submittedAt:     r.submittedAt?.toISOString() ?? null,
+      createdAt:       r.createdAt.toISOString(),
+      cycle:           r.cycle,
+      reviewer:        r.reviewer
+        ? { id: r.reviewer.id, name: `${r.reviewer.firstName} ${r.reviewer.lastName}` }
+        : null,
+      reviewee: r.reviewee
+        ? {
+            id:         r.reviewee.id,
+            name:       `${r.reviewee.firstName} ${r.reviewee.lastName}`,
+            employeeId: r.reviewee.employeeId,
+            position:   r.reviewee.position,
+            department: r.reviewee.department?.name ?? null,
+          }
+        : null,
+      goals: (r.goals ?? []).map((g) => ({
+        id:          g.id,
+        title:       g.title,
+        description: g.description,
+        targetDate:  g.targetDate?.toISOString() ?? null,
+        status:      g.status,
+        progress:    g.progress,
+      })),
+    }))
+
+    return NextResponse.json({ success: true, reviews: serialized })
   } catch (error: any) {
     console.error('GET /api/performance/review error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -85,19 +109,27 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { cycleId, employeeId, reviewerId } = body
+    const { cycleId, revieweeId, reviewerId } = body
 
-    if (!cycleId || !employeeId || !reviewerId) {
-      return NextResponse.json({ error: 'cycleId, employeeId, dan reviewerId wajib diisi' }, { status: 400 })
+    if (!cycleId || !revieweeId || !reviewerId) {
+      return NextResponse.json(
+        { error: 'cycleId, revieweeId, dan reviewerId wajib diisi' },
+        { status: 400 }
+      )
     }
+
+    const cycle = await prisma.reviewCycle.findFirst({
+      where: { id: cycleId, organizationId: employee.organizationId },
+    })
+    if (!cycle) return NextResponse.json({ error: 'Cycle not found' }, { status: 404 })
 
     const review = await prisma.performanceReview.create({
       data: {
         organizationId: employee.organizationId,
         cycleId,
-        employeeId,
+        revieweeId,
         reviewerId,
-        status: 'pending',
+        status: 'pending_employee',
       },
     })
 
@@ -114,7 +146,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ─── PUT: submit self-assessment atau reviewer scores ────────────────────────
+// ─── PUT: submit self-assessment ATAU manager review ─────────────────────────
 export async function PUT(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -123,76 +155,79 @@ export async function PUT(request: NextRequest) {
 
     const employee = await prisma.employee.findUnique({
       where: { authId: user.id },
-      select: { id: true },
+      select: { id: true, organizationId: true, role: true },
     })
     if (!employee) return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
 
     const body = await request.json()
-    const { reviewId, type, ...data } = body
+    const { reviewId, type } = body
 
     if (!reviewId || !type) {
       return NextResponse.json({ error: 'reviewId dan type wajib diisi' }, { status: 400 })
     }
 
-    const review = await prisma.performanceReview.findUnique({
-      where: { id: reviewId },
-    })
+    const review = await prisma.performanceReview.findUnique({ where: { id: reviewId } })
     if (!review) return NextResponse.json({ error: 'Review not found' }, { status: 404 })
+    if (review.organizationId !== employee.organizationId) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
 
     let updateData: any = {}
 
+    // ── Self-assessment ───────────────────────────────────────────────────────
     if (type === 'self') {
-      // Employee submit self-assessment
-      if (review.employeeId !== employee.id) {
+      if (review.revieweeId !== employee.id) {
         return NextResponse.json(
           { error: 'Cannot submit self-assessment for other employees' },
           { status: 403 }
         )
       }
-      updateData = {
-        selfAssessment: data.selfAssessment ?? null,
-        selfScore:      data.selfScore      ?? null,
-        status:         'self_submitted',
-        submittedAt:    new Date(),
+      const selfRating = body.selfRating ?? null
+      if (selfRating !== null && (selfRating < 1 || selfRating > 5)) {
+        return NextResponse.json({ error: 'Self rating must be between 1 and 5' }, { status: 400 })
       }
-    } else if (type === 'reviewer') {
-      // Reviewer submit scores
-      if (review.reviewerId !== employee.id) {
-        return NextResponse.json(
-          { error: 'Not authorized to submit this review' },
-          { status: 403 }
-        )
+      updateData = {
+        selfRating,
+        selfComments: body.selfComments ?? null,
+        strengths:    body.strengths    ?? null,
+        improvements: body.improvements ?? null,
+        status:       'pending_manager',
+        submittedAt:  new Date(),
       }
 
-      const scoreFields = [
-        data.attendanceScore,
-        data.workQualityScore,
-        data.teamworkScore,
-        data.initiativeScore,
-        data.communicationScore,
-      ].filter((s) => s !== null && s !== undefined)
+    // ── Manager review ────────────────────────────────────────────────────────
+    } else if (type === 'manager') {
+      const isReviewer = review.reviewerId === employee.id
+      const isAdminHR  = ['admin', 'hr', 'owner'].includes(employee.role)
+      if (!isReviewer && !isAdminHR) {
+        return NextResponse.json({ error: 'Not authorized to submit this review' }, { status: 403 })
+      }
 
-      const overallScore =
-        scoreFields.length > 0
-          ? scoreFields.reduce((a: number, b: number) => a + b, 0) / scoreFields.length
-          : null
+      const managerRating = body.managerRating ?? null
+      if (managerRating !== null && (managerRating < 1 || managerRating > 5)) {
+        return NextResponse.json({ error: 'Manager rating must be between 1 and 5' }, { status: 400 })
+      }
+
+      // Overall = average of self + manager
+      const overallRating = (() => {
+        const self    = review.selfRating ?? null
+        const manager = managerRating
+        if (self !== null && manager !== null) {
+          return Math.round(((Number(self) + Number(manager)) / 2) * 10) / 10
+        }
+        return manager ?? self ?? null
+      })()
 
       updateData = {
-        attendanceScore:    data.attendanceScore    ?? null,
-        workQualityScore:   data.workQualityScore   ?? null,
-        teamworkScore:      data.teamworkScore      ?? null,
-        initiativeScore:    data.initiativeScore    ?? null,
-        communicationScore: data.communicationScore ?? null,
-        overallScore,
-        strengths:          data.strengths     ?? null,
-        improvements:       data.improvements  ?? null,
-        goals:              data.goals         ?? null,
-        reviewerNotes:      data.reviewerNotes ?? null,
-        status:             'reviewed',
-        completedAt:        new Date(),
+        managerRating,
+        managerComments: body.managerComments ?? null,
+        strengths:       body.strengths       ?? review.strengths,
+        improvements:    body.improvements    ?? review.improvements,
+        overallRating,
+        status: 'completed',
       }
     } else {
-      return NextResponse.json({ error: 'type harus "self" atau "reviewer"' }, { status: 400 })
+      return NextResponse.json({ error: 'type harus "self" atau "manager"' }, { status: 400 })
     }
 
     const updated = await prisma.performanceReview.update({
