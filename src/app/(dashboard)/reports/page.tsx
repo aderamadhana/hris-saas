@@ -1,10 +1,10 @@
-// src/app/(dashboard)/reports/page.tsx
+// app/(dashboard)/reports/page.tsx
 
 import { redirect } from "next/navigation";
 
-import prisma from "@/src/lib/prisma";
-import { createClient } from "@/src/lib/supabase/server";
-import { ReportsClient } from "@/src/components/reports/reports-client";
+import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
+import { ReportsClient } from "@/components/reports/reports-client";
 
 export const dynamic = "force-dynamic";
 

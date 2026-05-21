@@ -1,7 +1,7 @@
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { MonthlyRecapClient } from "@/src/components/attendance/monthly-recap-client";
+import { MonthlyRecapClient } from "@/components/attendance/monthly-recap-client";
 
 export const dynamic = "force-dynamic";
 

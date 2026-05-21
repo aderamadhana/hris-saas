@@ -1,4 +1,4 @@
-// src/components/employees/employee-table.tsx
+// components/employees/employee-table.tsx
 "use client";
 
 import { useState } from "react";
@@ -10,9 +10,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/src/components/ui/table";
-import { Input } from "@/src/components/ui/input";
-import { Button } from "@/src/components/ui/button";
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +20,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu";
 import {
   Search,
   MoreHorizontal,

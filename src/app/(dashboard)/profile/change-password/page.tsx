@@ -1,10 +1,10 @@
-// src/app/(dashboard)/profile/change-password/page.tsx
+// app/(dashboard)/profile/change-password/page.tsx
 
 import Link from "next/link";
 import { ArrowLeft, KeyRound } from "lucide-react";
 
-import { PasswordForm } from "@/src/components/profile/password-form";
-import { Button } from "@/src/components/ui/button";
+import { PasswordForm } from "@/components/profile/password-form";
+import { Button } from "@/components/ui/button";
 
 export default function ChangePasswordPage() {
   return (

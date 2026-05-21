@@ -1,6 +1,6 @@
-// src/app/(dashboard)/dashboard/loading.tsx
-import { Skeleton } from "@/src/components/ui/skeleton";
-import { SkeletonCardGrid } from "@/src/components/ui/skeleton-blocks";
+// app/(dashboard)/dashboard/loading.tsx
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonCardGrid } from "@/components/ui/skeleton-blocks";
 
 export default function DashboardLoading() {
   return (

@@ -1,9 +1,9 @@
-// src/app/api/payroll/[id]/download/route.ts
+// app/api/payroll/[id]/download/route.ts
 // GET: Download payslip sebagai PDF (HTML yang bisa di-print)
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 import { format } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 

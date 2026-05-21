@@ -1,4 +1,4 @@
-// src/src/components/leave/leave-table.tsx
+// components/leave/leave-table.tsx
 "use client";
 
 import { useState } from "react";
@@ -10,9 +10,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/src/components/ui/table";
-import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,15 +20,15 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/src/components/ui/select";
-import { Label } from "@/src/components/ui/label";
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { MoreHorizontal, CheckCircle, XCircle, Eye } from "lucide-react";
 import { ApproveRejectDialog } from "./approve-reject-dialog";
 

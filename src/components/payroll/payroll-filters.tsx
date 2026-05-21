@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Filter } from "lucide-react";
-import { getMonthName } from "@/src/lib/payroll/calculations";
+import { getMonthName } from "@/lib/payroll/calculations";
 
 interface PayrollFiltersProps {
   currentMonth: number;

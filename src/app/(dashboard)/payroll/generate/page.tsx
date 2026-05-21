@@ -2,11 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Calculator, Info } from "lucide-react";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import { Button } from "@/src/components/ui/button";
-import { GeneratePayrollForm } from "@/src/components/payroll/generate-payroll-form";
-import { getCurrentPeriod, getMonthName } from "@/src/lib/payroll/calculations";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { Button } from "@/components/ui/button";
+import { GeneratePayrollForm } from "@/components/payroll/generate-payroll-form";
+import { getCurrentPeriod, getMonthName } from "@/lib/payroll/calculations";
 
 export const dynamic = "force-dynamic";
 

@@ -2,9 +2,9 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Building2, Edit, Mail, UserCog, Users } from "lucide-react";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import { Button } from "@/src/components/ui/button";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 

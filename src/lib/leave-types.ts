@@ -1,21 +1,4 @@
-// src/lib/leave-types.ts
-// Indonesian Labor Law (UU Ketenagakerjaan) Leave Types - English Version
-
-export interface LeaveType {
-  id: string
-  label: string
-  description: string
-  category: LeaveCategory
-  maxDays: number | null // null = unlimited
-  isPaid: boolean
-  requiresDocument: boolean
-  autoCalculate: boolean // auto-fill end date
-  includeWeekends: boolean // false = working days only
-  requiresDelegation: boolean
-  requiresTime: boolean // for OOO - needs start/end time
-  iconName: string
-  color: string
-}
+// lib/leave-types.ts
 
 export type LeaveCategory =
   | 'annual'
@@ -24,6 +7,23 @@ export type LeaveCategory =
   | 'special'
   | 'work_arrangement'
   | 'unpaid'
+
+export interface LeaveType {
+  id: string
+  name: string
+  label: string
+  description: string
+  category: LeaveCategory
+  maxDays: number | null
+  isPaid: boolean
+  requiresDocument: boolean
+  autoCalculate: boolean
+  includeWeekends: boolean
+  requiresDelegation: boolean
+  requiresTime: boolean
+  iconName: string
+  color: string
+}
 
 export const LEAVE_CATEGORIES: Record<LeaveCategory, string> = {
   annual: 'Annual Leave',
@@ -35,11 +35,11 @@ export const LEAVE_CATEGORIES: Record<LeaveCategory, string> = {
 }
 
 export const LEAVE_TYPES: LeaveType[] = [
-  // ─── ANNUAL LEAVE ───────────────────────────────────────────────
   {
     id: 'annual',
+    name: 'Annual Leave',
     label: 'Annual Leave',
-    description: 'Paid yearly leave entitlement (minimum 12 days per year)',
+    description: 'Paid yearly leave entitlement',
     category: 'annual',
     maxDays: 12,
     isPaid: true,
@@ -51,14 +51,13 @@ export const LEAVE_TYPES: LeaveType[] = [
     iconName: 'Calendar',
     color: 'blue',
   },
-
-  // ─── MEDICAL LEAVE ──────────────────────────────────────────────
   {
     id: 'sick',
+    name: 'Sick Leave',
     label: 'Sick Leave',
-    description: 'Medical leave due to illness — unlimited duration with doctor\'s note',
+    description: "Medical leave due to illness with doctor's note",
     category: 'health',
-    maxDays: null, // unlimited
+    maxDays: null,
     isPaid: true,
     requiresDocument: true,
     autoCalculate: false,
@@ -68,29 +67,27 @@ export const LEAVE_TYPES: LeaveType[] = [
     iconName: 'Heart',
     color: 'red',
   },
-
-  // ─── MATERNITY LEAVE ────────────────────────────────────────────
   {
     id: 'maternity',
+    name: 'Maternity Leave',
     label: 'Maternity Leave',
-    description: 'Paid leave for mothers — automatically set to 90 calendar days',
+    description: 'Paid leave for mothers',
     category: 'maternity',
     maxDays: 90,
     isPaid: true,
     requiresDocument: true,
     autoCalculate: true,
-    includeWeekends: true, // 90 consecutive days
+    includeWeekends: true,
     requiresDelegation: true,
     requiresTime: false,
     iconName: 'Baby',
     color: 'pink',
   },
-
-  // ─── SPECIAL LEAVE ──────────────────────────────────────────────
   {
     id: 'marriage',
+    name: 'Marriage Leave',
     label: 'Marriage Leave',
-    description: 'Leave for own wedding ceremony — 3 working days',
+    description: 'Leave for own wedding ceremony',
     category: 'special',
     maxDays: 3,
     isPaid: true,
@@ -104,8 +101,9 @@ export const LEAVE_TYPES: LeaveType[] = [
   },
   {
     id: 'child_marriage',
+    name: "Child's Wedding Leave",
     label: "Child's Wedding Leave",
-    description: "Leave to attend your child's wedding — 2 working days",
+    description: "Leave to attend your child's wedding",
     category: 'special',
     maxDays: 2,
     isPaid: true,
@@ -119,8 +117,9 @@ export const LEAVE_TYPES: LeaveType[] = [
   },
   {
     id: 'child_circumcision',
+    name: "Child's Circumcision Leave",
     label: "Child's Circumcision Leave",
-    description: "Leave for your child's circumcision ceremony — 2 working days",
+    description: "Leave for your child's circumcision ceremony",
     category: 'special',
     maxDays: 2,
     isPaid: true,
@@ -134,8 +133,9 @@ export const LEAVE_TYPES: LeaveType[] = [
   },
   {
     id: 'child_baptism',
+    name: "Child's Baptism Leave",
     label: "Child's Baptism Leave",
-    description: "Leave for your child's baptism ceremony — 2 working days",
+    description: "Leave for your child's baptism ceremony",
     category: 'special',
     maxDays: 2,
     isPaid: true,
@@ -149,8 +149,9 @@ export const LEAVE_TYPES: LeaveType[] = [
   },
   {
     id: 'paternity',
-    label: "Paternity Leave (Wife Giving Birth)",
-    description: "Leave for father when wife gives birth or has a miscarriage — 2 working days",
+    name: 'Paternity Leave',
+    label: 'Paternity Leave',
+    description: 'Leave for father when wife gives birth or has miscarriage',
     category: 'special',
     maxDays: 2,
     isPaid: true,
@@ -164,8 +165,9 @@ export const LEAVE_TYPES: LeaveType[] = [
   },
   {
     id: 'immediate_family_death',
+    name: 'Immediate Family Bereavement',
     label: 'Immediate Family Bereavement',
-    description: 'Leave for death of a household family member (same address) — 2 working days',
+    description: 'Leave for death of immediate family member',
     category: 'special',
     maxDays: 2,
     isPaid: true,
@@ -179,8 +181,9 @@ export const LEAVE_TYPES: LeaveType[] = [
   },
   {
     id: 'extended_family_death',
+    name: 'Extended Family Bereavement',
     label: 'Extended Family Bereavement',
-    description: 'Leave for death of a family member not living in the same household — 1 working day',
+    description: 'Leave for death of extended family member',
     category: 'special',
     maxDays: 1,
     isPaid: true,
@@ -194,11 +197,12 @@ export const LEAVE_TYPES: LeaveType[] = [
   },
   {
     id: 'hajj',
-    label: 'Hajj (Pilgrimage) Leave',
-    description: 'Leave for performing the Hajj pilgrimage — up to 40 days (once per employment)',
+    name: 'Hajj Leave',
+    label: 'Hajj Leave',
+    description: 'Leave for performing Hajj pilgrimage',
     category: 'special',
     maxDays: 40,
-    isPaid: false, // unpaid — per UU
+    isPaid: false,
     requiresDocument: true,
     autoCalculate: false,
     includeWeekends: true,
@@ -209,8 +213,9 @@ export const LEAVE_TYPES: LeaveType[] = [
   },
   {
     id: 'compensatory',
+    name: 'Compensatory Day Off',
     label: 'Compensatory Day Off',
-    description: 'Time off in lieu of working on a public holiday or rest day',
+    description: 'Time off in lieu of working on rest day or public holiday',
     category: 'special',
     maxDays: null,
     isPaid: true,
@@ -222,10 +227,9 @@ export const LEAVE_TYPES: LeaveType[] = [
     iconName: 'RefreshCw',
     color: 'green',
   },
-
-  // ─── WORK ARRANGEMENT ───────────────────────────────────────────
   {
     id: 'business_trip_local',
+    name: 'Local Business Trip',
     label: 'Local Business Trip',
     description: 'Official travel within the same province',
     category: 'work_arrangement',
@@ -240,9 +244,10 @@ export const LEAVE_TYPES: LeaveType[] = [
     color: 'indigo',
   },
   {
-    id: 'business_trip_out_of_province',
-    label: 'Out-of-Province Business Trip',
-    description: 'Official travel to another province or region',
+    id: 'business_trip_province',
+    name: 'Inter-Province Business Trip',
+    label: 'Inter-Province Business Trip',
+    description: 'Official travel outside the province',
     category: 'work_arrangement',
     maxDays: null,
     isPaid: true,
@@ -256,23 +261,25 @@ export const LEAVE_TYPES: LeaveType[] = [
   },
   {
     id: 'out_of_office',
-    label: 'Out of Office (OOO)',
-    description: 'Away from the office during working hours — requires start & end time',
+    name: 'Out of Office',
+    label: 'Out of Office',
+    description: 'Temporary out of office during working hours',
     category: 'work_arrangement',
-    maxDays: 1,
+    maxDays: null,
     isPaid: true,
     requiresDocument: false,
     autoCalculate: false,
     includeWeekends: false,
     requiresDelegation: false,
-    requiresTime: true, // ← show time picker
-    iconName: 'PhoneOff',
-    color: 'orange',
+    requiresTime: true,
+    iconName: 'Clock',
+    color: 'cyan',
   },
   {
     id: 'wfh',
-    label: 'Work From Home (WFH)',
-    description: 'Remote work from home',
+    name: 'Work From Home',
+    label: 'Work From Home',
+    description: 'Working remotely from home',
     category: 'work_arrangement',
     maxDays: null,
     isPaid: true,
@@ -282,12 +289,13 @@ export const LEAVE_TYPES: LeaveType[] = [
     requiresDelegation: false,
     requiresTime: false,
     iconName: 'Home',
-    color: 'cyan',
+    color: 'emerald',
   },
   {
     id: 'wfa',
-    label: 'Work From Anywhere (WFA)',
-    description: 'Remote work from any location (not home office)',
+    name: 'Work From Anywhere',
+    label: 'Work From Anywhere',
+    description: 'Working remotely from another location',
     category: 'work_arrangement',
     maxDays: null,
     isPaid: true,
@@ -296,15 +304,14 @@ export const LEAVE_TYPES: LeaveType[] = [
     includeWeekends: false,
     requiresDelegation: false,
     requiresTime: false,
-    iconName: 'Globe',
-    color: 'emerald',
+    iconName: 'MapPin',
+    color: 'lime',
   },
-
-  // ─── UNPAID LEAVE ───────────────────────────────────────────────
   {
     id: 'unpaid',
+    name: 'Unpaid Leave',
     label: 'Unpaid Leave',
-    description: 'Leave without pay — subject to manager approval',
+    description: 'Leave without pay',
     category: 'unpaid',
     maxDays: null,
     isPaid: false,
@@ -313,17 +320,32 @@ export const LEAVE_TYPES: LeaveType[] = [
     includeWeekends: false,
     requiresDelegation: true,
     requiresTime: false,
-    iconName: 'XCircle',
-    color: 'red',
+    iconName: 'CircleOff',
+    color: 'zinc',
   },
 ]
 
-// ─── HELPER FUNCTIONS ────────────────────────────────────────────────────────
-
 export function getLeaveType(id: string): LeaveType | undefined {
-  return LEAVE_TYPES.find((t) => t.id === id)
+  return LEAVE_TYPES.find((type) => type.id === id)
 }
 
+export function getLeaveTypeName(id: string): string {
+  return getLeaveType(id)?.name ?? id
+}
+
+export function getLeaveTypesByCategory(category: LeaveCategory): LeaveType[] {
+  return LEAVE_TYPES.filter((type) => type.category === category)
+}
+
+export function getPaidLeaveTypes(): LeaveType[] {
+  return LEAVE_TYPES.filter((type) => type.isPaid)
+}
+
+export function getUnpaidLeaveTypes(): LeaveType[] {
+  return LEAVE_TYPES.filter((type) => !type.isPaid)
+}
+
+// ─── HELPER FUNCTIONS ────────────────────────────────────────────────────────
 export function getLeavesByCategory(category: LeaveCategory): LeaveType[] {
   return LEAVE_TYPES.filter((t) => t.category === category)
 }

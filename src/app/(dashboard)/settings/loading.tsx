@@ -1,5 +1,5 @@
-// src/app/(dashboard)/settings/loading.tsx
-import { Skeleton } from "@/src/components/ui/skeleton";
+// app/(dashboard)/settings/loading.tsx
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function SettingsLoading() {
   return (
@@ -14,8 +14,7 @@ export default function SettingsLoading() {
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton
             key={i}
-            className="h-8 w-24"
-            style={{ borderRadius: "4px 4px 0 0" }}
+            className="h-8 w-24 rounded-t-[4px] rounded-b-none"
           />
         ))}
       </div>

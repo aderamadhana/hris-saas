@@ -1,4 +1,4 @@
-// src/components/departments/department-card.tsx
+// components/departments/department-card.tsx
 
 "use client";
 
@@ -13,7 +13,7 @@ import {
   Users,
 } from "lucide-react";
 
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +21,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu";
 import { DeleteDepartmentDialog } from "./delete-department-dialog";
 
 interface DepartmentCardProps {

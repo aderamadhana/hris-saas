@@ -1,12 +1,12 @@
 "use client";
 
-// src/app/(auth)/forgot-password/page.tsx
+// app/(auth)/forgot-password/page.tsx
 
 import * as React from "react";
 import Link from "next/link";
-import { createClient } from "@/src/lib/supabase/client";
-import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
+import { createClient } from "@/lib/supabase/client";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   AlertCircle,
   ArrowLeft,

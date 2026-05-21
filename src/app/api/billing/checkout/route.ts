@@ -1,11 +1,11 @@
-// src/app/api/billing/checkout/route.ts
+// app/api/billing/checkout/route.ts
 // Creates a Midtrans Snap token for subscription checkout
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
-import { createSnapToken } from '@/src/lib/billing/midtrans'
-import { getPlanById } from '@/src/lib/billing/plans'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
+import { createSnapToken } from '@/lib/billing/midtrans'
+import { getPlanById } from '@/lib/billing/plans'
 import { nanoid } from 'nanoid'
 
 export async function POST(request: NextRequest) {

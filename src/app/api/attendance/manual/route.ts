@@ -1,4 +1,4 @@
-// src/app/api/attendance/manual/route.ts
+// app/api/attendance/manual/route.ts
 // Admin/HR can manually input or override attendance records
 
 import { NextRequest, NextResponse } from 'next/server'

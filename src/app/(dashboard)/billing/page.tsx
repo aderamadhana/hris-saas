@@ -1,11 +1,11 @@
-// src/app/(dashboard)/billing/page.tsx
+// app/(dashboard)/billing/page.tsx
 
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import { BillingClient } from "@/src/components/billing/billing-client";
-import { PLANS } from "@/src/lib/billing/plans";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { BillingClient } from "@/components/billing/billing-client";
+import { PLANS } from "@/lib/billing/plans";
 
 export const dynamic = "force-dynamic";
 

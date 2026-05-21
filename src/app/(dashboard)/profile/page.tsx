@@ -1,12 +1,12 @@
-// src/app/(dashboard)/profile/page.tsx
+// app/(dashboard)/profile/page.tsx
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import { Button } from "@/src/components/ui/button";
-import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Briefcase,
   Building2,

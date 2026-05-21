@@ -1,9 +1,9 @@
-// src/app/api/leave/approvals/route.ts
+// app/api/leave/approvals/route.ts
 // GET - Ambil semua leave yang perlu di-approve oleh user yang sedang login
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 
 export async function GET() {
   try {

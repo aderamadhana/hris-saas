@@ -1,9 +1,9 @@
-// src/app/api/announcements/read/route.ts
+// app/api/announcements/read/route.ts
 // POST /api/announcements/read — mark satu announcement sebagai sudah dibaca
 
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/src/lib/prisma";
-import { createClient } from "@/src/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 

@@ -1,8 +1,8 @@
-// src/components/employees/delete-employee-dialog.tsx
-'use client'
+// components/employees/delete-employee-dialog.tsx
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -10,20 +10,20 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/src/components/ui/dialog'
-import { Button } from '@/src/components/ui/button'
-import { Loader2, AlertTriangle } from 'lucide-react'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Loader2, AlertTriangle } from "lucide-react";
 
 interface Employee {
-  id: string
-  name: string
-  employeeId: string
+  id: string;
+  name: string;
+  employeeId: string;
 }
 
 interface DeleteEmployeeDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  employee: Employee
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  employee: Employee;
 }
 
 export function DeleteEmployeeDialog({
@@ -31,33 +31,33 @@ export function DeleteEmployeeDialog({
   onOpenChange,
   employee,
 }: DeleteEmployeeDialogProps) {
-  const router = useRouter()
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const router = useRouter();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleDelete = async () => {
-    setIsDeleting(true)
-    setError(null)
+    setIsDeleting(true);
+    setError(null);
 
     try {
       const response = await fetch(`/api/employees/${employee.id}`, {
-        method: 'DELETE',
-      })
+        method: "DELETE",
+      });
 
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to delete employee')
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete employee");
       }
 
       // Success - close dialog and refresh
-      onOpenChange(false)
-      router.refresh()
+      onOpenChange(false);
+      router.refresh();
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message);
     } finally {
-      setIsDeleting(false)
+      setIsDeleting(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -78,13 +78,13 @@ export function DeleteEmployeeDialog({
 
         <div className="py-4">
           <p className="text-sm text-gray-600">
-            Are you sure you want to delete{' '}
+            Are you sure you want to delete{" "}
             <span className="font-semibold">{employee.name}</span> (
             {employee.employeeId})?
           </p>
           <p className="mt-2 text-sm text-gray-600">
-            This will permanently remove the employee and all associated data from
-            your organization.
+            This will permanently remove the employee and all associated data
+            from your organization.
           </p>
         </div>
 
@@ -113,11 +113,11 @@ export function DeleteEmployeeDialog({
                 Deleting...
               </>
             ) : (
-              'Delete Employee'
+              "Delete Employee"
             )}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

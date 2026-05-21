@@ -1,4 +1,4 @@
-// src/lib/supabase/server.ts
+// lib/supabase/server.ts
 // Updated version with service role for admin operations
 
 import { createServerClient } from '@supabase/ssr'

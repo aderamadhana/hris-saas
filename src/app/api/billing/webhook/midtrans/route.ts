@@ -1,14 +1,14 @@
-// src/app/api/billing/webhook/midtrans/route.ts
+// app/api/billing/webhook/midtrans/route.ts
 // Handles payment notifications from Midtrans
 
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/src/lib/prisma'
+import prisma from '@/lib/prisma'
 import {
   verifySignature,
   mapTransactionStatus,
   getNextBillingDate,
-} from '@/src/lib/billing/midtrans'
-import { getPlanById } from '@/src/lib/billing/plans'
+} from '@/lib/billing/midtrans'
+import { getPlanById } from '@/lib/billing/plans'
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,9 +1,9 @@
-// src/components/leave/leave-page-client.tsx
+// components/leave/leave-page-client.tsx
 "use client";
 
 import { useState } from "react";
-import { LeaveList } from "@/src/components/leave/leave-list";
-import { LeaveApprovalList } from "@/src/components/leave/leave-approval-list";
+import { LeaveList } from "@/components/leave/leave-list";
+import { LeaveApprovalList } from "@/components/leave/leave-approval-list";
 
 interface Props {
   canApprove: boolean;

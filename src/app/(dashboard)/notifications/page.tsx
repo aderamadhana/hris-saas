@@ -1,6 +1,6 @@
 "use client";
 
-// src/app/(dashboard)/notifications/page.tsx
+// app/(dashboard)/notifications/page.tsx
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";

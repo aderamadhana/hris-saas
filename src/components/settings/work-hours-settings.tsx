@@ -1,35 +1,39 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { Label } from '@/src/components/ui/label'
-import { Input } from '@/src/components/ui/input'
-import { Button } from '@/src/components/ui/button'
-import { Loader2 } from 'lucide-react'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 const workHoursSchema = z.object({
-  workStartTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Invalid time format (HH:MM)'),
-  workEndTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Invalid time format (HH:MM)'),
-})
+  workStartTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)"),
+  workEndTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid time format (HH:MM)"),
+});
 
-type WorkHoursFormData = z.infer<typeof workHoursSchema>
+type WorkHoursFormData = z.infer<typeof workHoursSchema>;
 
 interface WorkHoursSettingsProps {
   settings: {
-    id: string
-    workStartTime: string
-    workEndTime: string
-  }
+    id: string;
+    workStartTime: string;
+    workEndTime: string;
+  };
 }
 
 export function WorkHoursSettings({ settings }: WorkHoursSettingsProps) {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   const {
     register,
@@ -41,35 +45,35 @@ export function WorkHoursSettings({ settings }: WorkHoursSettingsProps) {
       workStartTime: settings.workStartTime,
       workEndTime: settings.workEndTime,
     },
-  })
+  });
 
   const onSubmit = async (data: WorkHoursFormData) => {
-    setIsLoading(true)
-    setError(null)
-    setSuccess(false)
+    setIsLoading(true);
+    setError(null);
+    setSuccess(false);
 
     try {
-      const response = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      })
+      });
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to update settings')
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update settings");
       }
 
-      setSuccess(true)
-      router.refresh()
+      setSuccess(true);
+      router.refresh();
 
-      setTimeout(() => setSuccess(false), 3000)
+      setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -92,7 +96,7 @@ export function WorkHoursSettings({ settings }: WorkHoursSettingsProps) {
           <Input
             id="workStartTime"
             type="time"
-            {...register('workStartTime')}
+            {...register("workStartTime")}
             className="mt-1"
           />
           {errors.workStartTime && (
@@ -111,7 +115,7 @@ export function WorkHoursSettings({ settings }: WorkHoursSettingsProps) {
           <Input
             id="workEndTime"
             type="time"
-            {...register('workEndTime')}
+            {...register("workEndTime")}
             className="mt-1"
           />
           {errors.workEndTime && (
@@ -128,8 +132,8 @@ export function WorkHoursSettings({ settings }: WorkHoursSettingsProps) {
       <div className="rounded-lg bg-blue-50 p-4">
         <p className="text-sm text-blue-900 font-medium">ℹ️ Information</p>
         <p className="mt-1 text-sm text-blue-700">
-          Work hours are used to calculate attendance status. Employees checking in after start time
-          will be marked as late.
+          Work hours are used to calculate attendance status. Employees checking
+          in after start time will be marked as late.
         </p>
       </div>
 
@@ -142,10 +146,10 @@ export function WorkHoursSettings({ settings }: WorkHoursSettingsProps) {
               Saving...
             </>
           ) : (
-            'Save Changes'
+            "Save Changes"
           )}
         </Button>
       </div>
     </form>
-  )
+  );
 }

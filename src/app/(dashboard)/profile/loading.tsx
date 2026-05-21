@@ -1,6 +1,6 @@
-// src/app/(dashboard)/profile/loading.tsx
-import { Skeleton } from "@/src/components/ui/skeleton";
-import { SkeletonStatsGrid } from "@/src/components/ui/skeleton-blocks";
+// app/(dashboard)/profile/loading.tsx
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonStatsGrid } from "@/components/ui/skeleton-blocks";
 
 export default function ProfileLoading() {
   return (

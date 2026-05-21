@@ -1,9 +1,9 @@
-// src/app/api/reports/route.ts
+// app/api/reports/route.ts
 // GET: Ambil data laporan berdasarkan type, bulan, tahun, filter
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 
 export async function GET(request: NextRequest) {

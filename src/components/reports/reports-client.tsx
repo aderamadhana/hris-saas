@@ -1,6 +1,6 @@
 "use client";
 
-// src/components/reports/reports-client.tsx
+// components/reports/reports-client.tsx
 
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -14,7 +14,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/components/ui/button";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

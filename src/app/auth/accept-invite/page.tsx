@@ -1,51 +1,56 @@
-// src/app/auth/accept-invite/page.tsx
+// app/auth/accept-invite/page.tsx
 // FIXED - Use correct user from invitation token
 
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/src/lib/supabase/client'
-import { Button } from '@/src/components/ui/button'
-import { Input } from '@/src/components/ui/input'
-import { Label } from '@/src/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card'
-import { Loader2, CheckCircle, Eye, EyeOff } from 'lucide-react'
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, CheckCircle, Eye, EyeOff } from "lucide-react";
 
 export default function AcceptInvitePage() {
-  const router = useRouter()
-  const supabase = createClient()
+  const router = useRouter();
+  const supabase = createClient();
 
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-  const [userInfo, setUserInfo] = useState<any>(null)
-  const [invitationToken, setInvitationToken] = useState<string | null>(null)
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [userInfo, setUserInfo] = useState<any>(null);
+  const [invitationToken, setInvitationToken] = useState<string | null>(null);
 
   useEffect(() => {
     const checkInvitation = async () => {
       try {
         // Get token from URL hash
-        const hashParams = new URLSearchParams(window.location.hash.substring(1))
-        const accessToken = hashParams.get('access_token')
-        
+        const hashParams = new URLSearchParams(
+          window.location.hash.substring(1),
+        );
+        const accessToken = hashParams.get("access_token");
+
         if (!accessToken) {
-          setError('Invalid invitation link. Please request a new invitation.')
-          return
+          setError("Invalid invitation link. Please request a new invitation.");
+          return;
         }
 
         // Save token for later use
-        setInvitationToken(accessToken)
-        
+        setInvitationToken(accessToken);
+
         // Get user info from token
-        const { data: { user: tokenUser }, error } = await supabase.auth.getUser(accessToken)
-        
+        const {
+          data: { user: tokenUser },
+          error,
+        } = await supabase.auth.getUser(accessToken);
+
         if (error || !tokenUser) {
-          setError('Invalid or expired invitation link.')
-          return
+          setError("Invalid or expired invitation link.");
+          return;
         }
 
         setUserInfo({
@@ -54,124 +59,125 @@ export default function AcceptInvitePage() {
           lastName: tokenUser.user_metadata?.last_name,
           organizationName: tokenUser.user_metadata?.organization_name,
           userId: tokenUser.id,
-        })
+        });
       } catch (err) {
-        console.error('Error checking invitation:', err)
-        setError('Failed to load invitation. Please try again.')
+        console.error("Error checking invitation:", err);
+        setError("Failed to load invitation. Please try again.");
       }
-    }
+    };
 
-    checkInvitation()
-  }, [])
-  
+    checkInvitation();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
+    e.preventDefault();
+    setError(null);
 
     // Validation
     if (!userInfo?.email) {
-      setError('User information not loaded. Please refresh the page.')
-      return
+      setError("User information not loaded. Please refresh the page.");
+      return;
     }
 
     if (password.length < 8) {
-      setError('Password must be at least 8 characters')
-      return
+      setError("Password must be at least 8 characters");
+      return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match')
-      return
+      setError("Passwords do not match");
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
-      console.log('🔐 Setting password for:', userInfo.email)
+      console.log("🔐 Setting password for:", userInfo.email);
 
       // Step 1: Sign out any existing session first
-      await supabase.auth.signOut()
+      await supabase.auth.signOut();
 
       // Step 2: Exchange token for session (if needed)
       if (invitationToken) {
         const { error: sessionError } = await supabase.auth.setSession({
           access_token: invitationToken,
           refresh_token: invitationToken, // Use same token
-        })
+        });
 
         if (sessionError) {
-          console.error('Session error:', sessionError)
+          console.error("Session error:", sessionError);
         }
       }
 
       // Step 3: Update password using the invitation session
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
-      })
+      });
 
       if (updateError) {
-        console.error('Update password error:', updateError)
-        throw updateError
+        console.error("Update password error:", updateError);
+        throw updateError;
       }
 
-      console.log('✅ Password updated successfully')
+      console.log("✅ Password updated successfully");
 
       // Step 4: Sign out from invitation session
-      await supabase.auth.signOut()
+      await supabase.auth.signOut();
 
       // Step 5: Sign in with new credentials
-      console.log('🔑 Signing in with new password...')
-      
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: userInfo.email, // ✅ Use email from userInfo, not from getUser()
-        password: password,
-      })
+      console.log("🔑 Signing in with new password...");
+
+      const { data: signInData, error: signInError } =
+        await supabase.auth.signInWithPassword({
+          email: userInfo.email, // ✅ Use email from userInfo, not from getUser()
+          password: password,
+        });
 
       if (signInError) {
-        console.error('Sign in error:', signInError)
-        throw new Error(`Failed to sign in: ${signInError.message}`)
+        console.error("Sign in error:", signInError);
+        throw new Error(`Failed to sign in: ${signInError.message}`);
       }
 
       if (!signInData.user) {
-        throw new Error('Failed to sign in after password set')
+        throw new Error("Failed to sign in after password set");
       }
 
-      console.log('✅ Signed in successfully')
+      console.log("✅ Signed in successfully");
 
       // Step 6: Link auth to employee record
-      console.log('🔗 Linking auth to employee...')
-      
-      const response = await fetch('/api/employees/link-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      console.log("🔗 Linking auth to employee...");
+
+      const response = await fetch("/api/employees/link-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           authId: signInData.user.id,
           email: signInData.user.email,
         }),
-      })
+      });
 
       if (!response.ok) {
-        const data = await response.json()
-        console.error('Link auth error:', data)
-        throw new Error(data.error || 'Failed to link account')
+        const data = await response.json();
+        console.error("Link auth error:", data);
+        throw new Error(data.error || "Failed to link account");
       }
 
-      console.log('✅ Account linked successfully')
+      console.log("✅ Account linked successfully");
 
-      setSuccess(true)
+      setSuccess(true);
 
       // Redirect to dashboard after 2 seconds
       setTimeout(() => {
-        router.push('/dashboard')
-        router.refresh()
-      }, 2000)
+        router.push("/dashboard");
+        router.refresh();
+      }, 2000);
     } catch (err: any) {
-      console.error('❌ Accept invite error:', err)
-      setError(err.message || 'Failed to activate account. Please try again.')
+      console.error("❌ Accept invite error:", err);
+      setError(err.message || "Failed to activate account. Please try again.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Show loading state while checking invitation
   if (!userInfo && !error) {
@@ -184,7 +190,7 @@ export default function AcceptInvitePage() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   if (success) {
@@ -205,7 +211,7 @@ export default function AcceptInvitePage() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -213,7 +219,7 @@ export default function AcceptInvitePage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-center">
-            Welcome to {userInfo?.organizationName || 'HRIS'}
+            Welcome to {userInfo?.organizationName || "HRIS"}
           </CardTitle>
           <p className="text-center text-sm text-gray-600 mt-2">
             Set your password to activate your account
@@ -223,8 +229,8 @@ export default function AcceptInvitePage() {
           {userInfo && (
             <div className="mb-6 rounded-lg bg-blue-50 p-4">
               <p className="text-sm text-gray-700">
-                <span className="font-medium">Name:</span>{' '}
-                {userInfo.firstName} {userInfo.lastName}
+                <span className="font-medium">Name:</span> {userInfo.firstName}{" "}
+                {userInfo.lastName}
               </p>
               <p className="text-sm text-gray-700 mt-1">
                 <span className="font-medium">Email:</span> {userInfo.email}
@@ -245,7 +251,7 @@ export default function AcceptInvitePage() {
               <div className="relative mt-1">
                 <Input
                   id="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Create a password (min 8 characters)"
@@ -287,12 +293,12 @@ export default function AcceptInvitePage() {
                   Activating Account...
                 </>
               ) : (
-                'Activate Account'
+                "Activate Account"
               )}
             </Button>
           </form>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

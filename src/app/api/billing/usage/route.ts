@@ -1,9 +1,9 @@
-// src/app/api/billing/route.ts
+// app/api/billing/route.ts
 // Returns billing data: current plan, usage, and transaction history
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 

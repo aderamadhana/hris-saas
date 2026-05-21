@@ -1,6 +1,6 @@
 "use client";
 
-// src/components/leave/leave-approvals.tsx
+// components/leave/leave-approvals.tsx
 
 import { useEffect, useState } from "react";
 import {
@@ -13,7 +13,7 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/components/ui/button";
 
 interface LeaveRequest {
   id: string;

@@ -1,17 +1,12 @@
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
-import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { CheckCircle, X, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { PLANS, formatPrice } from "@/src/lib/billing/plans";
+import { PLANS, formatPrice } from "@/lib/billing/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -95,7 +90,7 @@ export default async function BillingPlansPage() {
                     {formatPrice(plan.price)}
                   </span>
                   {plan.price !== null && plan.price > 0 && (
-                    <span className="text-gray-600">/{plan.interval}</span>
+                    <span className="text-gray-600">/bulan</span>
                   )}
                 </div>
                 <p className="text-sm text-gray-600 mt-2">

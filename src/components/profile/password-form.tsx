@@ -1,38 +1,40 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { Button } from '@/src/components/ui/button'
-import { Input } from '@/src/components/ui/input'
-import { Label } from '@/src/components/ui/label'
-import { Loader2, Eye, EyeOff } from 'lucide-react'
-import { createClient } from '@/src/lib/supabase/client'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, Eye, EyeOff } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
-const passwordSchema = z.object({
-  currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
-  confirmPassword: z.string(),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ['confirmPassword'],
-})
+const passwordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required"),
+    newPassword: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
 
-type PasswordFormData = z.infer<typeof passwordSchema>
+type PasswordFormData = z.infer<typeof passwordSchema>;
 
 export function PasswordForm() {
-  const router = useRouter()
-  const supabase = createClient()
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const router = useRouter();
+  const supabase = createClient();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [showPasswords, setShowPasswords] = useState({
     current: false,
     new: false,
     confirm: false,
-  })
+  });
 
   const {
     register,
@@ -41,34 +43,34 @@ export function PasswordForm() {
     formState: { errors },
   } = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
-  })
+  });
 
   const onSubmit = async (data: PasswordFormData) => {
-    setIsLoading(true)
-    setError(null)
-    setSuccess(false)
+    setIsLoading(true);
+    setError(null);
+    setSuccess(false);
 
     try {
       // Update password via Supabase
       const { error: updateError } = await supabase.auth.updateUser({
         password: data.newPassword,
-      })
+      });
 
-      if (updateError) throw updateError
+      if (updateError) throw updateError;
 
-      setSuccess(true)
-      reset()
+      setSuccess(true);
+      reset();
 
       // Redirect after 2 seconds
       setTimeout(() => {
-        router.push('/profile')
-      }, 2000)
+        router.push("/profile");
+      }, 2000);
     } catch (err: any) {
-      setError(err.message || 'Failed to change password')
+      setError(err.message || "Failed to change password");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -92,8 +94,8 @@ export function PasswordForm() {
         <div className="relative mt-1">
           <Input
             id="currentPassword"
-            type={showPasswords.current ? 'text' : 'password'}
-            {...register('currentPassword')}
+            type={showPasswords.current ? "text" : "password"}
+            {...register("currentPassword")}
             className="pr-10"
           />
           <button
@@ -123,8 +125,8 @@ export function PasswordForm() {
         <div className="relative mt-1">
           <Input
             id="newPassword"
-            type={showPasswords.new ? 'text' : 'password'}
-            {...register('newPassword')}
+            type={showPasswords.new ? "text" : "password"}
+            {...register("newPassword")}
             placeholder="At least 8 characters"
             className="pr-10"
           />
@@ -143,7 +145,9 @@ export function PasswordForm() {
           </button>
         </div>
         {errors.newPassword && (
-          <p className="mt-1 text-sm text-red-600">{errors.newPassword.message}</p>
+          <p className="mt-1 text-sm text-red-600">
+            {errors.newPassword.message}
+          </p>
         )}
       </div>
 
@@ -153,8 +157,8 @@ export function PasswordForm() {
         <div className="relative mt-1">
           <Input
             id="confirmPassword"
-            type={showPasswords.confirm ? 'text' : 'password'}
-            {...register('confirmPassword')}
+            type={showPasswords.confirm ? "text" : "password"}
+            {...register("confirmPassword")}
             placeholder="Re-enter new password"
             className="pr-10"
           />
@@ -196,10 +200,10 @@ export function PasswordForm() {
               Changing Password...
             </>
           ) : (
-            'Change Password'
+            "Change Password"
           )}
         </Button>
       </div>
     </form>
-  )
+  );
 }

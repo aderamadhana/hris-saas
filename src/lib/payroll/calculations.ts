@@ -1,4 +1,4 @@
-// src/lib/payroll/calculations.ts
+// lib/payroll/calculations.ts
 // Kalkulasi payroll berdasarkan konfigurasi per organisasi
 
 import { PayrollConfig } from '@prisma/client'

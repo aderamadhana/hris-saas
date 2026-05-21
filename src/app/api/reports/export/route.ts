@@ -1,9 +1,9 @@
-// src/app/api/reports/export/route.ts
+// app/api/reports/export/route.ts
 // GET: Export laporan ke Excel atau PDF
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 import { format, startOfMonth, endOfMonth } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
 

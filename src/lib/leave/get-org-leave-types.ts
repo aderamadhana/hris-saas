@@ -1,8 +1,8 @@
-// src/lib/leave/get-org-leave-types.ts
+// lib/leave/get-org-leave-types.ts
 // Dipakai di leave request form & balance API
 // Menggabungkan definisi default dengan konfigurasi per organisasi
 
-import prisma from '@/src/lib/prisma'
+import prisma from '@/lib/prisma'
 
 export interface ResolvedLeaveType {
   id: string

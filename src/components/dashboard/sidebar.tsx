@@ -1,6 +1,6 @@
 "use client";
 
-// src/components/dashboard/sidebar.tsx
+// components/dashboard/sidebar.tsx
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -24,7 +24,7 @@ import {
   BarChart3,
 } from "lucide-react";
 
-import { createClient } from "@/src/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 function ArsadayaIcon({ size = 24 }: { size?: number }) {
   return (

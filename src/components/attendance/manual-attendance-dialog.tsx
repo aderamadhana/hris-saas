@@ -1,12 +1,12 @@
 "use client";
 
-// src/components/attendance/manual-attendance-dialog.tsx
+// components/attendance/manual-attendance-dialog.tsx
 // Dialog for admin/HR to manually input or edit attendance
 
 import { useState } from "react";
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -15,14 +15,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/src/components/ui/dialog";
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/src/components/ui/select";
+} from "@/components/ui/select";
 import { Loader2, ClipboardEdit } from "lucide-react";
 import { format } from "date-fns";
 

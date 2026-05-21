@@ -1,9 +1,9 @@
-// src/app/api/employees/list/route.ts
+// app/api/employees/list/route.ts
 // GET: Ambil daftar employee (untuk dropdown delegasi, dll)
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 

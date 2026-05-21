@@ -1,8 +1,8 @@
-// src/components/departments/delete-department-dialog.tsx
-'use client'
+// components/departments/delete-department-dialog.tsx
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -10,18 +10,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/src/components/ui/dialog'
-import { Button } from '@/src/components/ui/button'
-import { Loader2, AlertTriangle } from 'lucide-react'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Loader2, AlertTriangle } from "lucide-react";
 
 interface DeleteDepartmentDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   department: {
-    id: string
-    name: string
-    employeeCount: number
-  }
+    id: string;
+    name: string;
+    employeeCount: number;
+  };
 }
 
 export function DeleteDepartmentDialog({
@@ -29,32 +29,32 @@ export function DeleteDepartmentDialog({
   onOpenChange,
   department,
 }: DeleteDepartmentDialogProps) {
-  const router = useRouter()
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const router = useRouter();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleDelete = async () => {
-    setIsDeleting(true)
-    setError(null)
+    setIsDeleting(true);
+    setError(null);
 
     try {
       const response = await fetch(`/api/departments/${department.id}`, {
-        method: 'DELETE',
-      })
+        method: "DELETE",
+      });
 
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to delete department')
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete department");
       }
 
-      onOpenChange(false)
-      router.refresh()
+      onOpenChange(false);
+      router.refresh();
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message);
     } finally {
-      setIsDeleting(false)
+      setIsDeleting(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -75,13 +75,15 @@ export function DeleteDepartmentDialog({
 
         <div className="py-4">
           <p className="text-sm text-gray-600">
-            Are you sure you want to delete <span className="font-semibold">{department.name}</span>?
+            Are you sure you want to delete{" "}
+            <span className="font-semibold">{department.name}</span>?
           </p>
-          
+
           {department.employeeCount > 0 && (
             <div className="mt-3 rounded-md bg-yellow-50 border border-yellow-200 p-3">
               <p className="text-sm text-yellow-800">
-                ⚠️ This department has <strong>{department.employeeCount} active employee(s)</strong>. 
+                ⚠️ This department has{" "}
+                <strong>{department.employeeCount} active employee(s)</strong>.
                 They will be unassigned from this department.
               </p>
             </div>
@@ -113,11 +115,11 @@ export function DeleteDepartmentDialog({
                 Deleting...
               </>
             ) : (
-              'Delete Department'
+              "Delete Department"
             )}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

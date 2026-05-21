@@ -1,11 +1,11 @@
-// src/app/api/leave/balance/route.ts
+// app/api/leave/balance/route.ts
 // Menggunakan OrganizationSettings (annualLeaveQuota, sickLeaveQuota)
 // yang sudah pasti ada di schema — TIDAK pakai LeavePolicyConfig
 // yang belum tentu ada.
 
 import { NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 
 export async function GET() {
   try {

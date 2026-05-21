@@ -1,16 +1,11 @@
-// src/app/(dashboard)/attendance/page.tsx
+// app/(dashboard)/attendance/page.tsx
 import { redirect } from "next/navigation";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  Users,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Users } from "lucide-react";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import { AttendanceTable } from "@/src/components/attendance/attendance-table";
-import { CheckInButton } from "@/src/components/attendance/check-in-button";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { AttendanceTable } from "@/components/attendance/attendance-table";
+import { CheckInButton } from "@/components/attendance/check-in-button";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +38,7 @@ export default async function AttendancePage({
 
   if (!currentEmployee) redirect("/dashboard");
 
-  const selectedDate       = parseDateParam(params.date);
+  const selectedDate = parseDateParam(params.date);
   const selectedDateString = formatDateInputValue(selectedDate);
 
   const startOfSelectedDate = new Date(selectedDate);
@@ -52,10 +47,10 @@ export default async function AttendancePage({
   const endOfSelectedDate = new Date(selectedDate);
   endOfSelectedDate.setHours(23, 59, 59, 999);
 
-  const today         = new Date();
-  const startOfToday  = new Date(today);
+  const today = new Date();
+  const startOfToday = new Date(today);
   startOfToday.setHours(0, 0, 0, 0);
-  const endOfToday    = new Date(today);
+  const endOfToday = new Date(today);
   endOfToday.setHours(23, 59, 59, 999);
 
   const isHRAdmin = ["owner", "admin", "hr"].includes(currentEmployee.role);
@@ -91,9 +86,9 @@ export default async function AttendancePage({
         employee: {
           select: {
             employeeId: true,
-            firstName:  true,
-            lastName:   true,
-            position:   true,
+            firstName: true,
+            lastName: true,
+            position: true,
             department: { select: { name: true } },
           },
         },
@@ -104,7 +99,10 @@ export default async function AttendancePage({
     // Total employees untuk stats (sesuai scope role)
     isHRAdmin
       ? prisma.employee.count({
-          where: { organizationId: currentEmployee.organizationId, status: "active" },
+          where: {
+            organizationId: currentEmployee.organizationId,
+            status: "active",
+          },
         })
       : isManager
         ? prisma.employee.count({
@@ -122,24 +120,23 @@ export default async function AttendancePage({
   ]);
 
   const presentCount = attendanceRecords.filter(
-    (r) => r.status === "present"
+    (r) => r.status === "present",
   ).length;
-  const lateCount = attendanceRecords.filter(
-    (r) => r.status === "late"
-  ).length;
-  const recordedIds  = new Set(attendanceRecords.map((r) => r.employeeId));
-  const absentCount  = Math.max(totalEmployees - recordedIds.size, 0);
+  const lateCount = attendanceRecords.filter((r) => r.status === "late").length;
+  const recordedIds = new Set(attendanceRecords.map((r) => r.employeeId));
+  const absentCount = Math.max(totalEmployees - recordedIds.size, 0);
 
   const attendanceData = attendanceRecords.map((record) => ({
-    id:           record.id,
-    employeeId:   record.employee.employeeId,
-    employeeName: `${record.employee.firstName ?? ""} ${record.employee.lastName ?? ""}`.trim(),
-    position:     record.employee.position,
-    department:   record.employee.department?.name ?? "—",
-    checkIn:      record.checkIn?.toISOString()  ?? null,
-    checkOut:     record.checkOut?.toISOString() ?? null,
-    status:       record.status,
-    notes:        record.notes ?? "",
+    id: record.id,
+    employeeId: record.employee.employeeId,
+    employeeName:
+      `${record.employee.firstName ?? ""} ${record.employee.lastName ?? ""}`.trim(),
+    position: record.employee.position,
+    department: record.employee.department?.name ?? "—",
+    checkIn: record.checkIn?.toISOString() ?? null,
+    checkOut: record.checkOut?.toISOString() ?? null,
+    status: record.status,
+    notes: record.notes ?? "",
   }));
 
   const canEdit = isHRAdmin;
@@ -161,8 +158,8 @@ export default async function AttendancePage({
             currentAttendance={
               myAttendance
                 ? {
-                    id:       myAttendance.id,
-                    checkIn:  myAttendance.checkIn?.toISOString()  ?? null,
+                    id: myAttendance.id,
+                    checkIn: myAttendance.checkIn?.toISOString() ?? null,
                     checkOut: myAttendance.checkOut?.toISOString() ?? null,
                   }
                 : null
@@ -221,17 +218,17 @@ function SummaryCard({
   icon,
   tone = "default",
 }: {
-  label:       string;
-  value:       number;
+  label: string;
+  value: number;
   description: string;
-  icon:        React.ReactNode;
-  tone?:       "default" | "green" | "orange" | "red";
+  icon: React.ReactNode;
+  tone?: "default" | "green" | "orange" | "red";
 }) {
   const toneClass = {
     default: "border-gray-200 bg-gray-50 text-gray-600",
-    green:   "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
-    orange:  "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]",
-    red:     "border-red-200 bg-red-50 text-red-700",
+    green: "border-[#0B5A43]/20 bg-[#EAF5F0] text-[#0B5A43]",
+    orange: "border-[#F7A81B]/40 bg-[#FFF4D9] text-[#7A5A00]",
+    red: "border-red-200 bg-red-50 text-red-700",
   }[tone];
 
   return (
@@ -281,8 +278,8 @@ function parseDateParam(value?: string) {
 }
 
 function formatDateInputValue(date: Date) {
-  const year  = date.getFullYear();
+  const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day   = String(date.getDate()).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }

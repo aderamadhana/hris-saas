@@ -1,4 +1,4 @@
-// src/middleware.ts  ← REPLACE file yang lama dengan ini
+// middleware.ts  ← REPLACE file yang lama dengan ini
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 

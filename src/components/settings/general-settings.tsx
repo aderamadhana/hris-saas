@@ -1,22 +1,25 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Label } from '@/src/components/ui/label'
-import { Input } from '@/src/components/ui/input'
-import { Button } from '@/src/components/ui/button'
-import { Loader2 } from 'lucide-react'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 interface GeneralSettingsProps {
-  organizationId: string
-  organizationName: string
+  organizationId: string;
+  organizationName: string;
 }
 
-export function GeneralSettings({ organizationId, organizationName }: GeneralSettingsProps) {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+export function GeneralSettings({
+  organizationId,
+  organizationName,
+}: GeneralSettingsProps) {
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -60,9 +63,10 @@ export function GeneralSettings({ organizationId, organizationName }: GeneralSet
       <div className="rounded-lg bg-blue-50 p-4">
         <p className="text-sm text-blue-900 font-medium">ℹ️ Information</p>
         <p className="mt-1 text-sm text-blue-700">
-          General organization settings are managed by administrators. Contact your system administrator for changes.
+          General organization settings are managed by administrators. Contact
+          your system administrator for changes.
         </p>
       </div>
     </div>
-  )
+  );
 }

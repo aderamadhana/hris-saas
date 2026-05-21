@@ -1,10 +1,10 @@
-// src/app/api/employees/route.ts
+// app/api/employees/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
-import { generateEmployeeId } from '@/src/lib/utils'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
+import { generateEmployeeId } from '@/lib/utils'
 import { randomUUID } from 'crypto'
-import { canAddEmployee, UsageLimitError } from '@/src/lib/billing/usage-limits'
+import { canAddEmployee, UsageLimitError } from '@/lib/billing/usage-limits'
 
 export async function POST(request: NextRequest) {
   try {

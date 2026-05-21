@@ -1,11 +1,11 @@
-// src/components/ui/currency-input.tsx
+// components/ui/currency-input.tsx
 // Input Rupiah yang menampilkan format "Rp 12.000.000"
 // tapi menyimpan value sebagai number
 
 "use client";
 
 import { useRef, useState } from "react";
-import { cn } from "@/src/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface CurrencyInputProps {
   value: number;

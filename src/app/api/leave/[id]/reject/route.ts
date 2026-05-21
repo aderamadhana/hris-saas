@@ -1,13 +1,14 @@
-// src/app/api/leave/[id]/reject/route.ts
+// app/api/leave/[id]/reject/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const supabase = await createClient()
     const {
       data: { user },
@@ -54,7 +55,7 @@ export async function POST(
 
     // Get leave request
     const leaveRequest = await prisma.leaveRequest.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         employee: {
           select: {
@@ -90,7 +91,7 @@ export async function POST(
 
     // Update leave request to rejected
     const updatedLeave = await prisma.leaveRequest.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         status: 'rejected',
         reviewedBy: `${currentEmployee.firstName} ${currentEmployee.lastName}`,

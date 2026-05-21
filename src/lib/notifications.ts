@@ -1,7 +1,7 @@
-// src/lib/notifications.ts
+// lib/notifications.ts
 // Helper untuk membuat notifikasi dari mana saja di aplikasi
 
-import prisma from '@/src/lib/prisma'
+import prisma from '@/lib/prisma'
 
 export type NotificationType =
   | 'leave_submitted'

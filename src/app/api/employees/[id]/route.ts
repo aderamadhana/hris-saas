@@ -1,8 +1,8 @@
-// src/app/api/employees/[id]/route.ts
+// app/api/employees/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 
 // ── Helper: resolve params (Next.js 14) ──────────────────────────────────────
 async function getId(context: { params: Promise<{ id: string }> | { id: string } }) {

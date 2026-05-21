@@ -1,8 +1,8 @@
-// src/app/api/employees/link-auth/route.ts
+// app/api/employees/link-auth/route.ts
 // API to link Supabase Auth user with Employee record
 
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/src/lib/prisma'
+import prisma from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   try {

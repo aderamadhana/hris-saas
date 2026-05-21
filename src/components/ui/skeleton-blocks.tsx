@@ -1,7 +1,36 @@
-// src/components/ui/skeleton-blocks.tsx
+// components/ui/skeleton-blocks.tsx
 // Reusable skeleton pieces — import from loading.tsx files
 
 import { Skeleton } from "./skeleton";
+
+function gridColsClass(cols: number) {
+  switch (cols) {
+    case 1:
+      return "grid-cols-1";
+    case 2:
+      return "grid-cols-2";
+    case 3:
+      return "grid-cols-3";
+    case 4:
+      return "grid-cols-4";
+    case 5:
+      return "grid-cols-5";
+    case 6:
+      return "grid-cols-6";
+    case 7:
+      return "grid-cols-7";
+    case 8:
+      return "grid-cols-8";
+    default:
+      return "grid-cols-4";
+  }
+}
+
+function skeletonWidthClass(index: number, cols: number) {
+  if (index === 0) return "w-4/5";
+  if (index === cols - 1) return "w-3/5";
+  return "w-[70%]";
+}
 
 /** Page header card — matches the "border border-gray-200 bg-white p-5" headers */
 export function SkeletonPageHeader({
@@ -28,8 +57,7 @@ export function SkeletonPageHeader({
 export function SkeletonStatsGrid({ cols = 4 }: { cols?: number }) {
   return (
     <div
-      className="border border-gray-200 bg-white"
-      style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)` }}
+      className={`grid border border-gray-200 bg-white ${gridColsClass(cols)}`}
     >
       {Array.from({ length: cols }).map((_, i) => (
         <div
@@ -58,36 +86,30 @@ export function SkeletonTable({
   cols?: number;
   rows?: number;
 }) {
+  const colsClass = gridColsClass(cols);
+
   return (
     <div className="border border-gray-200 bg-white">
-      {/* toolbar */}
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
         <Skeleton className="h-8 w-56" />
         <Skeleton className="h-8 w-24" />
       </div>
-      {/* head */}
-      <div
-        className="grid border-b border-gray-200 px-4 py-2"
-        style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}
-      >
+
+      <div className={`grid border-b border-gray-200 px-4 py-2 ${colsClass}`}>
         {Array.from({ length: cols }).map((_, i) => (
           <Skeleton key={i} className="h-3.5 w-20" />
         ))}
       </div>
-      {/* rows */}
+
       {Array.from({ length: rows }).map((_, ri) => (
         <div
           key={ri}
-          className="grid items-center border-b border-gray-100 px-4 py-3 last:border-b-0"
-          style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}
+          className={`grid items-center border-b border-gray-100 px-4 py-3 last:border-b-0 ${colsClass}`}
         >
           {Array.from({ length: cols }).map((_, ci) => (
             <Skeleton
               key={ci}
-              className="h-4"
-              style={{
-                width: ci === 0 ? "80%" : ci === cols - 1 ? "60%" : "70%",
-              }}
+              className={`h-4 ${skeletonWidthClass(ci, cols)}`}
             />
           ))}
         </div>
@@ -105,10 +127,7 @@ export function SkeletonCardGrid({
   cols?: number;
 }) {
   return (
-    <div
-      className="grid gap-4"
-      style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }}
-    >
+    <div className={`grid gap-4 ${gridColsClass(cols)}`}>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="border border-gray-200 bg-white p-4 space-y-3">
           <div className="flex items-center justify-between">
@@ -221,7 +240,7 @@ export function SkeletonCalendar() {
               className="min-h-[80px] border-r border-gray-100 p-2 last:border-r-0"
             >
               <Skeleton className="h-4 w-4 mb-1" />
-              {Math.random() > 0.7 && <Skeleton className="h-5 w-full mt-1" />}
+              {ci % 3 === 0 && <Skeleton className="h-5 w-full mt-1" />}
             </div>
           ))}
         </div>

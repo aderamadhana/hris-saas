@@ -1,7 +1,7 @@
-// src/app/api/documents/route.ts
+// app/api/documents/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/src/lib/prisma'
-import { createClient } from '@/src/lib/supabase/server'
+import prisma from '@/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 

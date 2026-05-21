@@ -1,4 +1,4 @@
-// src/lib/billing/midtrans.ts
+// lib/billing/midtrans.ts
 // Midtrans payment gateway integration for HRIS SaaS subscriptions
 
 import { PLANS, getPlanById } from './plans'

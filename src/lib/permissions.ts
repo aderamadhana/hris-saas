@@ -1,4 +1,4 @@
-// src/lib/permissions.ts
+// lib/permissions.ts
 // Utility terpusat untuk permission check.
 // Import di page.tsx dan API route agar konsisten.
 

@@ -1,6 +1,6 @@
 "use client";
 
-// src/app/(auth)/register/page.tsx
+// app/(auth)/register/page.tsx
 
 import * as React from "react";
 import Link from "next/link";
@@ -22,9 +22,9 @@ import {
   User,
 } from "lucide-react";
 
-import { createClient } from "@/src/lib/supabase/client";
-import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
+import { createClient } from "@/lib/supabase/client";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 function ArsadayaIcon({ size = 40 }: { size?: number }) {
   return (

@@ -1,10 +1,10 @@
-// src/app/api/payroll/generate/route.ts
+// app/api/payroll/generate/route.ts
 // Generate payroll menggunakan konfigurasi per organisasi
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
-import { calculatePayroll, getDefaultPayrollConfig } from '@/src/lib/payroll/calculations'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
+import { calculatePayroll, getDefaultPayrollConfig } from '@/lib/payroll/calculations'
 
 export async function POST(request: NextRequest) {
   try {

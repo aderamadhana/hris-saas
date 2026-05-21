@@ -1,10 +1,10 @@
-// src/app/(dashboard)/leave/loading.tsx
-import { Skeleton } from "@/src/components/ui/skeleton";
+// app/(dashboard)/leave/loading.tsx
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   SkeletonPageHeader,
   SkeletonStatsGrid,
   SkeletonTable,
-} from "@/src/components/ui/skeleton-blocks";
+} from "@/components/ui/skeleton-blocks";
 
 export default function LeaveLoading() {
   return (
@@ -31,8 +31,7 @@ export default function LeaveLoading() {
         {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton
             key={i}
-            className="h-8 w-20 mb-0"
-            style={{ borderRadius: "4px 4px 0 0" }}
+            className="h-8 w-20 mb-0 rounded-t-[4px] rounded-b-none"
           />
         ))}
       </div>

@@ -1,9 +1,9 @@
-// src/app/api/leave/pending-approvals/route.ts
+// app/api/leave/pending-approvals/route.ts
 // GET: Ambil semua leave yang pending untuk di-approve oleh user yang login
 
 import { NextResponse } from "next/server";
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 

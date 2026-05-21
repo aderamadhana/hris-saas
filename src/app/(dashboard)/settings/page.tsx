@@ -1,17 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/src/components/ui/tabs";
-import { GeneralSettings } from "@/src/components/settings/general-settings";
-import { LeaveSettings } from "@/src/components/settings/leave-settings";
-import { WorkHoursSettings } from "@/src/components/settings/work-hours-settings";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GeneralSettings } from "@/components/settings/general-settings";
+import { LeaveSettings } from "@/components/settings/leave-settings";
+import { WorkHoursSettings } from "@/components/settings/work-hours-settings";
 
 export const dynamic = "force-dynamic";
 

@@ -1,4 +1,4 @@
-// src/components/employee-dashboard.tsx
+// components/employee-dashboard.tsx
 "use client";
 
 import Link from "next/link";

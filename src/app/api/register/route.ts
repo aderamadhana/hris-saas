@@ -1,9 +1,9 @@
-// src/app/api/register/route.ts
+// app/api/register/route.ts
 // User Registration API
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 
 export async function POST(request: NextRequest) {

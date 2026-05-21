@@ -1,4 +1,4 @@
-// src/components/employees/set-manager-form.tsx
+// components/employees/set-manager-form.tsx
 "use client";
 
 import { useState } from "react";
@@ -9,8 +9,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/src/components/ui/select";
-import { Button } from "@/src/components/ui/button";
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { CheckCircle, AlertTriangle, Loader2 } from "lucide-react";
 
 interface Manager {

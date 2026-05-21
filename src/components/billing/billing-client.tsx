@@ -1,6 +1,6 @@
 "use client";
 
-// src/components/billing/billing-client.tsx
+// components/billing/billing-client.tsx
 
 import { useMemo, useState } from "react";
 import {
@@ -20,8 +20,8 @@ import {
   XCircle,
 } from "lucide-react";
 
-import { Button } from "@/src/components/ui/button";
-import { PLANS, formatPrice } from "@/src/lib/billing/plans";
+import { Button } from "@/components/ui/button";
+import { PLANS, formatPrice } from "@/lib/billing/plans";
 
 interface PlanData {
   id: string;

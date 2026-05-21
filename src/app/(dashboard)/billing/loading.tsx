@@ -1,5 +1,5 @@
-// src/app/(dashboard)/billing/loading.tsx
-import { Skeleton } from "@/src/components/ui/skeleton";
+// app/(dashboard)/billing/loading.tsx
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function BillingLoading() {
   return (

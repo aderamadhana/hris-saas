@@ -1,6 +1,6 @@
-// src/app/(dashboard)/notifications/loading.tsx
-import { Skeleton } from "@/src/components/ui/skeleton";
-import { SkeletonPageHeader } from "@/src/components/ui/skeleton-blocks";
+// app/(dashboard)/notifications/loading.tsx
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonPageHeader } from "@/components/ui/skeleton-blocks";
 
 export default function NotificationsLoading() {
   return (

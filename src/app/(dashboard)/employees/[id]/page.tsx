@@ -14,10 +14,10 @@ import {
   Wallet,
 } from "lucide-react";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import { Button } from "@/src/components/ui/button";
-import { SetManagerForm } from "@/src/components/employees/set-manager-form";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { Button } from "@/components/ui/button";
+import { SetManagerForm } from "@/components/employees/set-manager-form";
 
 export const dynamic = "force-dynamic";
 

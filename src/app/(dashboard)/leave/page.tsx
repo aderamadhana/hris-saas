@@ -2,10 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PlusCircle } from "lucide-react";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import { Button } from "@/src/components/ui/button";
-import { LeavePageClient } from "@/src/components/leave/leave-page-client";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { Button } from "@/components/ui/button";
+import { LeavePageClient } from "@/components/leave/leave-page-client";
 
 export const dynamic = "force-dynamic";
 

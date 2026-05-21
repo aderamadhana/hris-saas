@@ -1,4 +1,4 @@
-// src/lib/brand.ts
+// lib/brand.ts
 // Konfigurasi brand ARSADAYA - ubah di sini untuk update seluruh aplikasi
 
 export const BRAND = {

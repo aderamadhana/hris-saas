@@ -1,13 +1,13 @@
-// src/app/(dashboard)/departments/page.tsx
+// app/(dashboard)/departments/page.tsx
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Building2, Plus, UserCog, Users } from "lucide-react";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import { DepartmentCard } from "@/src/components/departments/departement-card";
-import { Button } from "@/src/components/ui/button";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { DepartmentCard } from "@/components/departments/departement-card";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 

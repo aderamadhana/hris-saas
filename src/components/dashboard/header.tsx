@@ -1,6 +1,6 @@
 "use client";
 
-// src/components/dashboard/header.tsx
+// components/dashboard/header.tsx
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -14,8 +14,8 @@ import {
   UserCircle,
 } from "lucide-react";
 
-import { MobileSidebar } from "@/src/components/dashboard/mobile-sidebar";
-import { createClient } from "@/src/lib/supabase/client";
+import { MobileSidebar } from "@/components/dashboard/mobile-sidebar";
+import { createClient } from "@/lib/supabase/client";
 
 interface HeaderProps {
   userName?: string;

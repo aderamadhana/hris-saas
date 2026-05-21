@@ -1,4 +1,4 @@
-// src/lib/billing/plans.ts
+// lib/billing/plans.ts
 
 export interface Plan {
   id: string
@@ -8,6 +8,7 @@ export interface Plan {
   employeeLimit: number
   storageGB: number
   features: string[]
+  limitations?: string[]
   popular?: boolean
   color: string
 }
@@ -27,6 +28,11 @@ export const PLANS: Plan[] = [
       'Profil karyawan',
       'Email support',
     ],
+    limitations: [
+    'Tidak termasuk payroll',
+    'Tidak ada export laporan',
+    'Storage terbatas',
+  ],
     color: 'gray',
   },
   {
@@ -43,6 +49,11 @@ export const PLANS: Plan[] = [
       'Payroll & slip gaji',
       'Laporan absensi',
       'Priority email support',
+    ],
+    limitations: [
+      'Tidak termasuk payroll',
+      'Tidak ada export laporan',
+      'Storage terbatas',
     ],
     popular: true,
     color: 'blue',
@@ -64,6 +75,11 @@ export const PLANS: Plan[] = [
       'Rekap absensi bulanan',
       'Priority support',
     ],
+    limitations: [
+      'Tidak termasuk payroll',
+      'Tidak ada export laporan',
+      'Storage terbatas',
+    ],
     color: 'purple',
   },
   {
@@ -82,6 +98,11 @@ export const PLANS: Plan[] = [
       'On-premise option',
       'Pelatihan tim',
     ],
+    limitations: [
+  'Tidak termasuk payroll',
+  'Tidak ada export laporan',
+  'Storage terbatas',
+],
     color: 'orange',
   },
 ]

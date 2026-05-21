@@ -14,17 +14,17 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/src/components/ui/select";
-import { Badge } from "@/src/components/ui/badge";
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { ManualAttendanceDialog } from "./manual-attendance-dialog";
-import { cn } from "@/src/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface Department {
   id: string;

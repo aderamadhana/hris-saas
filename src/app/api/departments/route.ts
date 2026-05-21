@@ -1,8 +1,8 @@
-// src/app/api/departments/route.ts
+// app/api/departments/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 
 // ── GET all departments ───────────────────────────────────────────────────────
 export async function GET() {

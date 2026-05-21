@@ -1,6 +1,6 @@
 "use client";
 
-// src/components/dashboard/mobile-sidebar.tsx
+// components/dashboard/mobile-sidebar.tsx
 
 import { useState } from "react";
 import Link from "next/link";
@@ -26,8 +26,8 @@ import {
   X,
 } from "lucide-react";
 
-import { cn } from "@/src/lib/utils";
-import { createClient } from "@/src/lib/supabase/client";
+import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 function ArsadayaIcon({ size = 26 }: { size?: number }) {
   return (

@@ -1,8 +1,8 @@
-// src/app/api/notifications/route.ts
+// app/api/notifications/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 
 // GET /api/notifications?limit=50&unread=true
 export async function GET(request: NextRequest) {

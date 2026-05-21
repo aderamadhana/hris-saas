@@ -1,18 +1,18 @@
-// src/app/api/employees/[id]/invite/route.ts
+// app/api/employees/[id]/invite/route.ts
 // FIXED - Use admin client with service role
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, createAdminClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     // Use regular client for authentication
     const supabase = await createClient()
-    const awaitParams = await params
+    const awaitParams = await context.params
     const {
       data: { user },
     } = await supabase.auth.getUser()

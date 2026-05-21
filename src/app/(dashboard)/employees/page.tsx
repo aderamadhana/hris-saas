@@ -1,12 +1,12 @@
-// src/app/(dashboard)/employees/page.tsx
+// app/(dashboard)/employees/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Plus, UserCheck, Users, UserX, ShieldCheck } from "lucide-react";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import { EmployeeTable } from "@/src/components/employees/employee-table";
-import { Button } from "@/src/components/ui/button";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { EmployeeTable } from "@/components/employees/employee-table";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 

@@ -1,6 +1,6 @@
 "use client";
 
-// src/app/(dashboard)/dashboard/calendar/page.tsx
+// app/(dashboard)/dashboard/calendar/page.tsx
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { ElementType, ReactNode } from "react";
@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/components/ui/button";
 
 const HOLIDAY_IMPORT_YEAR = 2026;
 

@@ -1,8 +1,8 @@
-// src/src/components/leave/approve-reject-dialog.tsx
-'use client'
+// components/leave/approve-reject-dialog.tsx
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -10,26 +10,26 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/src/components/ui/dialog'
-import { Button } from '@/src/components/ui/button'
-import { Label } from '@/src/components/ui/label'
-import { Loader2, CheckCircle, XCircle } from 'lucide-react'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Loader2, CheckCircle, XCircle } from "lucide-react";
 
 interface LeaveData {
-  id: string
-  employeeName: string
-  leaveType: string
-  startDate: string
-  endDate: string
-  totalDays: number
-  reason: string
+  id: string;
+  employeeName: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  reason: string;
 }
 
 interface ApproveRejectDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  leave: LeaveData
-  type: 'approve' | 'reject'
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  leave: LeaveData;
+  type: "approve" | "reject";
 }
 
 export function ApproveRejectDialog({
@@ -38,37 +38,37 @@ export function ApproveRejectDialog({
   leave,
   type,
 }: ApproveRejectDialogProps) {
-  const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
-  const [notes, setNotes] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  const isApprove = type === 'approve'
+  const isApprove = type === "approve";
 
   const handleSubmit = async () => {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
 
     try {
       const response = await fetch(`/api/leave/${leave.id}/${type}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ notes }),
-      })
+      });
 
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || `Failed to ${type} leave request`)
+        const data = await response.json();
+        throw new Error(data.error || `Failed to ${type} leave request`);
       }
 
-      onOpenChange(false)
-      router.refresh()
+      onOpenChange(false);
+      router.refresh();
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -77,7 +77,7 @@ export function ApproveRejectDialog({
           <div className="flex items-center gap-3">
             <div
               className={`flex h-12 w-12 items-center justify-center rounded-full ${
-                isApprove ? 'bg-green-100' : 'bg-red-100'
+                isApprove ? "bg-green-100" : "bg-red-100"
               }`}
             >
               {isApprove ? (
@@ -88,11 +88,9 @@ export function ApproveRejectDialog({
             </div>
             <div>
               <DialogTitle>
-                {isApprove ? 'Approve' : 'Reject'} Leave Request
+                {isApprove ? "Approve" : "Reject"} Leave Request
               </DialogTitle>
-              <DialogDescription>
-                For {leave.employeeName}
-              </DialogDescription>
+              <DialogDescription>For {leave.employeeName}</DialogDescription>
             </div>
           </div>
         </DialogHeader>
@@ -107,8 +105,8 @@ export function ApproveRejectDialog({
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Duration:</span>
               <span className="font-medium">
-                {new Date(leave.startDate).toLocaleDateString('id-ID')} -{' '}
-                {new Date(leave.endDate).toLocaleDateString('id-ID')}
+                {new Date(leave.startDate).toLocaleDateString("id-ID")} -{" "}
+                {new Date(leave.endDate).toLocaleDateString("id-ID")}
               </span>
             </div>
             <div className="flex justify-between text-sm">
@@ -124,7 +122,7 @@ export function ApproveRejectDialog({
           {/* Notes */}
           <div>
             <Label htmlFor="notes">
-              Notes {isApprove ? '(Optional)' : '(Required)'}
+              Notes {isApprove ? "(Optional)" : "(Required)"}
             </Label>
             <textarea
               id="notes"
@@ -132,8 +130,8 @@ export function ApproveRejectDialog({
               onChange={(e) => setNotes(e.target.value)}
               placeholder={
                 isApprove
-                  ? 'Add approval notes...'
-                  : 'Please provide a reason for rejection...'
+                  ? "Add approval notes..."
+                  : "Please provide a reason for rejection..."
               }
               className="mt-1 w-full rounded-md border border-gray-300 p-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               rows={3}
@@ -157,7 +155,7 @@ export function ApproveRejectDialog({
             Cancel
           </Button>
           <Button
-            variant={isApprove ? 'default' : 'destructive'}
+            variant={isApprove ? "default" : "destructive"}
             onClick={handleSubmit}
             disabled={isLoading || (!isApprove && !notes.trim())}
           >
@@ -167,13 +165,13 @@ export function ApproveRejectDialog({
                 Processing...
               </>
             ) : isApprove ? (
-              'Approve Request'
+              "Approve Request"
             ) : (
-              'Reject Request'
+              "Reject Request"
             )}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

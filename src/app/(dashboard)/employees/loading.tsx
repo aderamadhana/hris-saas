@@ -1,9 +1,9 @@
-// src/app/(dashboard)/employees/loading.tsx
+// app/(dashboard)/employees/loading.tsx
 import {
   SkeletonPageHeader,
   SkeletonStatsGrid,
   SkeletonTable,
-} from "@/src/components/ui/skeleton-blocks";
+} from "@/components/ui/skeleton-blocks";
 
 export default function EmployeesLoading() {
   return (

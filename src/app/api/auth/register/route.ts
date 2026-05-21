@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { generateEmployeeId } from '@/src/lib/utils'
-import prisma from '@/src/lib/prisma'
+import { generateEmployeeId } from '@/lib/utils'
+import prisma from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   try {

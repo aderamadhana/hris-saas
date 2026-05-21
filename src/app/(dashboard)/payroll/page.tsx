@@ -9,11 +9,11 @@ import {
   Users,
 } from "lucide-react";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import { Button } from "@/src/components/ui/button";
-import { PayrollFilters } from "@/src/components/payroll/payroll-filters";
-import { getMonthName, formatCurrency } from "@/src/lib/payroll/calculations";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { Button } from "@/components/ui/button";
+import { PayrollFilters } from "@/components/payroll/payroll-filters";
+import { getMonthName, formatCurrency } from "@/lib/payroll/calculations";
 
 export const dynamic = "force-dynamic";
 

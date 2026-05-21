@@ -1,13 +1,13 @@
-// src/app/(dashboard)/profile/edit/page.tsx
+// app/(dashboard)/profile/edit/page.tsx
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, User } from "lucide-react";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import { ProfileForm } from "@/src/components/profile/profile-form";
-import { Button } from "@/src/components/ui/button";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { ProfileForm } from "@/components/profile/profile-form";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 

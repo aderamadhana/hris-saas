@@ -1,9 +1,9 @@
-// src/app/(dashboard)/payslip/loading.tsx
-import { Skeleton } from "@/src/components/ui/skeleton";
+// app/(dashboard)/payslip/loading.tsx
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   SkeletonPageHeader,
   SkeletonStatsGrid,
-} from "@/src/components/ui/skeleton-blocks";
+} from "@/components/ui/skeleton-blocks";
 
 export default function PayslipLoading() {
   return (

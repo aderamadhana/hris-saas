@@ -1,10 +1,10 @@
-// src/app/(dashboard)/leave/approvals/page.tsx
+// app/(dashboard)/leave/approvals/page.tsx
 
 import { redirect } from "next/navigation";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import { LeaveApprovals } from "@/src/components/leave/leave-approvals";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { LeaveApprovals } from "@/components/leave/leave-approvals";
 
 export const dynamic = "force-dynamic";
 

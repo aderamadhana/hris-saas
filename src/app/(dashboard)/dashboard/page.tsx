@@ -1,9 +1,9 @@
-// src/app/(dashboard)/dashboard/page.tsx
-import { createClient } from "@/src/lib/supabase/server";
+// app/(dashboard)/dashboard/page.tsx
+import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import prisma from "@/src/lib/prisma";
-import { EmployeeDashboard } from "@/src/components/dashboard/employee-dashboard";
-import { AdminDashboard } from "@/src/components/dashboard/admin-dashboard";
+import prisma from "@/lib/prisma";
+import { EmployeeDashboard } from "@/components/dashboard/employee-dashboard";
+import { AdminDashboard } from "@/components/dashboard/admin-dashboard";
 
 export const dynamic = "force-dynamic";
 

@@ -1,11 +1,11 @@
-// src/app/(dashboard)/layout.tsx
+// app/(dashboard)/layout.tsx
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 
-import prisma from "@/src/lib/prisma";
-import { createClient } from "@/src/lib/supabase/server";
-import { Header } from "@/src/components/dashboard/header";
-import { Sidebar } from "@/src/components/dashboard/sidebar";
+import prisma from "@/lib/prisma";
+import { createClient } from "@/lib/supabase/server";
+import { Header } from "@/components/dashboard/header";
+import { Sidebar } from "@/components/dashboard/sidebar";
 
 export const dynamic = "force-dynamic";
 

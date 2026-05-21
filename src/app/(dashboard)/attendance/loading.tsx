@@ -1,10 +1,10 @@
-// src/app/(dashboard)/attendance/loading.tsx
-import { Skeleton } from "@/src/components/ui/skeleton";
+// app/(dashboard)/attendance/loading.tsx
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   SkeletonPageHeader,
   SkeletonStatsGrid,
   SkeletonTable,
-} from "@/src/components/ui/skeleton-blocks";
+} from "@/components/ui/skeleton-blocks";
 
 export default function AttendanceLoading() {
   return (

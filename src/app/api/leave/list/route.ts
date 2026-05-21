@@ -1,9 +1,9 @@
-// src/app/api/leave/list/route.ts
+// app/api/leave/list/route.ts
 // Get all leave requests with employee and delegation info
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/src/lib/supabase/server'
-import prisma from '@/src/lib/prisma'
+import { createClient } from '@/lib/supabase/server'
+import prisma from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   try {

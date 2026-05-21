@@ -1,13 +1,13 @@
-// src/app/(dashboard)/leave/new/page.tsx
+// app/(dashboard)/leave/new/page.tsx
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays } from "lucide-react";
 
-import { createClient } from "@/src/lib/supabase/server";
-import prisma from "@/src/lib/prisma";
-import { LeaveRequestForm } from "@/src/components/leave/leave-request-form";
-import { Button } from "@/src/components/ui/button";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
+import { LeaveRequestForm } from "@/components/leave/leave-request-form";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
