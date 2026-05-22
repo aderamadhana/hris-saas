@@ -1,18 +1,20 @@
 // app/api/leave/request/route.ts
+// POST: Submit pengajuan cuti baru.
 
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import prisma from '@/lib/prisma'
+import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
+import { createClient } from "@/lib/supabase/server";
+import prisma from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = await createClient();
     const {
       data: { user },
-    } = await supabase.auth.getUser()
+    } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const employee = await prisma.employee.findUnique({
@@ -22,137 +24,175 @@ export async function POST(request: NextRequest) {
         organizationId: true,
         managerId: true,
       },
-    })
+    });
 
     if (!employee) {
-      return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
-    }
-
-    const formData = await request.formData()
-
-    const leaveTypeId = formData.get('leaveTypeId')
-    const startDate = formData.get('startDate')
-    const endDate = formData.get('endDate')
-    const reason = formData.get('reason')
-    const startTime = formData.get('startTime')
-    const endTime = formData.get('endTime')
-    const totalHoursRaw = formData.get('totalHours')
-    const delegateId = formData.get('delegateId')
-    const delegateNotes = formData.get('delegateNotes')
-    const attachment = formData.get('attachment')
-
-    if (typeof leaveTypeId !== 'string' || !leaveTypeId) {
-      return NextResponse.json({ error: 'Leave type is required' }, { status: 400 })
-    }
-
-    if (typeof startDate !== 'string' || !startDate) {
-      return NextResponse.json({ error: 'Start date is required' }, { status: 400 })
-    }
-
-    if (typeof endDate !== 'string' || !endDate) {
-      return NextResponse.json({ error: 'End date is required' }, { status: 400 })
-    }
-
-    if (typeof reason !== 'string' || reason.trim().length < 10) {
       return NextResponse.json(
-        { error: 'Reason must be at least 10 characters' },
-        { status: 400 }
-      )
+        { error: "Employee not found" },
+        { status: 404 }
+      );
     }
 
-    const start = new Date(startDate)
-    const end = new Date(endDate)
+    const formData = await request.formData();
+
+    const leaveTypeId = formData.get("leaveTypeId");
+    const startDate = formData.get("startDate");
+    const endDate = formData.get("endDate");
+    const reason = formData.get("reason");
+    const startTime = formData.get("startTime");
+    const endTime = formData.get("endTime");
+    const totalHoursRaw = formData.get("totalHours");
+    const delegateId = formData.get("delegateId");
+    const delegateNotes = formData.get("delegateNotes");
+    const attachment = formData.get("attachment");
+
+    // ── Validasi field wajib ─────────────────────────────────────────────
+    if (typeof leaveTypeId !== "string" || !leaveTypeId) {
+      return NextResponse.json(
+        { error: "Jenis cuti wajib dipilih" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof startDate !== "string" || !startDate) {
+      return NextResponse.json(
+        { error: "Tanggal mulai wajib diisi" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof endDate !== "string" || !endDate) {
+      return NextResponse.json(
+        { error: "Tanggal selesai wajib diisi" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof reason !== "string" || reason.trim().length < 10) {
+      return NextResponse.json(
+        { error: "Alasan minimal 10 karakter" },
+        { status: 400 }
+      );
+    }
+
+    // ── Validasi tanggal ─────────────────────────────────────────────────
+    const start = new Date(startDate);
+    const end = new Date(endDate);
 
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return NextResponse.json({ error: 'Invalid date format' }, { status: 400 })
+      return NextResponse.json(
+        { error: "Format tanggal tidak valid" },
+        { status: 400 }
+      );
+    }
+
+    // TC-LV-025: Tanggal tidak boleh di masa lalu
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (start < today) {
+      return NextResponse.json(
+        { error: "Tanggal mulai tidak boleh di masa lalu" },
+        { status: 400 }
+      );
     }
 
     if (end < start) {
       return NextResponse.json(
-        { error: 'End date must be after or equal to start date' },
+        { error: "Tanggal selesai harus sama atau setelah tanggal mulai" },
         { status: 400 }
-      )
+      );
     }
 
-    const days = countWorkingDays(start, end)
-
+    // ── TC-LV-026: Overlap check ─────────────────────────────────────────
     const overlap = await prisma.leave.findFirst({
       where: {
         employeeId: employee.id,
-        status: { in: ['pending', 'approved'] },
+        status: { in: ["pending", "approved"] },
         OR: [
-          { AND: [{ startDate: { lte: start } }, { endDate: { gte: start } }] },
-          { AND: [{ startDate: { lte: end } }, { endDate: { gte: end } }] },
-          { AND: [{ startDate: { gte: start } }, { endDate: { lte: end } }] },
+          {
+            AND: [{ startDate: { lte: start } }, { endDate: { gte: start } }],
+          },
+          {
+            AND: [{ startDate: { lte: end } }, { endDate: { gte: end } }],
+          },
+          {
+            AND: [{ startDate: { gte: start } }, { endDate: { lte: end } }],
+          },
         ],
       },
-    })
+    });
 
     if (overlap) {
       return NextResponse.json(
-        { error: 'You already have a leave request overlapping these dates' },
+        {
+          error:
+            "Kamu sudah memiliki pengajuan cuti yang bertabrakan dengan tanggal ini",
+        },
         { status: 400 }
-      )
+      );
     }
 
-    const leaveInfo = getLeaveInfo(leaveTypeId)
-    const requiresApprovalLevels = days > 5 ? 2 : 1
+    // ── Hitung durasi ────────────────────────────────────────────────────
+    const leaveInfo = getLeaveInfo(leaveTypeId);
+
+    // Cuti melahirkan & haji pakai calendar days (termasuk weekend)
+    const days = leaveInfo.includeWeekends
+      ? countCalendarDays(start, end)
+      : countWorkingDays(start, end);
+
+    const requiresApprovalLevels = days > 5 ? 2 : 1;
 
     const totalHours =
-      typeof totalHoursRaw === 'string' && totalHoursRaw.trim()
-        ? Number.parseFloat(totalHoursRaw)
-        : null
-
-    let attachmentUrl: string | null = null
+      typeof totalHoursRaw === "string" && totalHoursRaw.trim()
+        ? parseFloat(totalHoursRaw)
+        : null;
 
     if (attachment instanceof File && attachment.size > 0) {
-      console.log('Attachment received:', attachment.name, attachment.size)
-      // TODO: upload ke Supabase Storage, lalu set attachmentUrl
+      // TODO: upload ke Supabase Storage
+      console.log("Attachment received:", attachment.name, attachment.size);
     }
 
-    const data: any = {
+    // ── Build data object dengan tipe Prisma yang benar ──────────────────
+    // Gunakan Prisma.LeaveUncheckedCreateInput agar bisa pakai employeeId &
+    // organizationId sebagai plain string tanpa nested connect.
+    const data: Prisma.LeaveUncheckedCreateInput = {
       employeeId: employee.id,
       organizationId: employee.organizationId,
       leaveType: leaveTypeId,
       startDate: start,
       endDate: end,
-      days: days > 0 ? days : 1,
+      days: Math.max(days, 1),
       reason: reason.trim(),
-      status: 'pending',
+      status: "pending",
       isPaid: leaveInfo.isPaid,
       category: leaveInfo.category,
       currentApprovalLevel: 1,
       requiresApprovalLevels,
-    }
+      // Optional fields — hanya di-set jika ada nilainya
+      startTime:
+        typeof startTime === "string" && startTime.trim()
+          ? startTime
+          : undefined,
+      endTime:
+        typeof endTime === "string" && endTime.trim() ? endTime : undefined,
+      totalHours:
+        typeof totalHours === "number" && !isNaN(totalHours)
+          ? totalHours
+          : undefined,
+      delegateTo:
+        typeof delegateId === "string" && delegateId.trim()
+          ? delegateId
+          : undefined,
+      delegateNotes:
+        typeof delegateNotes === "string" && delegateNotes.trim()
+          ? delegateNotes
+          : undefined,
+    };
 
-    if (typeof startTime === 'string' && startTime.trim()) {
-      data.startTime = startTime
-    }
+    // ── Buat leave record ────────────────────────────────────────────────
+    const leave = await prisma.leave.create({ data });
 
-    if (typeof endTime === 'string' && endTime.trim()) {
-      data.endTime = endTime
-    }
-
-    if (typeof totalHours === 'number' && !Number.isNaN(totalHours)) {
-      data.totalHours = totalHours
-    }
-
-    if (typeof delegateId === 'string' && delegateId.trim()) {
-      data.delegateTo = delegateId
-    }
-
-    if (typeof delegateNotes === 'string' && delegateNotes.trim()) {
-      data.delegateNotes = delegateNotes
-    }
-
-    if (attachmentUrl) {
-      data.attachmentUrl = attachmentUrl
-    }
-
-    const leave = await prisma.leave.create({
-      data,
-    })
-
+    // ── Buat approval record untuk manager ──────────────────────────────
     if (employee.managerId) {
       await prisma.leaveApproval.create({
         data: {
@@ -160,15 +200,15 @@ export async function POST(request: NextRequest) {
           approverId: employee.managerId,
           level: 1,
           sequence: 1,
-          status: 'pending',
-          action: 'pending',
+          status: "pending",
+          action: "pending",
         },
-      })
+      });
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Leave request submitted successfully',
+      message: "Pengajuan cuti berhasil dikirim",
       leave: {
         id: leave.id,
         leaveType: leave.leaveType,
@@ -177,62 +217,109 @@ export async function POST(request: NextRequest) {
         days: leave.days,
         status: leave.status,
       },
-    })
+    });
   } catch (error: any) {
-    console.error('Submit leave request error:', error)
+    console.error("Submit leave request error:", error);
 
-    if (error.code === 'P2002') {
-      return NextResponse.json({ error: 'Duplicate leave request' }, { status: 400 })
-    }
-
-    if (error.code === 'P2003') {
+    if (error.code === "P2002") {
       return NextResponse.json(
-        { error: 'Invalid reference — check employee or delegate ID' },
+        { error: "Pengajuan cuti duplikat" },
         { status: 400 }
-      )
+      );
+    }
+    if (error.code === "P2003") {
+      return NextResponse.json(
+        { error: "Referensi tidak valid — periksa employee atau delegate ID" },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json(
-      { error: error.message || 'Failed to submit leave request' },
+      { error: error.message || "Gagal mengirim pengajuan cuti" },
       { status: 500 }
-    )
+    );
   }
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function countWorkingDays(start: Date, end: Date): number {
-  let count = 0
-  const cur = new Date(start)
-
+  let count = 0;
+  const cur = new Date(start);
   while (cur <= end) {
-    const day = cur.getDay()
-    if (day !== 0 && day !== 6) count++
-    cur.setDate(cur.getDate() + 1)
+    const day = cur.getDay();
+    if (day !== 0 && day !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
   }
-
-  return count
+  return count;
 }
 
-function getLeaveInfo(leaveTypeId: string): { category: string; isPaid: boolean } {
-  const map: Record<string, { category: string; isPaid: boolean }> = {
-    annual: { category: 'annual', isPaid: true },
-    sick: { category: 'health', isPaid: true },
-    maternity: { category: 'maternity', isPaid: true },
-    marriage: { category: 'special', isPaid: true },
-    child_marriage: { category: 'special', isPaid: true },
-    child_circumcision: { category: 'special', isPaid: true },
-    child_baptism: { category: 'special', isPaid: true },
-    paternity: { category: 'special', isPaid: true },
-    family_death: { category: 'special', isPaid: true },
-    extended_family_death: { category: 'special', isPaid: true },
-    hajj: { category: 'special', isPaid: false },
-    compensatory: { category: 'work', isPaid: true },
-    business_trip_local: { category: 'work', isPaid: true },
-    business_trip_province: { category: 'work', isPaid: true },
-    out_of_office: { category: 'work', isPaid: true },
-    wfh: { category: 'work', isPaid: true },
-    wfa: { category: 'work', isPaid: true },
-    unpaid: { category: 'unpaid', isPaid: false },
-  }
+function countCalendarDays(start: Date, end: Date): number {
+  const diffMs = end.getTime() - start.getTime();
+  return Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
+}
 
-  return map[leaveTypeId] ?? { category: 'annual', isPaid: true }
+interface LeaveInfo {
+  category: string;
+  isPaid: boolean;
+  includeWeekends: boolean;
+}
+
+function getLeaveInfo(leaveTypeId: string): LeaveInfo {
+  const map: Record<string, LeaveInfo> = {
+    annual: { category: "annual", isPaid: true, includeWeekends: false },
+    sick: { category: "health", isPaid: true, includeWeekends: true },
+    maternity: { category: "maternity", isPaid: true, includeWeekends: true },
+    marriage: { category: "special", isPaid: true, includeWeekends: false },
+    child_marriage: {
+      category: "special",
+      isPaid: true,
+      includeWeekends: false,
+    },
+    child_circumcision: {
+      category: "special",
+      isPaid: true,
+      includeWeekends: false,
+    },
+    child_baptism: {
+      category: "special",
+      isPaid: true,
+      includeWeekends: false,
+    },
+    paternity: { category: "special", isPaid: true, includeWeekends: false },
+    family_death: {
+      category: "special",
+      isPaid: true,
+      includeWeekends: false,
+    },
+    extended_family_death: {
+      category: "special",
+      isPaid: true,
+      includeWeekends: false,
+    },
+    hajj: { category: "special", isPaid: false, includeWeekends: true },
+    compensatory: { category: "work", isPaid: true, includeWeekends: false },
+    business_trip_local: {
+      category: "work",
+      isPaid: true,
+      includeWeekends: false,
+    },
+    business_trip_province: {
+      category: "work",
+      isPaid: true,
+      includeWeekends: false,
+    },
+    out_of_office: { category: "work", isPaid: true, includeWeekends: false },
+    wfh: { category: "work", isPaid: true, includeWeekends: false },
+    wfa: { category: "work", isPaid: true, includeWeekends: false },
+    unpaid: { category: "unpaid", isPaid: false, includeWeekends: false },
+  };
+
+  return (
+    map[leaveTypeId] ?? {
+      category: "annual",
+      isPaid: true,
+      includeWeekends: false,
+    }
+  );
 }

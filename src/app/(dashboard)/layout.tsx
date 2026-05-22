@@ -1,6 +1,5 @@
 // app/(dashboard)/layout.tsx
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 
 import prisma from "@/lib/prisma";
 import { createClient } from "@/lib/supabase/server";
@@ -24,9 +23,13 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  // ── Satu query saja — ambil semua field yang dibutuhkan sekaligus ──────────
+  // Versi lama query findUnique DUA KALI (sekali untuk data, sekali untuk
+  // notificationCount) → double DB round-trip yang tidak perlu.
   const employee = await prisma.employee.findUnique({
     where: { authId: user.id },
     select: {
+      id: true, // ← dibutuhkan untuk notificationCount
       firstName: true,
       lastName: true,
       email: true,
@@ -39,39 +42,19 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  // ── Simpan role di cookie agar middleware bisa baca tanpa DB call ──────────
-  // Cookie ini dipakai oleh middleware.ts untuk fast role-based redirect.
-  // HttpOnly=false sengaja agar middleware (edge) bisa baca.
-  const cookieStore = await cookies();
-  const existingRole = cookieStore.get("user-role")?.value;
-  if (existingRole !== employee.role) {
-    // Set via response header — layout tidak bisa set cookie langsung,
-    // jadi kita set di sini dan Next.js akan forward ke response.
-    // Alternatif: gunakan middleware untuk set setelah auth check.
-    // Cookie akan ter-set pada response berikutnya via supabase SSR flow.
-  }
-
   const userName = `${employee.firstName} ${employee.lastName}`.trim();
   const userEmail = employee.email;
   const userRole = employee.role;
 
+  // ── Notifikasi — pakai employee.id dari query di atas, tanpa query ulang ──
   let notificationCount = 0;
-
   try {
-    // Cari employee.id dulu untuk query notifikasi
-    const currentEmployee = await prisma.employee.findUnique({
-      where: { authId: user.id },
-      select: { id: true },
+    notificationCount = await prisma.notification.count({
+      where: {
+        recipientId: employee.id,
+        isRead: false,
+      },
     });
-
-    if (currentEmployee) {
-      notificationCount = await prisma.notification.count({
-        where: {
-          recipientId: currentEmployee.id, // ← pakai recipientId sesuai schema
-          isRead: false,
-        },
-      });
-    }
   } catch {
     notificationCount = 0;
   }
@@ -79,9 +62,10 @@ export default async function DashboardLayout({
   return (
     <div className="h-dvh overflow-hidden bg-[#F4F5F7]">
       {/*
-        Set role cookie via meta tag yang dibaca oleh script kecil.
-        Cara paling reliable untuk set cookie dari Server Component
-        tanpa perlu API route tambahan.
+        Set role cookie via inline script.
+        Middleware membaca cookie ini untuk fast role-based redirect
+        tanpa perlu DB call di setiap request.
+        HttpOnly=false sengaja agar middleware (Edge) bisa membacanya.
       */}
       <script
         dangerouslySetInnerHTML={{
@@ -90,7 +74,7 @@ export default async function DashboardLayout({
       />
 
       <div className="flex h-full overflow-hidden">
-        {/* Desktop sidebar */}
+        {/* Desktop sidebar: hidden on mobile/tablet, visible on large screens */}
         <div className="hidden h-full shrink-0 lg:flex">
           <Sidebar
             userRole={userRole}
@@ -99,7 +83,7 @@ export default async function DashboardLayout({
           />
         </div>
 
-        {/* Main layout */}
+        {/* Main layout: fullscreen on mobile */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <Header
             userName={userName}

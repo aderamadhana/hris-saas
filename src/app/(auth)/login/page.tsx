@@ -4,7 +4,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -115,7 +114,9 @@ function getAuthErrorMessage(error: unknown) {
 }
 
 export default function LoginPage() {
-  const router = useRouter();
+  // ── TIDAK pakai useRouter ── karena router.replace + router.refresh
+  // memaksa Next.js re-fetch semua server components, bikin jeda ~1-2 detik.
+  // Gantinya pakai window.location.href = hard navigation yang langsung.
   const supabase = React.useMemo(() => createClient(), []);
 
   const [showPassword, setShowPassword] = React.useState(false);
@@ -149,12 +150,15 @@ export default function LoginPage() {
         throw signInError;
       }
 
-      router.replace("/dashboard");
-      router.refresh();
+      // ── Hard redirect — jauh lebih cepat daripada router.replace + router.refresh ──
+      // router.refresh() memaksa re-fetch seluruh server component tree sebelum
+      // navigasi selesai, sehingga user merasakan jeda ~1-2 detik.
+      // window.location.href langsung trigger full page load ke /dashboard
+      // dengan session cookie yang sudah ter-set — tidak ada double round-trip.
+      window.location.href = "/dashboard";
     } catch (authError) {
       setError(getAuthErrorMessage(authError));
-    } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false); // hanya reset kalau error — kalau sukses biarkan spinner sampai redirect
     }
   };
 
@@ -173,6 +177,7 @@ export default function LoginPage() {
       if (googleError) {
         throw googleError;
       }
+      // Kalau sukses, browser akan redirect ke Google — tidak perlu setIsGoogleLoading(false)
     } catch (authError) {
       setError(getAuthErrorMessage(authError));
       setIsGoogleLoading(false);
@@ -353,7 +358,7 @@ export default function LoginPage() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Signing in
+                      Signing in…
                     </>
                   ) : (
                     <>
@@ -379,7 +384,7 @@ export default function LoginPage() {
                 {isGoogleLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Redirecting
+                    Redirecting…
                   </>
                 ) : (
                   <>

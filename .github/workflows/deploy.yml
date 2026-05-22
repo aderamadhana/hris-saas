@@ -1,0 +1,48 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main # ganti ke master kalau branch utama kamu master
+
+jobs:
+  deploy:
+    name: Deploy arsadaya.aderamadhana.com
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # ── 1. Checkout (hanya untuk trigger, file asli di VPS) ─────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. SSH ke VPS dan jalankan deploy script ─────────────────────────
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script_stop: true # stop jika salah satu command gagal
+          script: |
+            set -e
+
+            echo "━━━ [1/5] Masuk ke folder project ━━━"
+            cd /var/www/arsadaya.aderamadhana.com
+
+            echo "━━━ [2/5] Pull kode terbaru ━━━"
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "━━━ [3/5] Install dependencies ━━━"
+            npm ci --prefer-offline
+
+            echo "━━━ [4/5] Build Next.js ━━━"
+            npm run build
+
+            echo "━━━ [5/5] Restart PM2 ━━━"
+            pm2 restart arsadaya --update-env
+            pm2 save
+
+            echo "✅ Deploy selesai!"

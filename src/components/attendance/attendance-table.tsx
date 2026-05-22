@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -8,6 +8,7 @@ import {
   CalendarDays,
   CheckCircle,
   Clock,
+  Loader2,
   LogOut,
   Search,
   X,
@@ -88,6 +89,10 @@ export function AttendanceTable({
 }: AttendanceTableProps) {
   const router = useRouter();
 
+  // ── useTransition: mendeteksi kapan navigasi sedang berlangsung ───────────
+  // isPending = true selama router.push belum selesai (server sedang fetch data)
+  const [isPending, startTransition] = useTransition();
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -131,10 +136,16 @@ export function AttendanceTable({
 
   const hasActiveFilter = search.trim() || statusFilter !== "all";
 
+  // ── Date filter: wrapped dalam startTransition ────────────────────────────
+  // Ini trigger server re-fetch — perlu loading state.
   const handleDateChange = (date: string) => {
-    router.push(`/attendance?date=${encodeURIComponent(date)}`);
+    startTransition(() => {
+      router.push(`/attendance?date=${encodeURIComponent(date)}`);
+    });
   };
 
+  // ── Search & status filter: client-side, tidak perlu loading state ────────
+  // Sudah pakai useMemo — hasilnya instan, tidak ada network call.
   const resetFilters = () => {
     setSearch("");
     setStatusFilter("all");
@@ -153,13 +164,23 @@ export function AttendanceTable({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600">
-            {filteredRecords.length} shown
-          </span>
+          {/* Badge loading saat filter tanggal sedang di-fetch */}
+          {isPending ? (
+            <span className="inline-flex items-center gap-1.5 border border-[#0B5A43]/30 bg-[#EAF5F0] px-2.5 py-1 text-xs font-medium text-[#0B5A43]">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Loading…
+            </span>
+          ) : (
+            <>
+              <span className="border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600">
+                {filteredRecords.length} shown
+              </span>
 
-          <span className="border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600">
-            {records.length} total
-          </span>
+              <span className="border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600">
+                {records.length} total
+              </span>
+            </>
+          )}
 
           {canEdit && (
             <span className="border border-[#F7A81B]/50 bg-[#FFF4D9] px-2.5 py-1 text-xs font-medium text-[#7A5A00]">
@@ -181,12 +202,21 @@ export function AttendanceTable({
             />
           </div>
 
-          <Input
-            type="date"
-            value={selectedDate}
-            onChange={(event) => handleDateChange(event.target.value)}
-            className="h-10 focus-visible:ring-[#0B5A43]"
-          />
+          {/* Date input — disabled & tampil visual berbeda saat loading */}
+          <div className="relative">
+            <Input
+              type="date"
+              value={selectedDate}
+              onChange={(event) => handleDateChange(event.target.value)}
+              disabled={isPending}
+              className={`h-10 focus-visible:ring-[#0B5A43] ${
+                isPending ? "cursor-not-allowed opacity-60" : ""
+              }`}
+            />
+            {isPending && (
+              <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#0B5A43]" />
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -229,78 +259,94 @@ export function AttendanceTable({
         </div>
       </div>
 
-      <div className="hidden overflow-x-auto md:block">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              <TableHead>Employee</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead>Check in</TableHead>
-              <TableHead>Check out</TableHead>
-              <TableHead>Hours</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Notes</TableHead>
-            </tr>
-          </thead>
+      {/* ── Overlay loading di atas tabel saat fetch data tanggal baru ── */}
+      <div className="relative">
+        {isPending && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
+            <div className="flex items-center gap-2.5 border border-[#0B5A43]/20 bg-white px-4 py-2.5 shadow-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-[#0B5A43]" />
+              <span className="text-sm font-medium text-[#0B5A43]">
+                Loading attendance data…
+              </span>
+            </div>
+          </div>
+        )}
 
-          <tbody className="divide-y divide-gray-100">
-            {filteredRecords.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-12 text-center">
-                  <EmptyState hasActiveFilter={Boolean(hasActiveFilter)} />
-                </td>
+        <div className="hidden overflow-x-auto md:block">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50">
+                <TableHead>Employee</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead>Check in</TableHead>
+                <TableHead>Check out</TableHead>
+                <TableHead>Hours</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Notes</TableHead>
               </tr>
-            ) : (
-              filteredRecords.map((record) => (
-                <tr key={record.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-4">
-                    <EmployeeCell record={record} />
-                  </td>
+            </thead>
 
-                  <td className="px-4 py-4 text-gray-600">
-                    {record.department || "—"}
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <TimeCell value={record.checkIn} type="in" />
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <TimeCell value={record.checkOut} type="out" />
-                  </td>
-
-                  <td className="px-4 py-4 font-medium text-gray-700">
-                    {calculateWorkHours(record.checkIn, record.checkOut)}
-                  </td>
-
-                  <td className="px-4 py-4">
-                    <StatusBadge status={record.status} />
-                  </td>
-
-                  <td className="max-w-[280px] px-4 py-4 text-gray-500">
-                    <p className="truncate">{record.notes || "—"}</p>
+            <tbody className="divide-y divide-gray-100">
+              {filteredRecords.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center">
+                    <EmptyState hasActiveFilter={Boolean(hasActiveFilter)} />
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ) : (
+                filteredRecords.map((record) => (
+                  <tr key={record.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-4">
+                      <EmployeeCell record={record} />
+                    </td>
 
-      <div className="divide-y divide-gray-100 md:hidden">
-        {filteredRecords.length === 0 ? (
-          <div className="p-8 text-center">
-            <EmptyState hasActiveFilter={Boolean(hasActiveFilter)} />
-          </div>
-        ) : (
-          filteredRecords.map((record) => (
-            <MobileRecord key={record.id} record={record} />
-          ))
-        )}
+                    <td className="px-4 py-4 text-gray-600">
+                      {record.department || "—"}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <TimeCell value={record.checkIn} type="in" />
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <TimeCell value={record.checkOut} type="out" />
+                    </td>
+
+                    <td className="px-4 py-4 font-medium text-gray-700">
+                      {calculateWorkHours(record.checkIn, record.checkOut)}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <StatusBadge status={record.status} />
+                    </td>
+
+                    <td className="max-w-[280px] px-4 py-4 text-gray-500">
+                      <p className="truncate">{record.notes || "—"}</p>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="divide-y divide-gray-100 md:hidden">
+          {filteredRecords.length === 0 ? (
+            <div className="p-8 text-center">
+              <EmptyState hasActiveFilter={Boolean(hasActiveFilter)} />
+            </div>
+          ) : (
+            filteredRecords.map((record) => (
+              <MobileRecord key={record.id} record={record} />
+            ))
+          )}
+        </div>
       </div>
     </section>
   );
 }
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function EmployeeCell({ record }: { record: AttendanceRecord }) {
   return (
@@ -439,6 +485,8 @@ function EmptyState({ hasActiveFilter }: { hasActiveFilter: boolean }) {
     </div>
   );
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatTime(value: string | null) {
   if (!value) return "—";
