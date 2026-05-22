@@ -36,7 +36,7 @@ jobs:
             git reset --hard origin/main
 
             echo "━━━ [3/5] Install dependencies ━━━"
-            npm ci --prefer-offline
+            npm install --prefer-offline
 
             echo "━━━ [4/5] Build Next.js ━━━"
             npm run build
